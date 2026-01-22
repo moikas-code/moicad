@@ -1,0 +1,159 @@
+// Shared type definitions for moicad
+
+/**
+ * AST Node Types for OpenSCAD parsing
+ */
+export type ScadNode =
+  | PrimitiveNode
+  | TransformNode
+  | BooleanOpNode
+  | FunctionDefNode
+  | FunctionCallNode
+  | VariableNode
+  | ForLoopNode
+  | ChildrenNode;
+
+export interface PrimitiveNode {
+  type: 'primitive';
+  op: 'cube' | 'sphere' | 'cylinder' | 'cone' | 'circle' | 'square' | 'polygon' | 'polyhedron';
+  params: Record<string, any>;
+  line?: number;
+}
+
+export interface TransformNode {
+  type: 'transform';
+  op: 'translate' | 'rotate' | 'scale' | 'mirror' | 'multmatrix';
+  params: Record<string, any>;
+  children: ScadNode[];
+  line?: number;
+}
+
+export interface BooleanOpNode {
+  type: 'boolean';
+  op: 'union' | 'difference' | 'intersection';
+  children: ScadNode[];
+  line?: number;
+}
+
+export interface FunctionDefNode {
+  type: 'function';
+  name: string;
+  params: string[];
+  body: ScadNode[];
+  line?: number;
+}
+
+export interface FunctionCallNode {
+  type: 'call';
+  name: string;
+  args: Record<string, any>;
+  line?: number;
+}
+
+export interface VariableNode {
+  type: 'variable';
+  name: string;
+  value: any;
+  line?: number;
+}
+
+export interface ForLoopNode {
+  type: 'for';
+  variable: string;
+  range: [number, number] | [number, number, number]; // [start, end] or [start, step, end]
+  body: ScadNode[];
+  line?: number;
+}
+
+export interface ChildrenNode {
+  type: 'children';
+  children: ScadNode[];
+  line?: number;
+}
+
+/**
+ * Geometry data structure (output from WASM)
+ */
+export interface Geometry {
+  vertices: Float32Array | number[];
+  indices: Uint32Array | number[];
+  normals: Float32Array | number[];
+  bounds: {
+    min: [number, number, number];
+    max: [number, number, number];
+  };
+  stats: {
+    vertexCount: number;
+    faceCount: number;
+    volume?: number;
+  };
+}
+
+/**
+ * Parser result
+ */
+export interface ParseResult {
+  ast: ScadNode[] | null;
+  errors: ParseError[];
+  success: boolean;
+}
+
+export interface ParseError {
+  message: string;
+  line: number;
+  column: number;
+  code: string;
+}
+
+/**
+ * Evaluator result
+ */
+export interface EvaluateResult {
+  geometry: Geometry | null;
+  errors: EvaluationError[];
+  success: boolean;
+  executionTime: number;
+}
+
+export interface EvaluationError {
+  message: string;
+  line?: number;
+  stack?: string;
+}
+
+/**
+ * WebSocket message types
+ */
+export interface WsMessage {
+  type: 'parse' | 'evaluate' | 'export' | 'error';
+  payload: any;
+}
+
+export interface EvaluateMessage {
+  type: 'evaluate';
+  code: string;
+  requestId: string;
+}
+
+export interface EvaluateResponse {
+  type: 'evaluate_response';
+  requestId: string;
+  geometry: Geometry | null;
+  errors: EvaluationError[];
+  executionTime: number;
+}
+
+/**
+ * Export options
+ */
+export interface ExportOptions {
+  format: 'stl' | 'obj' | '3mf';
+  binary?: boolean; // for STL
+  precision?: number;
+}
+
+export interface ExportResult {
+  data: ArrayBuffer | string;
+  format: string;
+  filename: string;
+}
