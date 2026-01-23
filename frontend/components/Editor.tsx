@@ -56,7 +56,7 @@ export default function EditorComponent({
         onChange={(value) => onChange(value || '')}
         theme="vs-dark"
         options={{
-          minimap: { enabled: true },
+          minimap: { enabled: false },
           fontSize: 14,
           fontFamily: 'Fira Code, Monaco, Courier New',
           lineNumbers: 'on',
