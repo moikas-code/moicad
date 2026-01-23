@@ -1,6 +1,5 @@
 /// Convex Hull operations for CSG modeling
 /// Implements 3D convex hull using quickhull algorithm
-
 use crate::geometry::Mesh;
 use crate::math::Vec3;
 
@@ -170,12 +169,7 @@ fn quickhull(points: &[Vec3]) -> Option<Mesh> {
     let mut faces = Vec::new();
 
     // Create faces with proper winding (normals pointing outward)
-    let face_indices = [
-        [i0, i1, i2],
-        [i0, i2, i3],
-        [i0, i3, i1],
-        [i1, i3, i2],
-    ];
+    let face_indices = [[i0, i1, i2], [i0, i2, i3], [i0, i3, i1], [i1, i3, i2]];
 
     for [a, b, c] in face_indices {
         let mut face = HullFace::new(a, b, c, points);
@@ -295,7 +289,10 @@ fn quickhull(points: &[Vec3]) -> Option<Mesh> {
             let mut new_face = HullFace::new(e0, e1, apex, points);
 
             // Check winding - normal should point away from interior
-            let face_center = points[e0].add(points[e1]).add(points[apex]).scale(1.0 / 3.0);
+            let face_center = points[e0]
+                .add(points[e1])
+                .add(points[apex])
+                .scale(1.0 / 3.0);
 
             // Find a point that's definitely inside (use original tetrahedron center)
             if new_face.signed_distance(center) > 0.0 {

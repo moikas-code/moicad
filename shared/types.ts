@@ -9,9 +9,16 @@ export type ScadNode =
   | BooleanOpNode
   | FunctionDefNode
   | FunctionCallNode
+  | ModuleDefNode
+  | ModuleCallNode
   | VariableNode
+  | AssignmentNode
+  | IfNode
+  | ExpressionNode
   | ForLoopNode
-  | ChildrenNode;
+  | ChildrenNode
+  | EchoNode
+  | AssertNode;
 
 export interface PrimitiveNode {
   type: 'primitive';
@@ -36,24 +43,62 @@ export interface BooleanOpNode {
 }
 
 export interface FunctionDefNode {
-  type: 'function';
+  type: 'function_def';
+  name: string;
+  params: string[];
+  expression: any; // For OpenSCAD functions: function f(x) = x * 2;
+  line?: number;
+}
+
+export interface FunctionCallNode {
+  type: 'function_call';
+  name: string;
+  args: any[];
+  line?: number;
+}
+
+export interface ModuleDefNode {
+  type: 'module_def';
   name: string;
   params: string[];
   body: ScadNode[];
   line?: number;
 }
 
-export interface FunctionCallNode {
-  type: 'call';
+export interface ModuleCallNode {
+  type: 'module_call';
   name: string;
-  args: Record<string, any>;
+  params: Record<string, any>;
+  children: ScadNode[];
   line?: number;
 }
 
 export interface VariableNode {
   type: 'variable';
   name: string;
+  line?: number;
+}
+
+export interface AssignmentNode {
+  type: 'assignment';
+  name: string;
   value: any;
+  line?: number;
+}
+
+export interface IfNode {
+  type: 'if';
+  condition: any;
+  thenBody: ScadNode[];
+  elseBody?: ScadNode[];
+  line?: number;
+}
+
+export interface ExpressionNode {
+  type: 'expression';
+  operator: string;
+  left: any;
+  right?: any;
   line?: number;
 }
 
@@ -68,6 +113,19 @@ export interface ForLoopNode {
 export interface ChildrenNode {
   type: 'children';
   children: ScadNode[];
+  line?: number;
+}
+
+export interface EchoNode {
+  type: 'echo';
+  values: any[];
+  line?: number;
+}
+
+export interface AssertNode {
+  type: 'assert';
+  condition: any;
+  message?: any;
   line?: number;
 }
 

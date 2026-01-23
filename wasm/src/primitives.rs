@@ -1,5 +1,4 @@
 /// Primitive shape generators for CSG modeling
-
 use crate::geometry::Mesh;
 use crate::math::Vec3;
 use std::f32::consts::{PI, TAU};
@@ -22,16 +21,11 @@ pub fn cube(size: f32) -> Mesh {
 
     let indices = vec![
         // Front face
-        0, 1, 2, 0, 2, 3,
-        // Back face (fixed: was 4, 6, 5, 4, 7, 6)
-        4, 5, 6, 4, 6, 7,
-        // Top face
-        3, 2, 6, 3, 6, 5,
-        // Bottom face (fixed: was 4, 1, 0, 4, 7, 1)
-        4, 0, 1, 4, 1, 7,
-        // Right face
-        1, 7, 6, 1, 6, 2,
-        // Left face
+        0, 1, 2, 0, 2, 3, // Back face (fixed: was 4, 6, 5, 4, 7, 6)
+        4, 5, 6, 4, 6, 7, // Top face
+        3, 2, 6, 3, 6, 5, // Bottom face (fixed: was 4, 1, 0, 4, 7, 1)
+        4, 0, 1, 4, 1, 7, // Right face
+        1, 7, 6, 1, 6, 2, // Left face
         4, 5, 3, 4, 3, 0,
     ];
 

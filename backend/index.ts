@@ -81,16 +81,16 @@ const server = Bun.serve<WebSocketData>({
       return server.upgrade(req, { data: { isMCP: true } }) as any;
     }
 
-    // API Routes
-    if (path === '/api/parse' && req.method === 'POST') {
+    // API Routes (match both with and without trailing slash)
+    if ((path === '/api/parse' || path === '/api/parse/') && req.method === 'POST') {
       return handleParse(req);
     }
 
-    if (path === '/api/evaluate' && req.method === 'POST') {
+    if ((path === '/api/evaluate' || path === '/api/evaluate/') && req.method === 'POST') {
       return handleEvaluate(req);
     }
 
-    if (path === '/api/export' && req.method === 'POST') {
+    if ((path === '/api/export' || path === '/api/export/') && req.method === 'POST') {
       return handleExport(req);
     }
 
@@ -140,8 +140,8 @@ const server = Bun.serve<WebSocketData>({
       return mcpApi.handleGetStats(req);
     }
 
-    // Health check
-    if (path === '/health') {
+    // Health check (match both with and without trailing slash)
+    if (path === '/health' || path === '/health/') {
       return new Response(JSON.stringify({ status: 'ok', wasmLoaded: !!wasmModule }), {
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
       });

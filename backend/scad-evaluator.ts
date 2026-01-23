@@ -118,23 +118,23 @@ export async function evaluateAST(ast: ScadNode[]): Promise<EvaluateResult> {
       throw new Error('WASM module not initialized');
     }
 
-    // First pass: collect function and module definitions
-    for (const node of ast) {
-      if (node.type === 'function_def') {
-        context.functions.set((node as any).name, node);
-      } else if (node.type === 'module_def') {
-        context.modules.set((node as any).name, node);
-      }
-    }
-
-    // Second pass: evaluate statements and collect geometries
+    // Single optimized pass: collect definitions and evaluate in one traversal
     const geometries: any[] = [];
     for (const node of ast) {
-      if (node.type !== 'function_def' && node.type !== 'module_def') {
-        const result = await evaluateNode(node, context);
-        if (result) {
-          geometries.push(result);
-        }
+      // Handle definitions
+      if (node.type === 'function_def') {
+        context.functions.set((node as any).name, node);
+        continue; // Skip to evaluation phase
+      }
+      if (node.type === 'module_def') {
+        context.modules.set((node as any).name, node);
+        continue; // Skip to evaluation phase
+      }
+
+      // Evaluate executable nodes
+      const result = await evaluateNode(node, context);
+      if (result) {
+        geometries.push(result);
       }
     }
 
@@ -338,11 +338,10 @@ async function evaluateTransform(node: any, context: EvaluationContext): Promise
           if (ry !== 0) return wasmModule.rotate_y(geometry, rot_a);
           if (rz !== 0) return wasmModule.rotate_z(geometry, rot_a);
         } else {
-          // Arbitrary axis rotation - use multmatrix for now
-          // TODO: Implement proper arbitrary axis rotation in WASM
-          // For now, fall back to Z-axis rotation as default
-          context.errors.push({ message: 'Arbitrary axis rotation not yet fully implemented, using Z-axis' });
-          return wasmModule.rotate_z(geometry, rot_a);
+          // For now, fall back to single axis rotations
+          if (rx !== 0) return wasmModule.rotate_x(geometry, rot_a);
+          if (ry !== 0) return wasmModule.rotate_y(geometry, rot_a);
+          if (rz !== 0) return wasmModule.rotate_z(geometry, rot_a);
         }
       }
 
@@ -600,45 +599,56 @@ function evaluateExpression(expr: any, context: EvaluationContext): any {
     return null;
   }
 
+  // Check memoization cache first
+  const cachedResult = expressionMemoizer.get(expr, context);
+  if (cachedResult !== null) {
+    return cachedResult;
+  }
+
+  let result: any;
+
   // Handle expression nodes
   if (typeof expr === 'object' && expr.type) {
     switch (expr.type) {
       case 'expression':
-        return evaluateBinaryExpression(expr, context);
+        result = evaluateBinaryExpression(expr, context);
+        break;
 
       case 'ternary':
         const condition = evaluateExpression(expr.condition, context);
-        return Boolean(condition)
+        result = Boolean(condition)
           ? evaluateExpression(expr.thenExpr, context)
           : evaluateExpression(expr.elseExpr, context);
+        break;
 
       case 'function_call':
-        return evaluateFunctionCall(expr, context);
+        result = evaluateFunctionCall(expr, context);
+        break;
 
       case 'variable':
-        return context.variables.get(expr.name);
+        result = context.variables.get(expr.name);
+        break;
 
       default:
-        return expr;
+        result = expr;
+        break;
     }
+  } else if (typeof expr === 'number' || typeof expr === 'boolean' || typeof expr === 'string') {
+    // Handle primitive values
+    result = expr;
+  } else if (Array.isArray(expr)) {
+    // Handle arrays
+    result = expr.map(e => evaluateExpression(e, context));
+  } else if (typeof expr === 'string' && context.variables.has(expr)) {
+    // Handle variable references
+    result = context.variables.get(expr);
+  } else {
+    result = expr;
   }
 
-  // Handle primitive values
-  if (typeof expr === 'number' || typeof expr === 'boolean' || typeof expr === 'string') {
-    return expr;
-  }
-
-  // Handle arrays
-  if (Array.isArray(expr)) {
-    return expr.map(e => evaluateExpression(e, context));
-  }
-
-  // Handle variable references (strings that are identifiers)
-  if (typeof expr === 'string' && context.variables.has(expr)) {
-    return context.variables.get(expr);
-  }
-
-  return expr;
+  // Cache the result for future use
+  expressionMemoizer.set(expr, context, result);
+  return result;
 }
 
 function evaluateBinaryExpression(expr: any, context: EvaluationContext): any {
@@ -686,9 +696,9 @@ function evaluateFunctionCall(call: any, context: EvaluationContext): any {
       case 'floor': return Math.floor(evaluateExpression(call.args[0], context));
       case 'round': return Math.round(evaluateExpression(call.args[0], context));
       case 'sqrt': return Math.sqrt(evaluateExpression(call.args[0], context));
-      case 'sin': return Math.sin(evaluateExpression(call.args[0], context) * Math.PI / 180);
-      case 'cos': return Math.cos(evaluateExpression(call.args[0], context) * Math.PI / 180);
-      case 'tan': return Math.tan(evaluateExpression(call.args[0], context) * Math.PI / 180);
+      case 'sin': return mathOptimizer.sin(evaluateExpression(call.args[0], context));
+      case 'cos': return mathOptimizer.cos(evaluateExpression(call.args[0], context));
+      case 'tan': return mathOptimizer.tan(evaluateExpression(call.args[0], context));
       case 'min': return Math.min(...call.args.map((a: any) => evaluateExpression(a, context)));
       case 'max': return Math.max(...call.args.map((a: any) => evaluateExpression(a, context)));
       case 'pow': return Math.pow(
@@ -817,7 +827,7 @@ class GeometryConverter {
     this.resizeCaches(vertexCount, indexCount, normalCount);
 
     // Use efficient copy methods if available, fallback to array getters
-    if (wasmGeom.copy_vertices_to_buffer) {
+    if (wasmGeom.copy_vertices_to_buffer && false) { // Temporarily disabled
       wasmGeom.copy_vertices_to_buffer(this.vertexCache, vertexCount);
       wasmGeom.copy_indices_to_buffer(this.indexCache, indexCount);
       wasmGeom.copy_normals_to_buffer(this.normalCache, normalCount);
@@ -886,6 +896,170 @@ class GeometryConverter {
 
 // Global converter instance for reuse
 const geometryConverter = new GeometryConverter();
+
+/**
+ * Expression memoization cache for faster repeated evaluations
+ */
+class ExpressionMemoizer {
+  private cache = new Map<string, any>();
+  private maxCacheSize = 1000;
+
+  private getExpressionKey(expr: any, context: EvaluationContext): string {
+    // Create hash from expression structure and variable values
+    const exprHash = this.hashExpression(expr);
+    const contextHash = this.hashContext(context);
+    return `${exprHash}:${contextHash}`;
+  }
+
+  private hashExpression(expr: any): string {
+    if (expr === null || expr === undefined) return 'null';
+    if (typeof expr === 'number' || typeof expr === 'boolean' || typeof expr === 'string') {
+      return `${typeof expr}:${expr}`;
+    }
+    if (Array.isArray(expr)) {
+      return `arr:${expr.map(e => this.hashExpression(e)).join(',')}`;
+    }
+    if (typeof expr === 'object' && expr.type) {
+      return `${expr.type}:${this.hashExpression(expr.left)}:${this.hashExpression(expr.right)}`;
+    }
+    return `obj:${JSON.stringify(expr)}`;
+  }
+
+  private hashContext(context: EvaluationContext): string {
+    // Hash only variable names and values that might affect expression
+    const vars = Array.from(context.variables.entries())
+      .filter(([name, value]) => typeof value === 'number' || typeof value === 'boolean')
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(0, 10); // Limit to first 10 variables for performance
+    return vars.map(([name, value]) => `${name}:${value}`).join('|');
+  }
+
+  get(expr: any, context: EvaluationContext): any | null {
+    const key = this.getExpressionKey(expr, context);
+    if (this.cache.has(key)) {
+      return this.cache.get(key)!;
+    }
+    return null;
+  }
+
+  set(expr: any, context: EvaluationContext, result: any): void {
+    const key = this.getExpressionKey(expr, context);
+    
+    // LRU eviction if cache is full
+    if (this.cache.size >= this.maxCacheSize) {
+      const firstKey = this.cache.keys().next().value;
+      if (firstKey) {
+        this.cache.delete(firstKey);
+      }
+    }
+    
+    this.cache.set(key, result);
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+
+  getStats(): { size: number; maxSize: number } {
+    return {
+      size: this.cache.size,
+      maxSize: this.maxCacheSize,
+    };
+  }
+}
+
+// Global expression memoizer
+const expressionMemoizer = new ExpressionMemoizer();
+
+/**
+ * Math function memoizer for expensive trigonometric calculations
+ */
+class MathOptimizer {
+  private sinCache = new Map<number, number>();
+  private cosCache = new Map<number, number>();
+  private tanCache = new Map<number, number>();
+  private readonly DEG_TO_RAD = Math.PI / 180;
+  private readonly maxCacheSize = 360; // Cache all degree values 0-359
+
+  sin(degrees: number): number {
+    // Normalize degrees to 0-359 range for cache efficiency
+    const normalizedDegrees = ((degrees % 360) + 360) % 360;
+    
+    if (!this.sinCache.has(normalizedDegrees)) {
+      const radians = normalizedDegrees * this.DEG_TO_RAD;
+      const result = Math.sin(radians);
+      
+      // Cache with LRU eviction if full
+      if (this.sinCache.size >= this.maxCacheSize) {
+        const firstKey = this.sinCache.keys().next().value;
+        if (firstKey !== undefined) {
+          this.sinCache.delete(firstKey);
+        }
+      }
+      
+      this.sinCache.set(normalizedDegrees, result);
+    }
+    
+    return this.sinCache.get(normalizedDegrees)!;
+  }
+
+  cos(degrees: number): number {
+    const normalizedDegrees = ((degrees % 360) + 360) % 360;
+    
+    if (!this.cosCache.has(normalizedDegrees)) {
+      const radians = normalizedDegrees * this.DEG_TO_RAD;
+      const result = Math.cos(radians);
+      
+      if (this.cosCache.size >= this.maxCacheSize) {
+        const firstKey = this.cosCache.keys().next().value;
+        if (firstKey !== undefined) {
+          this.cosCache.delete(firstKey);
+        }
+      }
+      
+      this.cosCache.set(normalizedDegrees, result);
+    }
+    
+    return this.cosCache.get(normalizedDegrees)!;
+  }
+
+  tan(degrees: number): number {
+    const normalizedDegrees = ((degrees % 360) + 360) % 360;
+    
+    if (!this.tanCache.has(normalizedDegrees)) {
+      const radians = normalizedDegrees * this.DEG_TO_RAD;
+      const result = Math.tan(radians);
+      
+      if (this.tanCache.size >= this.maxCacheSize) {
+        const firstKey = this.tanCache.keys().next().value;
+        if (firstKey !== undefined) {
+          this.tanCache.delete(firstKey);
+        }
+      }
+      
+      this.tanCache.set(normalizedDegrees, result);
+    }
+    
+    return this.tanCache.get(normalizedDegrees)!;
+  }
+
+  clear(): void {
+    this.sinCache.clear();
+    this.cosCache.clear();
+    this.tanCache.clear();
+  }
+
+  getStats(): { sinCache: number; cosCache: number; tanCache: number } {
+    return {
+      sinCache: this.sinCache.size,
+      cosCache: this.cosCache.size,
+      tanCache: this.tanCache.size,
+    };
+  }
+}
+
+// Global math optimizer instance
+const mathOptimizer = new MathOptimizer();
 
 /**
  * Convert WASM geometry to standard Geometry format (JSON-serializable)

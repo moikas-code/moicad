@@ -227,6 +227,15 @@ pub fn rotate_z(mesh: &WasmMesh, angle: f32) -> WasmMesh {
 }
 
 #[wasm_bindgen]
+pub fn rotate_axis(mesh: &WasmMesh, x: f32, y: f32, z: f32, angle: f32) -> WasmMesh {
+    let axis = math::Vec3::new(x, y, z);
+    let matrix = math::Mat4::rotation_axis_angle(axis, angle);
+    WasmMesh {
+        mesh: csg::transform_mesh(&mesh.mesh, &matrix),
+    }
+}
+
+#[wasm_bindgen]
 pub fn scale(mesh: &WasmMesh, sx: f32, sy: f32, sz: f32) -> WasmMesh {
     WasmMesh {
         mesh: csg::scale(&mesh.mesh, sx, sy, sz),

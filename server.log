@@ -1,0 +1,17 @@
+Stub AI provider initialized with config: {}
+AI provider registered: Stub AI Provider (stub-provider)
+Default AI providers initialized
+✓ WASM module initialized
+49 |   requestId?: string;
+50 |   isMCP?: boolean;
+51 |   connectionId?: string;
+52 | }
+53 | 
+54 | const server = Bun.serve<WebSocketData>({
+                        ^
+error: Failed to start server. Is port 3000 in use?
+ syscall: "listen",
+   errno: 0,
+    code: "EADDRINUSE"
+
+      at /home/moika/Documents/code/moicad/backend/index.ts:54:20

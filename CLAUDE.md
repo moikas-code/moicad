@@ -144,17 +144,21 @@ Backend will use newly built module. No need to restart server if it's running w
   - Dynamic WASM import with fallback
 
 - **`backend/scad-parser.ts`** - Tokenizer + Parser
-  - `Tokenizer` class: Lexical analysis (keywords, numbers, strings, operators)
-  - `Parser` class: Recursive descent parser → AST
+  - `Tokenizer` class: Lexical analysis (keywords, numbers, strings, operators, ternary)
+  - `Parser` class: Full recursive descent parser with expression support
   - `parseOpenSCAD()`: Public entry point
   - Returns: `ParseResult` with AST, errors, success flag
-  - Handles comments, strings, arrays, parameters
+  - **Full OpenSCAD support**: variables, functions, modules, if/else, expressions
+  - Expression precedence: ternary → logical OR → logical AND → comparison → arithmetic → unary
+  - Handles comments (single/multi-line), strings, arrays, parameters
 
 - **`backend/scad-evaluator.ts`** - AST Execution
   - `evaluateAST()`: Main evaluation function
-  - Evaluates each node type: primitive, transform, boolean, for loop
+  - Evaluates all node types: primitives, transforms, booleans, for loops, modules, functions, if/else
   - Calls WASM functions for geometry operations
-  - Manages context: variables, functions, errors
+  - **Full scope management**: Variables, functions, and modules with proper scoping
+  - Built-in math functions: abs, ceil, floor, round, sqrt, sin, cos, tan, min, max, pow, len
+  - Expression evaluation: arithmetic, logical, comparison, ternary operators
   - Converts WASM geometry to standard Geometry format
 
 ### WASM Structure (Rust)
@@ -221,7 +225,9 @@ Backend will use newly built module. No need to restart server if it's running w
 
 ---
 
-## Supported OpenSCAD Features (MVP)
+## Supported OpenSCAD Features - Full Language Support! 🎉
+
+moicad now supports most OpenSCAD language features, making it a viable OpenSCAD replacement!
 
 ### Primitives
 - `cube(size)` - Default 10
@@ -239,21 +245,89 @@ Backend will use newly built module. No need to restart server if it's running w
 - `multmatrix([[16 matrix elements]])` - Custom 4x4 transformation
 
 ### Boolean Operations
-- `union()` - Combine shapes
+- `union()` - Combine shapes ✅
 - `difference()` - Subtract (currently returns first shape - placeholder)
 - `intersection()` - Overlap (currently returns first shape - placeholder)
 
+### Variables & Assignments ✅ NEW!
+```scad
+size = 10;
+width = size * 2;
+cube(width);
+```
+
+### Functions ✅ NEW!
+```scad
+function double(x) = x * 2;
+function area(w, h) = w * h;
+size = double(5);
+cube(size);
+```
+
+### Modules ✅ NEW!
+```scad
+module box(w, h, d) {
+    cube([w, h, d]);
+}
+
+module keycap(size) {
+    difference() {
+        cube(size);
+        translate([1,1,1]) cube(size-2);
+    }
+}
+
+box(10, 20, 5);
+keycap(18);
+```
+
+### Conditional Statements ✅ NEW!
+```scad
+enable_feature = true;
+
+if (enable_feature) {
+    cube(10);
+} else {
+    sphere(5);
+}
+```
+
+### Expressions & Operators ✅ NEW!
+- **Arithmetic**: `+`, `-`, `*`, `/`, `%`
+- **Comparison**: `==`, `!=`, `<`, `>`, `<=`, `>=`
+- **Logical**: `&&`, `||`, `!`
+- **Ternary**: `condition ? true_value : false_value`
+
+```scad
+size = 10;
+expanded = size * 1.5 + 2;
+is_large = size > 5;
+result = is_large ? 20 : 10;
+cube(result);
+```
+
+### Built-in Math Functions ✅ NEW!
+- `abs(x)`, `ceil(x)`, `floor(x)`, `round(x)`
+- `sqrt(x)`, `pow(x, y)`
+- `sin(x)`, `cos(x)`, `tan(x)` - angles in degrees
+- `min(x, y, ...)`, `max(x, y, ...)`
+- `len(array)` - array length
+
 ### Control Flow
-- `for (var = [start : end])` or `for (var = [start : step : end])` - Loop with accumulation
-- Variables: Basic variable support in loops
+- `for (var = [start : end])` or `for (var = [start : step : end])` - Loop with accumulation ✅
+
+### Comments
+- Single-line: `// comment`
+- Multi-line: `/* comment */`
 
 ### Not Yet Implemented
-- User-defined functions (parser ready, evaluator needs work)
-- Advanced operations: hull, minkowski
+- Advanced operations: hull ✅, minkowski
 - 2D extrusions: linear_extrude, rotate_extrude
 - Polygon, polyhedron
-- Modules, imports
+- Imports, include
 - Color/material
+- List comprehensions
+- Special variables: `$fa`, `$fs`, `$t`
 
 ---
 

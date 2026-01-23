@@ -1,5 +1,4 @@
 /// Matrix and vector math utilities for CAD operations
-
 use std::f32::consts::PI;
 
 /// 3D Vector
@@ -16,7 +15,11 @@ impl Vec3 {
     }
 
     pub fn zero() -> Self {
-        Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+        Vec3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
     }
 
     pub fn add(&self, other: Vec3) -> Vec3 {
@@ -79,10 +82,7 @@ impl Mat4 {
     pub fn identity() -> Self {
         Mat4 {
             m: [
-                1.0, 0.0, 0.0, 0.0,
-                0.0, 1.0, 0.0, 0.0,
-                0.0, 0.0, 1.0, 0.0,
-                0.0, 0.0, 0.0, 1.0,
+                1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
             ],
         }
     }
@@ -91,10 +91,10 @@ impl Mat4 {
     pub fn translation(x: f32, y: f32, z: f32) -> Self {
         Mat4 {
             m: [
-                1.0, 0.0, 0.0, 0.0,  // column 0
-                0.0, 1.0, 0.0, 0.0,  // column 1
-                0.0, 0.0, 1.0, 0.0,  // column 2
-                x,   y,   z,   1.0,  // column 3 (translation)
+                1.0, 0.0, 0.0, 0.0, // column 0
+                0.0, 1.0, 0.0, 0.0, // column 1
+                0.0, 0.0, 1.0, 0.0, // column 2
+                x, y, z, 1.0, // column 3 (translation)
             ],
         }
     }
@@ -103,10 +103,10 @@ impl Mat4 {
     pub fn scale(sx: f32, sy: f32, sz: f32) -> Self {
         Mat4 {
             m: [
-                sx,  0.0, 0.0, 0.0,  // column 0
-                0.0, sy,  0.0, 0.0,  // column 1
-                0.0, 0.0, sz,  0.0,  // column 2
-                0.0, 0.0, 0.0, 1.0,  // column 3
+                sx, 0.0, 0.0, 0.0, // column 0
+                0.0, sy, 0.0, 0.0, // column 1
+                0.0, 0.0, sz, 0.0, // column 2
+                0.0, 0.0, 0.0, 1.0, // column 3
             ],
         }
     }
@@ -119,10 +119,10 @@ impl Mat4 {
 
         Mat4 {
             m: [
-                1.0, 0.0, 0.0, 0.0,  // column 0
-                0.0, c,   s,   0.0,  // column 1
-                0.0, -s,  c,   0.0,  // column 2
-                0.0, 0.0, 0.0, 1.0,  // column 3
+                1.0, 0.0, 0.0, 0.0, // column 0
+                0.0, c, s, 0.0, // column 1
+                0.0, -s, c, 0.0, // column 2
+                0.0, 0.0, 0.0, 1.0, // column 3
             ],
         }
     }
@@ -135,10 +135,10 @@ impl Mat4 {
 
         Mat4 {
             m: [
-                c,   0.0, -s,  0.0,  // column 0
-                0.0, 1.0, 0.0, 0.0,  // column 1
-                s,   0.0, c,   0.0,  // column 2
-                0.0, 0.0, 0.0, 1.0,  // column 3
+                c, 0.0, -s, 0.0, // column 0
+                0.0, 1.0, 0.0, 0.0, // column 1
+                s, 0.0, c, 0.0, // column 2
+                0.0, 0.0, 0.0, 1.0, // column 3
             ],
         }
     }
@@ -151,10 +151,10 @@ impl Mat4 {
 
         Mat4 {
             m: [
-                c,   s,   0.0, 0.0,  // column 0
-                -s,  c,   0.0, 0.0,  // column 1
-                0.0, 0.0, 1.0, 0.0,  // column 2
-                0.0, 0.0, 0.0, 1.0,  // column 3
+                c, s, 0.0, 0.0, // column 0
+                -s, c, 0.0, 0.0, // column 1
+                0.0, 0.0, 1.0, 0.0, // column 2
+                0.0, 0.0, 0.0, 1.0, // column 3
             ],
         }
     }
@@ -198,8 +198,8 @@ impl Mat4 {
         // Extract the 3x3 rotation/scale part
         let mut inv = Mat4::identity();
         let det = self.m[0] * (self.m[5] * self.m[10] - self.m[6] * self.m[9])
-                - self.m[4] * (self.m[1] * self.m[10] - self.m[2] * self.m[9])
-                + self.m[8] * (self.m[1] * self.m[6] - self.m[2] * self.m[5]);
+            - self.m[4] * (self.m[1] * self.m[10] - self.m[2] * self.m[9])
+            + self.m[8] * (self.m[1] * self.m[6] - self.m[2] * self.m[5]);
 
         if det.abs() < 1e-6 {
             // Degenerate matrix, return identity
@@ -227,14 +227,48 @@ impl Mat4 {
         result
     }
 
+    /// Transpose the matrix (swap rows and columns)
     pub fn transpose(&mut self) {
-        let temp = [
-            self.m[0], self.m[4], self.m[8], self.m[12],
-            self.m[1], self.m[5], self.m[9], self.m[13],
-            self.m[2], self.m[6], self.m[10], self.m[14],
-            self.m[3], self.m[7], self.m[11], self.m[15],
+        let m = self.m;
+        self.m = [
+            m[0], m[4], m[8], m[12], m[1], m[5], m[9], m[13], m[2], m[6], m[10], m[14], m[3], m[7],
+            m[11], m[15],
         ];
-        self.m = temp;
+    }
+
+    /// Create rotation matrix for arbitrary axis rotation (Rodrigues' formula)
+    pub fn rotation_axis_angle(axis: Vec3, angle_degrees: f32) -> Mat4 {
+        let angle = angle_degrees * PI / 180.0;
+        let cos_a = angle.cos();
+        let sin_a = angle.sin();
+        let one_minus_cos = 1.0 - cos_a;
+
+        let axis = axis.normalize();
+        let x = axis.x;
+        let y = axis.y;
+        let z = axis.z;
+
+        // Rodrigues' rotation matrix
+        Mat4 {
+            m: [
+                cos_a + x * x * one_minus_cos,
+                x * y * one_minus_cos - z * sin_a,
+                x * z * one_minus_cos + y * sin_a,
+                0.0,
+                y * x * one_minus_cos + z * sin_a,
+                cos_a + y * y * one_minus_cos,
+                y * z * one_minus_cos - x * sin_a,
+                0.0,
+                z * x * one_minus_cos - y * sin_a,
+                z * y * one_minus_cos + x * sin_a,
+                cos_a + z * z * one_minus_cos,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+            ],
+        }
     }
 }
 

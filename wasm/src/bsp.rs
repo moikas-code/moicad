@@ -1,6 +1,5 @@
 /// BSP Tree implementation for CSG operations
 /// Based on the classic BSP algorithm for mesh boolean operations
-
 use crate::math::Vec3;
 
 const EPSILON: f32 = 1e-5;
@@ -133,8 +132,7 @@ impl Polygon {
                 || (ti == PointClass::Back && tj == PointClass::Front)
             {
                 // Compute intersection point
-                let t = (plane.w - plane.normal.dot(vi))
-                    / plane.normal.dot(vj.subtract(vi));
+                let t = (plane.w - plane.normal.dot(vi)) / plane.normal.dot(vj.subtract(vi));
                 let intersection = vi.add(vj.subtract(vi).scale(t));
                 front_pts.push(intersection);
                 back_pts.push(intersection);

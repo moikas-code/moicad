@@ -14,20 +14,68 @@ class Tokenizer {
     this.input = input;
   }
 
+  // Optimized character classification using lookup tables
+  // Eliminates regex overhead for every character check
+  private static readonly CHAR_TYPES = new Uint8Array(256);
+  private static readonly KEYWORDS = new Set([
+    'cube', 'sphere', 'cylinder', 'cone', 'circle', 'square', 'polygon',
+    'translate', 'rotate', 'scale', 'mirror', 'multmatrix',
+    'union', 'difference', 'intersection', 'hull', 'minkowski',
+    'for', 'let', 'function', 'module', 'children',
+    'if', 'else', 'echo',
+  ]);
+
+  // Initialize character type lookup table (called once)
+  static {
+    // 0 = unknown, 1 = whitespace, 2 = digit, 3 = alpha, 4 = operator, 5 = punctuation
+    for (let i = 0; i < 256; i++) {
+      const ch = String.fromCharCode(i);
+      if (/\s/.test(ch)) {
+        Tokenizer.CHAR_TYPES[i] = 1; // whitespace
+      } else if (/\d/.test(ch)) {
+        Tokenizer.CHAR_TYPES[i] = 2; // digit
+      } else if (/[a-zA-Z_]/.test(ch)) {
+        Tokenizer.CHAR_TYPES[i] = 3; // alpha
+      } else if (['!', '<', '>', '+', '-', '*', '/', '%', '=', '?', ':'].includes(ch)) {
+        Tokenizer.CHAR_TYPES[i] = 4; // operator
+      } else if (['[', ']', '(', ')', '{', '}', ',', ';'].includes(ch)) {
+        Tokenizer.CHAR_TYPES[i] = 5; // punctuation
+      } else {
+        Tokenizer.CHAR_TYPES[i] = 0; // unknown
+      }
+    }
+  }
+
   private isWhitespace(ch: string): boolean {
-    return /\s/.test(ch);
+    const code = this.pos < this.input.length ? this.input.charCodeAt(this.pos) : 0;
+    return code < 256 && Tokenizer.CHAR_TYPES[code] === 1;
   }
 
   private isDigit(ch: string): boolean {
-    return /\d/.test(ch);
+    const code = this.pos < this.input.length ? this.input.charCodeAt(this.pos) : 0;
+    return code < 256 && Tokenizer.CHAR_TYPES[code] === 2;
   }
 
   private isAlpha(ch: string): boolean {
-    return /[a-zA-Z_]/.test(ch);
+    const code = this.pos < this.input.length ? this.input.charCodeAt(this.pos) : 0;
+    return code < 256 && Tokenizer.CHAR_TYPES[code] === 3;
   }
 
   private isAlphaNumeric(ch: string): boolean {
-    return this.isAlpha(ch) || this.isDigit(ch);
+    const code = this.pos < this.input.length ? this.input.charCodeAt(this.pos) : 0;
+    if (code >= 256) return false;
+    const charType = Tokenizer.CHAR_TYPES[code];
+    return charType === 2 || charType === 3; // digit or alpha
+  }
+
+  private isOperator(ch: string): boolean {
+    const code = this.pos < this.input.length ? this.input.charCodeAt(this.pos) : 0;
+    return code < 256 && Tokenizer.CHAR_TYPES[code] === 4;
+  }
+
+  private isPunctuation(ch: string): boolean {
+    const code = this.pos < this.input.length ? this.input.charCodeAt(this.pos) : 0;
+    return code < 256 && Tokenizer.CHAR_TYPES[code] === 5;
   }
 
   private peek(offset = 0): string {
@@ -75,41 +123,74 @@ class Tokenizer {
 
   private readString(quote: string): string {
     this.advance(); // Opening quote
-    let result = '';
+    const chars: string[] = [];
+    
     while (this.peek() && this.peek() !== quote) {
       if (this.peek() === '\\') {
         this.advance();
         const escaped = this.peek();
         switch (escaped) {
-          case 'n': result += '\n'; break;
-          case 't': result += '\t'; break;
-          case 'r': result += '\r'; break;
-          case '\\': result += '\\'; break;
-          case '"': result += '"'; break;
-          case "'": result += "'"; break;
-          default: result += escaped;
+          case 'n': chars.push('\n'); break;
+          case 't': chars.push('\t'); break;
+          case 'r': chars.push('\r'); break;
+          case '\\': chars.push('\\'); break;
+          case '"': chars.push('"'); break;
+          case "'": chars.push("'"); break;
+          default: chars.push(escaped);
         }
         this.advance();
       } else {
-        result += this.advance();
+        chars.push(this.advance());
       }
     }
     if (this.peek() === quote) this.advance(); // Closing quote
-    return result;
+    
+    // Join characters at the end instead of repeated concatenation
+    return chars.join('');
   }
 
   private readNumber(): string {
-    let result = '';
-    while (this.isDigit(this.peek()) || this.peek() === '.') {
-      result += this.advance();
+    const start = this.pos;
+    let hasDecimal = false;
+    
+    // Skip leading sign
+    if (this.peek() === '-' || this.peek() === '+') {
+      this.advance();
     }
-    if ((this.peek() === 'e' || this.peek() === 'E') &&
-        (this.isDigit(this.peek(1)) || this.peek(1) === '-')) {
-      result += this.advance(); // e or E
-      if (this.peek() === '-' || this.peek() === '+') result += this.advance();
-      while (this.isDigit(this.peek())) result += this.advance();
+    
+    // Read digits before decimal
+    while (this.isDigit(this.peek())) {
+      this.advance();
     }
-    return result;
+    
+    // Handle decimal point
+    if (this.peek() === '.') {
+      hasDecimal = true;
+      this.advance(); // Skip '.'
+      
+      // Read digits after decimal
+      while (this.isDigit(this.peek())) {
+        this.advance();
+      }
+    }
+    
+    // Handle scientific notation
+    if ((this.peek() === 'e' || this.peek() === 'E')) {
+      this.advance(); // Skip 'e' or 'E'
+      
+      // Handle sign
+      if (this.peek() === '-' || this.peek() === '+') {
+        this.advance();
+      }
+      
+      // Read exponent digits
+      while (this.isDigit(this.peek())) {
+        this.advance();
+      }
+    }
+    
+    // Extract substring directly instead of building string
+    return this.input.substring(start, this.pos);
   }
 
   private readIdentifier(): string {
@@ -204,13 +285,7 @@ class Tokenizer {
   }
 
   private isKeyword(word: string): boolean {
-    return [
-      'cube', 'sphere', 'cylinder', 'cone', 'circle', 'square', 'polygon',
-      'translate', 'rotate', 'scale', 'mirror', 'multmatrix',
-      'union', 'difference', 'intersection', 'hull', 'minkowski',
-      'for', 'let', 'function', 'module', 'children',
-      'if', 'else', 'echo',
-    ].includes(word);
+    return Tokenizer.KEYWORDS.has(word);
   }
 }
 
