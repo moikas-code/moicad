@@ -40,6 +40,11 @@ export class SceneManager {
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     config.container.appendChild(this.renderer.domElement);
 
+    // Style canvas to fill container for responsive resizing
+    this.renderer.domElement.style.width = '100%';
+    this.renderer.domElement.style.height = '100%';
+    this.renderer.domElement.style.display = 'block';
+
     // Lighting
     this.setupLighting();
 
@@ -189,16 +194,26 @@ export class SceneManager {
   };
 
   /**
+   * Resize renderer and camera to new dimensions
+   */
+  public resize(width: number, height: number): void {
+    this.camera.aspect = width / height;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(width, height);
+
+    // Ensure canvas CSS matches (defensive sizing)
+    this.renderer.domElement.style.width = '100%';
+    this.renderer.domElement.style.height = '100%';
+  }
+
+  /**
    * Handle window resize
    */
   private onWindowResize(config: SceneConfig): void {
     const container = config.container;
     const width = container.clientWidth;
     const height = container.clientHeight;
-
-    this.camera.aspect = width / height;
-    this.camera.updateProjectionMatrix();
-    this.renderer.setSize(width, height);
+    this.resize(width, height);
   }
 
   /**
