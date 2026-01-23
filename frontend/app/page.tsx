@@ -153,6 +153,10 @@ export default function Home() {
         return;
       }
 
+      // Check if the event target is within Monaco editor
+      const target = event.target as HTMLElement;
+      const isMonacoEditor = target.closest('.monaco-editor') !== null;
+
       const { ctrlKey, metaKey, shiftKey, key } = event;
       const cmdOrCtrl = ctrlKey || metaKey;
 
@@ -198,6 +202,10 @@ export default function Home() {
             break;
           case 'z':
           case 'Z':
+            // Skip undo/redo when in Monaco editor - let Monaco handle it
+            if (isMonacoEditor) {
+              return;
+            }
             event.preventDefault();
             if (shiftKey) {
               // Redo (Cmd+Shift+Z)
@@ -209,21 +217,33 @@ export default function Home() {
             break;
           case 'y':
           case 'Y':
+            // Skip undo/redo when in Monaco editor - let Monaco handle it
+            if (isMonacoEditor) {
+              return;
+            }
             event.preventDefault();
             // Redo (Cmd+Y)
             console.log('Redo requested');
             break;
           case 'c':
           case 'C':
+            // Skip copy/paste when in Monaco editor - let Monaco handle it
+            if (isMonacoEditor) {
+              return;
+            }
             event.preventDefault();
-            // Copy (Cmd+C)
+            // Copy (Cmd+C) - only when not in editor
             navigator.clipboard.writeText(code);
             console.log('Code copied to clipboard');
             break;
           case 'v':
           case 'V':
+            // Skip copy/paste when in Monaco editor - let Monaco handle it
+            if (isMonacoEditor) {
+              return;
+            }
             event.preventDefault();
-            // Paste (Cmd+V)
+            // Paste (Cmd+V) - only when not in editor
             navigator.clipboard.readText().then(text => {
               setCode(text);
               console.log('Code pasted from clipboard');
