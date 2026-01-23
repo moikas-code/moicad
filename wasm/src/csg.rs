@@ -139,7 +139,7 @@ pub fn mirror_z(mesh: &Mesh) -> Mesh {
 
 /// Apply a custom 4x4 transformation matrix
 pub fn multmatrix(mesh: &Mesh, matrix_array: &[f32; 16]) -> Mesh {
-    let matrix = Mat4 { m: *matrix_array };
+    let matrix = Mat4::from_array(matrix_array);
     transform_mesh(mesh, &matrix)
 }
 

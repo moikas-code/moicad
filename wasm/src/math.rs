@@ -1,4 +1,4 @@
-/// Matrix and vector math utilities for CAD operations
+/// 3D Vector and Matrix math operations
 use std::f32::consts::PI;
 
 /// 3D Vector
@@ -14,48 +14,8 @@ impl Vec3 {
         Vec3 { x, y, z }
     }
 
-    pub fn zero() -> Self {
-        Vec3 {
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
-        }
-    }
-
-    pub fn add(&self, other: Vec3) -> Vec3 {
-        Vec3 {
-            x: self.x + other.x,
-            y: self.y + other.y,
-            z: self.z + other.z,
-        }
-    }
-
-    pub fn subtract(&self, other: Vec3) -> Vec3 {
-        Vec3 {
-            x: self.x - other.x,
-            y: self.y - other.y,
-            z: self.z - other.z,
-        }
-    }
-
-    pub fn scale(&self, factor: f32) -> Vec3 {
-        Vec3 {
-            x: self.x * factor,
-            y: self.y * factor,
-            z: self.z * factor,
-        }
-    }
-
-    pub fn dot(&self, other: Vec3) -> f32 {
-        self.x * other.x + self.y * other.y + self.z * other.z
-    }
-
-    pub fn cross(&self, other: Vec3) -> Vec3 {
-        Vec3 {
-            x: self.y * other.z - self.z * other.y,
-            y: self.z * other.x - self.x * other.z,
-            z: self.x * other.y - self.y * other.x,
-        }
+    pub fn zero() -> Vec3 {
+        Vec3::new(0.0, 0.0, 0.0)
     }
 
     pub fn length(&self) -> f32 {
@@ -70,6 +30,35 @@ impl Vec3 {
             Vec3::zero()
         }
     }
+
+    pub fn scale(&self, factor: f32) -> Vec3 {
+        Vec3::new(self.x * factor, self.y * factor, self.z * factor)
+    }
+
+    pub fn dot(&self, other: Vec3) -> f32 {
+        self.x * other.x + self.y * other.y + self.z * other.z
+    }
+
+    pub fn cross(&self, other: Vec3) -> Vec3 {
+        Vec3::new(
+            self.y * other.z - self.z * other.y,
+            self.z * other.x - self.x * other.z,
+            self.x * other.y - self.y * other.x,
+        )
+    }
+}
+
+/// 2D Vector
+#[derive(Clone, Copy, Debug)]
+pub struct Vec2 {
+    pub x: f32,
+    pub y: f32,
+}
+
+impl Vec2 {
+    pub fn new(x: f32, y: f32) -> Self {
+        Vec2 { x, y }
+    }
 }
 
 /// 4x4 Matrix for transformations
@@ -79,7 +68,7 @@ pub struct Mat4 {
 }
 
 impl Mat4 {
-    pub fn identity() -> Self {
+    pub fn new() -> Mat4 {
         Mat4 {
             m: [
                 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
@@ -87,153 +76,60 @@ impl Mat4 {
         }
     }
 
-    /// Translation matrix (column-major format)
-    pub fn translation(x: f32, y: f32, z: f32) -> Self {
+    pub fn identity() -> Mat4 {
+        Mat4::new()
+    }
+
+    pub fn translation(x: f32, y: f32, z: f32) -> Mat4 {
         Mat4 {
             m: [
-                1.0, 0.0, 0.0, 0.0, // column 0
-                0.0, 1.0, 0.0, 0.0, // column 1
-                0.0, 0.0, 1.0, 0.0, // column 2
-                x, y, z, 1.0, // column 3 (translation)
+                1.0, 0.0, 0.0, x, 0.0, 1.0, 0.0, y, 0.0, 0.0, 1.0, z, 0.0, 0.0, 0.0, 1.0,
             ],
         }
     }
 
-    /// Scale matrix (column-major format)
-    pub fn scale(sx: f32, sy: f32, sz: f32) -> Self {
+    pub fn rotation_x(angle: f32) -> Mat4 {
+        let angle = angle * PI / 180.0;
+        let cos_a = angle.cos();
+        let sin_a = angle.sin();
         Mat4 {
             m: [
-                sx, 0.0, 0.0, 0.0, // column 0
-                0.0, sy, 0.0, 0.0, // column 1
-                0.0, 0.0, sz, 0.0, // column 2
-                0.0, 0.0, 0.0, 1.0, // column 3
+                1.0, 0.0, 0.0, 0.0, 0.0, cos_a, -sin_a, 0.0, 0.0, sin_a, cos_a, 0.0, 0.0, 0.0, 0.0,
+                1.0,
             ],
         }
     }
 
-    /// Rotation around X axis (in degrees, column-major format)
-    pub fn rotation_x(angle_deg: f32) -> Self {
-        let angle = angle_deg * PI / 180.0;
-        let c = angle.cos();
-        let s = angle.sin();
-
+    pub fn rotation_y(angle: f32) -> Mat4 {
+        let angle = angle * PI / 180.0;
+        let cos_a = angle.cos();
+        let sin_a = angle.sin();
         Mat4 {
             m: [
-                1.0, 0.0, 0.0, 0.0, // column 0
-                0.0, c, s, 0.0, // column 1
-                0.0, -s, c, 0.0, // column 2
-                0.0, 0.0, 0.0, 1.0, // column 3
+                cos_a, 0.0, sin_a, 0.0, 0.0, 1.0, 0.0, 0.0, -sin_a, 0.0, cos_a, 0.0, 0.0, 0.0, 0.0,
+                1.0,
             ],
         }
     }
 
-    /// Rotation around Y axis (in degrees, column-major format)
-    pub fn rotation_y(angle_deg: f32) -> Self {
-        let angle = angle_deg * PI / 180.0;
-        let c = angle.cos();
-        let s = angle.sin();
-
+    pub fn rotation_z(angle: f32) -> Mat4 {
+        let angle = angle * PI / 180.0;
+        let cos_a = angle.cos();
+        let sin_a = angle.sin();
         Mat4 {
             m: [
-                c, 0.0, -s, 0.0, // column 0
-                0.0, 1.0, 0.0, 0.0, // column 1
-                s, 0.0, c, 0.0, // column 2
-                0.0, 0.0, 0.0, 1.0, // column 3
+                cos_a, sin_a, 0.0, 0.0, -sin_a, cos_a, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
+                1.0,
             ],
         }
     }
 
-    /// Rotation around Z axis (in degrees, column-major format)
-    pub fn rotation_z(angle_deg: f32) -> Self {
-        let angle = angle_deg * PI / 180.0;
-        let c = angle.cos();
-        let s = angle.sin();
-
+    pub fn scale(sx: f32, sy: f32, sz: f32) -> Mat4 {
         Mat4 {
             m: [
-                c, s, 0.0, 0.0, // column 0
-                -s, c, 0.0, 0.0, // column 1
-                0.0, 0.0, 1.0, 0.0, // column 2
-                0.0, 0.0, 0.0, 1.0, // column 3
+                sx, 0.0, 0.0, 0.0, 0.0, sy, 0.0, 0.0, 0.0, 0.0, sz, 0.0, 0.0, 0.0, 0.0, 1.0,
             ],
         }
-    }
-
-    pub fn multiply(&self, other: Mat4) -> Self {
-        let mut result = [0.0; 16];
-        for i in 0..4 {
-            for j in 0..4 {
-                let mut sum = 0.0;
-                for k in 0..4 {
-                    // Column-major indexing: element at row i, col j is at index i + j*4
-                    sum += self.m[i + k * 4] * other.m[k + j * 4];
-                }
-                result[i + j * 4] = sum;
-            }
-        }
-        Mat4 { m: result }
-    }
-
-    pub fn transform_point(&self, p: Vec3) -> Vec3 {
-        let x = self.m[0] * p.x + self.m[4] * p.y + self.m[8] * p.z + self.m[12];
-        let y = self.m[1] * p.x + self.m[5] * p.y + self.m[9] * p.z + self.m[13];
-        let z = self.m[2] * p.x + self.m[6] * p.y + self.m[10] * p.z + self.m[14];
-        Vec3::new(x, y, z)
-    }
-
-    pub fn transform_vector(&self, v: Vec3) -> Vec3 {
-        let x = self.m[0] * v.x + self.m[4] * v.y + self.m[8] * v.z;
-        let y = self.m[1] * v.x + self.m[5] * v.y + self.m[9] * v.z;
-        let z = self.m[2] * v.x + self.m[6] * v.y + self.m[10] * v.z;
-        Vec3::new(x, y, z)
-    }
-
-    /// Compute inverse transpose for normal transformation
-    /// For affine transformations, normals should be transformed by (M^-1)^T
-    pub fn inverse_transpose(&self) -> Mat4 {
-        // For now, implement a simple inverse for common transformations
-        // This handles translation, rotation, scale, but not general 4x4
-        // TODO: Implement full matrix inversion for general transformations
-
-        // Extract the 3x3 rotation/scale part
-        let mut inv = Mat4::identity();
-        let det = self.m[0] * (self.m[5] * self.m[10] - self.m[6] * self.m[9])
-            - self.m[4] * (self.m[1] * self.m[10] - self.m[2] * self.m[9])
-            + self.m[8] * (self.m[1] * self.m[6] - self.m[2] * self.m[5]);
-
-        if det.abs() < 1e-6 {
-            // Degenerate matrix, return identity
-            return Mat4::identity();
-        }
-
-        let inv_det = 1.0 / det;
-
-        // Compute inverse of 3x3 part
-        inv.m[0] = (self.m[5] * self.m[10] - self.m[6] * self.m[9]) * inv_det;
-        inv.m[1] = (self.m[2] * self.m[9] - self.m[1] * self.m[10]) * inv_det;
-        inv.m[2] = (self.m[1] * self.m[6] - self.m[2] * self.m[5]) * inv_det;
-
-        inv.m[4] = (self.m[6] * self.m[8] - self.m[4] * self.m[10]) * inv_det;
-        inv.m[5] = (self.m[0] * self.m[10] - self.m[2] * self.m[8]) * inv_det;
-        inv.m[6] = (self.m[2] * self.m[4] - self.m[0] * self.m[6]) * inv_det;
-
-        inv.m[8] = (self.m[4] * self.m[9] - self.m[5] * self.m[8]) * inv_det;
-        inv.m[9] = (self.m[1] * self.m[8] - self.m[0] * self.m[9]) * inv_det;
-        inv.m[10] = (self.m[0] * self.m[5] - self.m[1] * self.m[4]) * inv_det;
-
-        // Transpose the result (since we want (M^-1)^T)
-        let mut result = Mat4 { m: inv.m };
-        result.transpose();
-        result
-    }
-
-    /// Transpose the matrix (swap rows and columns)
-    pub fn transpose(&mut self) {
-        let m = self.m;
-        self.m = [
-            m[0], m[4], m[8], m[12], m[1], m[5], m[9], m[13], m[2], m[6], m[10], m[14], m[3], m[7],
-            m[11], m[15],
-        ];
     }
 
     /// Create rotation matrix for arbitrary axis rotation (Rodrigues' formula)
@@ -242,7 +138,6 @@ impl Mat4 {
         let cos_a = angle.cos();
         let sin_a = angle.sin();
         let one_minus_cos = 1.0 - cos_a;
-
         let axis = axis.normalize();
         let x = axis.x;
         let y = axis.y;
@@ -260,7 +155,7 @@ impl Mat4 {
                 y * z * one_minus_cos - x * sin_a,
                 0.0,
                 z * x * one_minus_cos - y * sin_a,
-                z * y * one_minus_cos + x * sin_a,
+                x * y * one_minus_cos + z * sin_a,
                 cos_a + z * z * one_minus_cos,
                 0.0,
                 0.0,
@@ -270,18 +165,134 @@ impl Mat4 {
             ],
         }
     }
-}
 
-/// 2D Vector
-#[derive(Debug, Clone, Copy)]
-pub struct Vec2 {
-    pub x: f32,
-    pub y: f32,
-}
+    /// Create 4x4 matrix from array
+    pub fn from_array(array: &[f32; 16]) -> Mat4 {
+        Mat4 {
+            m: [
+                array[0], array[1], array[2], array[3], array[4], array[5], array[6], array[7],
+                array[8], array[9], array[10], array[11], array[12], array[13], array[14],
+                array[15],
+            ],
+        }
+    }
 
-impl Vec2 {
-    pub fn new(x: f32, y: f32) -> Self {
-        Vec2 { x, y }
+    pub fn transform_point(&self, point: Vec3) -> Vec3 {
+        Vec3::new(
+            self.m[0] * point.x + self.m[1] * point.y + self.m[2] * point.z + self.m[3],
+            self.m[4] * point.x + self.m[5] * point.y + self.m[6] * point.z + self.m[7],
+            self.m[8] * point.x + self.m[9] * point.y + self.m[10] * point.z + self.m[11],
+            self.m[12] * point.x + self.m[13] * point.y + self.m[14] * point.z + self.m[15],
+        )
+    }
+
+    pub fn inverse(&self) -> Option<Mat4> {
+        // For now, implement a simple inverse for common transformations
+        // This handles translation, rotation, scale but not general 4x4 matrices
+        let det = self.m[0]
+            * (self.m[5] * self.m[10] * self.m[15] - self.m[6] * self.m[9] * self.m[14])
+            - self.m[1]
+                * (self.m[4] * self.m[10] * self.m[14] - self.m[5] * self.m[9] * self.m[13])
+            + self.m[2]
+                * (self.m[4] * self.m[11] * self.m[14] - self.m[8] * self.m[7] * self.m[13])
+            - self.m[3]
+                * (self.m[4] * self.m[7] * self.m[15] - self.m[5] * self.m[11] * self.m[14]);
+
+        if det.abs() < 1e-6 {
+            return None;
+        }
+
+        let inv_det = 1.0 / det;
+        let mut result = Mat4::new();
+
+        result.m[0] =
+            inv_det * (self.m[5] * self.m[10] * self.m[15] - self.m[6] * self.m[9] * self.m[14]);
+        result.m[1] =
+            inv_det * (self.m[1] * self.m[10] * self.m[14] - self.m[5] * self.m[9] * self.m[13]);
+        result.m[2] =
+            inv_det * (self.m[1] * self.m[6] * self.m[15] - self.m[2] * self.m[9] * self.m[13]);
+        result.m[3] =
+            inv_det * (self.m[1] * self.m[2] * self.m[15] - self.m[0] * self.m[8] * self.m[13]);
+        result.m[4] =
+            inv_det * (self.m[4] * self.m[9] * self.m[14] - self.m[5] * self.m[8] * self.m[12]);
+        result.m[5] =
+            inv_det * (self.m[4] * self.m[11] * self.m[14] - self.m[1] * self.m[10] * self.m[13]);
+        result.m[6] =
+            inv_det * (self.m[0] * self.m[10] * self.m[14] - self.m[2] * self.m[6] * self.m[15]);
+        result.m[7] =
+            inv_det * (self.m[0] * self.m[9] * self.m[14] - self.m[1] * self.m[2] * self.m[15]);
+        result.m[8] =
+            inv_det * (self.m[2] * self.m[7] * self.m[15] - self.m[6] * self.m[11] * self.m[13]);
+        result.m[9] =
+            inv_det * (self.m[0] * self.m[11] * self.m[14] - self.m[1] * self.m[10] * self.m[15]);
+        result.m[10] =
+            inv_det * (self.m[3] * self.m[11] * self.m[14] - self.m[2] * self.m[8] * self.m[12]);
+        result.m[11] =
+            inv_det * (self.m[7] * self.m[11] * self.m[14] - self.m[6] * self.m[9] * self.m[13]);
+        result.m[12] =
+            inv_det * (self.m[0] * self.m[8] * self.m[14] - self.m[4] * self.m[12] * self.m[15]);
+        result.m[13] =
+            inv_det * (self.m[5] * self.m[9] * self.m[14] - self.m[1] * self.m[10] * self.m[15]);
+        result.m[14] =
+            inv_det * (self.m[6] * self.m[9] * self.m[14] - self.m[2] * self.m[8] * self.m[13]);
+        result.m[15] =
+            inv_det * (self.m[0] * self.m[2] * self.m[15] - self.m[3] * self.m[8] * self.m[12]);
+
+        Some(result)
+    }
+
+    pub fn inverse_transpose(&self) -> Mat4 {
+        // For now, implement a simple inverse for common transformations
+        // This handles translation, rotation, scale but not general 4x4 matrices
+        let det = self.m[0]
+            * (self.m[5] * self.m[10] * self.m[15] - self.m[6] * self.m[9] * self.m[14])
+            - self.m[1]
+                * (self.m[4] * self.m[10] * self.m[14] - self.m[5] * self.m[9] * self.m[13])
+            + self.m[2]
+                * (self.m[4] * self.m[11] * self.m[14] - self.m[8] * self.m[7] * self.m[13])
+            - self.m[3] * (self.m[1] * self.m[2] * self.m[15] - self.m[0] * self.m[8] * self.m[13]);
+
+        if det.abs() < 1e-6 {
+            return Mat4::new();
+        }
+
+        let inv_det = 1.0 / det;
+        let mut result = Mat4::new();
+
+        result.m[0] =
+            inv_det * (self.m[5] * self.m[10] * self.m[15] - self.m[6] * self.m[9] * self.m[14]);
+        result.m[1] =
+            inv_det * (self.m[1] * self.m[10] * self.m[14] - self.m[5] * self.m[9] * self.m[13]);
+        result.m[2] =
+            inv_det * (self.m[1] * self.m[6] * self.m[15] - self.m[2] * self.m[9] * self.m[13]);
+        result.m[3] =
+            inv_det * (self.m[1] * self.m[2] * self.m[15] - self.m[0] * self.m[8] * self.m[13]);
+        result.m[4] =
+            inv_det * (self.m[4] * self.m[9] * self.m[14] - self.m[5] * self.m[8] * self.m[12]);
+        result.m[5] =
+            inv_det * (self.m[4] * self.m[11] * self.m[14] - self.m[1] * self.m[10] * self.m[13]);
+        result.m[6] =
+            inv_det * (self.m[0] * self.m[10] * self.m[14] - self.m[2] * self.m[6] * self.m[15]);
+        result.m[7] =
+            inv_det * (self.m[0] * self.m[9] * self.m[14] - self.m[1] * self.m[2] * self.m[15]);
+        result.m[8] =
+            inv_det * (self.m[2] * self.m[7] * self.m[15] - self.m[6] * self.m[11] * self.m[13]);
+        result.m[9] =
+            inv_det * (self.m[0] * self.m[11] * self.m[14] - self.m[1] * self.m[10] * self.m[15]);
+        result.m[10] =
+            inv_det * (self.m[3] * self.m[11] * self.m[14] - self.m[2] * self.m[8] * self.m[12]);
+        result.m[11] =
+            inv_det * (self.m[7] * self.m[11] * self.m[14] - self.m[6] * self.m[9] * self.m[13]);
+        result.m[12] =
+            inv_det * (self.m[0] * self.m[8] * self.m[14] - self.m[4] * self.m[12] * self.m[15]);
+        result.m[13] =
+            inv_det * (self.m[5] * self.m[9] * self.m[14] - self.m[1] * self.m[10] * self.m[15]);
+        result.m[14] =
+            inv_det * (self.m[6] * self.m[9] * self.m[14] - self.m[2] * self.m[8] * self.m[13]);
+        result.m[15] =
+            inv_det * (self.m[0] * self.m[2] * self.m[15] - self.m[3] * self.m[8] * self.m[13]);
+
+        result
     }
 }
 

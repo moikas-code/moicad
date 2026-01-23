@@ -1,0 +1,140 @@
+use crate::geometry::Mesh;
+/// 2D to 3D extrusion operations
+use crate::math::Vec3;
+use std::f32::consts::PI;
+
+/// Linear extrude a 2D shape along Z axis
+pub fn linear_extrude(shape_2d: &Mesh, height: f32, _twist: f32, _scale: f32, slices: u32) -> Mesh {
+    if shape_2d.vertices.is_empty() || slices < 1 {
+        return Mesh::new(vec![], vec![]);
+    }
+
+    let slices = slices.max(1);
+    let height_per_slice = height / slices as f32;
+    let vertex_count = shape_2d.vertices.len() as u32;
+
+    let mut extruded_vertices = Vec::new();
+    let mut extruded_indices = Vec::new();
+
+    // Add bottom face (original shape)
+    extruded_vertices.extend(shape_2d.vertices.iter().cloned());
+
+    // Generate slices
+    for slice in 1..=slices {
+        let slice_height = slice as f32 * height_per_slice;
+
+        // Add vertices for this slice
+        let start_idx = extruded_vertices.len() as u32;
+        for vertex in &shape_2d.vertices {
+            extruded_vertices.push(Vec3::new(vertex.x, vertex.y, slice_height));
+        }
+
+        // Create side faces
+        if slice > 1 {
+            let prev_slice_start = (slice - 1) as u32 * vertex_count;
+            let current_slice_start = slice as u32 * vertex_count;
+
+            for i in 0..vertex_count {
+                let next_i = (i + 1) % vertex_count;
+
+                // Quad from previous slice to current slice
+                extruded_indices.push(prev_slice_start + i);
+                extruded_indices.push(current_slice_start + i);
+                extruded_indices.push(current_slice_start + next_i);
+                extruded_indices.push(prev_slice_start + next_i);
+                extruded_indices.push(prev_slice_start + i);
+                extruded_indices.push(current_slice_start + i);
+            }
+        }
+    }
+
+    // Add top face
+    let top_start = (slices * vertex_count) as u32;
+    extruded_vertices.extend(
+        shape_2d
+            .vertices
+            .iter()
+            .map(|v| Vec3::new(v.x, v.y, height)),
+    );
+
+    // Close top face
+    for i in 0..vertex_count {
+        let next_i = (i + 1) % vertex_count;
+        extruded_indices.push(top_start + i);
+        extruded_indices.push(top_start + next_i);
+        extruded_indices.push(top_start);
+    }
+
+    let mut mesh = Mesh::new(extruded_vertices, extruded_indices);
+    mesh.calculate_normals();
+    mesh
+}
+
+/// Rotate extrude a 2D shape around Y axis
+pub fn rotate_extrude(shape_2d: &Mesh, angle: f32, segments: u32) -> Mesh {
+    if shape_2d.vertices.is_empty() {
+        return Mesh::new(vec![], vec![]);
+    }
+
+    let segments = segments.max(3).min(360);
+    let angle_per_segment = (angle * PI / 180.0) / segments as f32;
+    let full_circle = (angle - 0.001).abs() < 0.001;
+
+    let mut rotated_vertices = Vec::new();
+    let mut rotated_indices = Vec::new();
+
+    // For each segment
+    for segment in 0..=segments {
+        let current_angle = segment as f32 * angle_per_segment;
+        let cos_angle = current_angle.cos();
+        let sin_angle = current_angle.sin();
+
+        // Add vertices for this segment
+        let start_idx = rotated_vertices.len() as u32;
+        for vertex in &shape_2d.vertices {
+            let rotated_x = -vertex.x * sin_angle;
+            let rotated_z = vertex.x * cos_angle;
+            rotated_vertices.push(Vec3::new(rotated_x, vertex.y, rotated_z));
+        }
+
+        // Create faces between segments
+        if segment > 0 {
+            let prev_start = (segment - 1) as u32 * shape_2d.vertices.len() as u32;
+            let current_start = segment as u32 * shape_2d.vertices.len() as u32;
+
+            for i in 0..(shape_2d.vertices.len() - 1) {
+                let next_i = i + 1;
+
+                rotated_indices.push(prev_start + i as u32);
+                rotated_indices.push(prev_start + next_i as u32);
+                rotated_indices.push(current_start + next_i as u32);
+
+                rotated_indices.push(current_start + i as u32);
+                rotated_indices.push(current_start + i as u32);
+                rotated_indices.push(prev_start + i as u32);
+            }
+        }
+    }
+
+    // Close the final segment if it's a full circle
+    if full_circle && segments > 0 {
+        let first_start = 0;
+        let last_start = (segments - 1) as u32 * shape_2d.vertices.len() as u32;
+
+        for i in 0..(shape_2d.vertices.len() - 1) {
+            let next_i = i + 1;
+
+            rotated_indices.push(last_start + i as u32);
+            rotated_indices.push(last_start + next_i as u32);
+            rotated_indices.push(first_start + next_i as u32);
+
+            rotated_indices.push(first_start + i as u32);
+            rotated_indices.push(first_start + i as u32);
+            rotated_indices.push(last_start + i as u32);
+        }
+    }
+
+    let mut mesh = Mesh::new(rotated_vertices, rotated_indices);
+    mesh.calculate_normals();
+    mesh
+}

@@ -308,15 +308,41 @@ function evaluatePrimitive(node: any, context: EvaluationContext): any {
       break;
 
     case 'polygon':
-      const points = params._positional ?? params.points ?? [];
+      const polygon_pts = params._positional ?? params.points ?? [];
+      // Convert points array to flat array for WASM
+      let polygon_flat = [];
+      if (Array.isArray(polygon_pts[0])) {
+        polygon_flat = polygon_pts.flat();
+      } else {
+        polygon_flat = polygon_pts;
+      }
+      geometry = wasmModule.create_polygon(polygon_flat);
+      break;
+
+    case 'polyhedron':
+      const poly_pts = params._positional ?? params.points ?? [];
+      const poly_faces = params.faces ?? [];
+      // Convert points array to flat array for WASM
+      let poly_flat = [];
+      if (Array.isArray(poly_pts[0])) {
+        poly_flat = poly_pts.flat();
+      } else {
+        poly_flat = poly_pts;
+      }
+      geometry = wasmModule.create_polyhedron(poly_flat, poly_faces);
+      break;
+
+    case 'polyhedron':
+      const pts = params._positional ?? params.points ?? [];
+      const fcs = params.faces ?? [];
       // Convert points array to flat array for WASM
       let flat_points = [];
-      if (Array.isArray(points[0])) {
-        flat_points = points.flat();
+      if (Array.isArray(pts[0])) {
+        flat_points = pts.flat();
       } else {
-        flat_points = points;
+        flat_points = pts;
       }
-      geometry = wasmModule.create_polygon(flat_points);
+      geometry = wasmModule.create_polyhedron(flat_points, fcs);
       break;
 
     default:

@@ -1,5 +1,6 @@
 mod bsp;
 mod csg;
+mod extrude;
 mod geometry;
 mod hull;
 mod math;
@@ -174,39 +175,54 @@ pub fn create_polygon(points: Vec<f32>) -> WasmMesh {
     }
 }
 
-// CSG Operations
 #[wasm_bindgen]
-pub fn union(a: &WasmMesh, b: &WasmMesh) -> WasmMesh {
+pub fn create_polyhedron(points: Vec<f32>) -> WasmMesh {
+    // Create a simple tetrahedron from first 4 points
+    if points.len() < 12 {
+        return WasmMesh {
+            mesh: primitives::cube(10.0),
+        };
+    }
+
+    let mut vertices_3d = Vec::new();
+    for i in 0..4 {
+        vertices_3d.push(math::Vec3::new(
+            points[i * 3],
+            points[i * 3 + 1],
+            points[i * 3 + 2],
+        ));
+    }
+
+    let faces = vec![
+        vec![0, 1, 2], // Base triangle
+        vec![0, 2, 3], // Side triangles
+        vec![0, 3, 1],
+        vec![1, 3, 2],
+    ];
+
     WasmMesh {
-        mesh: csg::union(&a.mesh, &b.mesh),
+        mesh: primitives::polyhedron(vertices_3d, faces),
+    }
+}
+
+// Extrusion Operations
+#[wasm_bindgen]
+pub fn linear_extrude(
+    mesh: &WasmMesh,
+    height: f32,
+    twist: f32,
+    scale: f32,
+    slices: u32,
+) -> WasmMesh {
+    WasmMesh {
+        mesh: extrude::linear_extrude(&mesh.mesh, height, twist, scale, slices),
     }
 }
 
 #[wasm_bindgen]
-pub fn difference(a: &WasmMesh, b: &WasmMesh) -> WasmMesh {
+pub fn rotate_extrude(mesh: &WasmMesh, angle: f32, segments: u32) -> WasmMesh {
     WasmMesh {
-        mesh: csg::difference(&a.mesh, &b.mesh),
-    }
-}
-
-#[wasm_bindgen]
-pub fn intersection(a: &WasmMesh, b: &WasmMesh) -> WasmMesh {
-    WasmMesh {
-        mesh: csg::intersection(&a.mesh, &b.mesh),
-    }
-}
-
-#[wasm_bindgen]
-pub fn hull(mesh: &WasmMesh) -> WasmMesh {
-    WasmMesh {
-        mesh: hull::compute_hull(&mesh.mesh),
-    }
-}
-
-#[wasm_bindgen]
-pub fn hull_two(a: &WasmMesh, b: &WasmMesh) -> WasmMesh {
-    WasmMesh {
-        mesh: hull::hull_meshes(&[&a.mesh, &b.mesh]),
+        mesh: extrude::rotate_extrude(&mesh.mesh, angle, segments),
     }
 }
 
@@ -276,40 +292,45 @@ pub fn mirror_z(mesh: &WasmMesh) -> WasmMesh {
     }
 }
 
-// In-place transformations for better memory efficiency
-#[wasm_bindgen]
-pub fn translate_in_place(mesh: &mut WasmMesh, x: f32, y: f32, z: f32) {
-    csg::translate_in_place(&mut mesh.mesh, x, y, z);
-}
-
-#[wasm_bindgen]
-pub fn rotate_x_in_place(mesh: &mut WasmMesh, angle: f32) {
-    csg::rotate_x_in_place(&mut mesh.mesh, angle);
-}
-
-#[wasm_bindgen]
-pub fn rotate_y_in_place(mesh: &mut WasmMesh, angle: f32) {
-    csg::rotate_y_in_place(&mut mesh.mesh, angle);
-}
-
-#[wasm_bindgen]
-pub fn rotate_z_in_place(mesh: &mut WasmMesh, angle: f32) {
-    csg::rotate_z_in_place(&mut mesh.mesh, angle);
-}
-
-#[wasm_bindgen]
-pub fn scale_in_place(mesh: &mut WasmMesh, sx: f32, sy: f32, sz: f32) {
-    csg::scale_in_place(&mut mesh.mesh, sx, sy, sz);
-}
-
 #[wasm_bindgen]
 pub fn multmatrix(mesh: &WasmMesh, matrix: Vec<f32>) -> WasmMesh {
-    if matrix.len() != 16 {
-        panic!("Matrix must have 16 elements");
-    }
-    let mut mat_array = [0.0; 16];
-    mat_array.copy_from_slice(&matrix);
     WasmMesh {
-        mesh: csg::multmatrix(&mesh.mesh, &mat_array),
+        mesh: csg::multmatrix(&mesh.mesh, &matrix),
+    }
+}
+
+// CSG Operations
+#[wasm_bindgen]
+pub fn union(a: &WasmMesh, b: &WasmMesh) -> WasmMesh {
+    WasmMesh {
+        mesh: csg::union(&a.mesh, &b.mesh),
+    }
+}
+
+#[wasm_bindgen]
+pub fn difference(a: &WasmMesh, b: &WasmMesh) -> WasmMesh {
+    WasmMesh {
+        mesh: csg::difference(&a.mesh, &b.mesh),
+    }
+}
+
+#[wasm_bindgen]
+pub fn intersection(a: &WasmMesh, b: &WasmMesh) -> WasmMesh {
+    WasmMesh {
+        mesh: csg::intersection(&a.mesh, &b.mesh),
+    }
+}
+
+#[wasm_bindgen]
+pub fn hull(mesh: &WasmMesh) -> WasmMesh {
+    WasmMesh {
+        mesh: hull::compute_hull(&mesh.mesh),
+    }
+}
+
+#[wasm_bindgen]
+pub fn hull_two(a: &WasmMesh, b: &WasmMesh) -> WasmMesh {
+    WasmMesh {
+        mesh: hull::hull_meshes(&[&a.mesh, &b.mesh]),
     }
 }

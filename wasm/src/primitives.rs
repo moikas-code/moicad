@@ -316,3 +316,58 @@ fn triangulate_earclip(polygon: &[Vec2]) -> Vec<u32> {
     }
     indices
 }
+
+/// Generate a 3D polyhedron from vertices and faces
+pub fn polyhedron(points: Vec<Vec3>, faces: Vec<Vec<usize>>) -> Mesh {
+    if points.len() < 4 || faces.is_empty() {
+        return Mesh::new(vec![], vec![]);
+    }
+
+    // Validate face indices
+    for face in &faces {
+        for &vertex_idx in face {
+            if vertex_idx >= points.len() {
+                // Invalid vertex index, return empty mesh
+                return Mesh::new(vec![], vec![]);
+            }
+        }
+    }
+
+    // Use vertices directly (they're already 3D)
+    let vertices = points;
+
+    // Convert face indices to triangles
+    let mut indices = Vec::new();
+    for face in &faces {
+        match face.len() {
+            3 => {
+                // Triangle face
+                indices.push(face[0] as u32);
+                indices.push(face[1] as u32);
+                indices.push(face[2] as u32);
+            }
+            4 => {
+                // Quad face - triangulate into two triangles
+                indices.push(face[0] as u32);
+                indices.push(face[1] as u32);
+                indices.push(face[2] as u32);
+
+                indices.push(face[0] as u32);
+                indices.push(face[2] as u32);
+                indices.push(face[3] as u32);
+            }
+            _ => {
+                // Complex face - fan triangulation from first vertex
+                for i in 1..(face.len() - 1) {
+                    indices.push(face[0] as u32);
+                    indices.push(face[i] as u32);
+                    indices.push(face[i + 1] as u32);
+                }
+            }
+        }
+    }
+
+    let mut mesh = Mesh::new(vertices, indices);
+    mesh.calculate_normals();
+    mesh
+}
