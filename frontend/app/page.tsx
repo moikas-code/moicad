@@ -1,5 +1,5 @@
 'use client';
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { useEditor } from '@/hooks/useEditor';
 import { useGeometry } from '@/hooks/useGeometry';
 import { useWebSocket } from '@/hooks/useWebSocket';
@@ -26,6 +26,218 @@ export default function Home() {
 
   // File manager ref
   const fileManagerRef = React.useRef<any>(null);
+
+  // Example custom menus
+  const customMenus = {
+    Edit: {
+      label: 'Edit',
+      items: [
+        {
+          label: 'Undo',
+          action: () => console.log('Undo'),
+          shortcut: 'Ctrl+Z',
+          disabled: true // TODO: Implement undo functionality
+        },
+        {
+          label: 'Redo',
+          action: () => console.log('Redo'),
+          shortcut: 'Ctrl+Y',
+          disabled: true // TODO: Implement redo functionality
+        },
+        { separator: true },
+        {
+          label: 'Copy',
+          action: () => {
+            navigator.clipboard.writeText(code);
+            console.log('Code copied to clipboard');
+          },
+          shortcut: 'Ctrl+C'
+        },
+        {
+          label: 'Paste',
+          action: async () => {
+            try {
+              const text = await navigator.clipboard.readText();
+              setCode(text);
+              console.log('Code pasted from clipboard');
+            } catch (error) {
+              console.error('Failed to paste from clipboard:', error);
+            }
+          },
+          shortcut: 'Ctrl+V'
+        },
+        {
+          label: 'Select All',
+          action: () => {
+            // This would need to be handled by the Monaco editor
+            console.log('Select all requested');
+          },
+          shortcut: 'Ctrl+A'
+        }
+      ]
+    },
+    View: {
+      label: 'View',
+      items: [
+        {
+          label: 'Reset View',
+          action: () => console.log('Reset 3D view'),
+          shortcut: 'R'
+        },
+        {
+          label: 'Toggle Stats',
+          action: () => console.log('Toggle stats overlay'),
+          shortcut: 'Ctrl+I'
+        },
+        {
+          label: 'Toggle Grid',
+          action: () => console.log('Toggle grid'),
+          shortcut: 'G'
+        },
+        { separator: true },
+        {
+          label: 'Zoom to Fit',
+          action: () => console.log('Zoom to fit geometry'),
+          shortcut: 'F'
+        },
+        {
+          label: 'Front View',
+          action: () => console.log('Front view'),
+          shortcut: '1'
+        },
+        {
+          label: 'Top View',
+          action: () => console.log('Top view'),
+          shortcut: '7'
+        },
+        {
+          label: 'Side View',
+          action: () => console.log('Side view'),
+          shortcut: '3'
+        }
+      ]
+    },
+    Tools: {
+      label: 'Tools',
+      items: [
+        {
+          label: 'Validate Syntax',
+          action: () => console.log('Validate OpenSCAD syntax'),
+          shortcut: 'Ctrl+L'
+        },
+        {
+          label: 'Format Code',
+          action: () => console.log('Format OpenSCAD code'),
+          shortcut: 'Ctrl+Shift+F'
+        },
+        { separator: true },
+        {
+          label: 'Generate Documentation',
+          action: () => console.log('Generate documentation'),
+          disabled: true // TODO: Implement doc generation
+        },
+        {
+          label: 'Performance Analysis',
+          action: () => console.log('Performance analysis'),
+          disabled: true // TODO: Implement perf analysis
+        }
+      ]
+    }
+  };
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Prevent shortcuts in input fields
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      const { ctrlKey, metaKey, shiftKey, key } = event;
+      const cmdOrCtrl = ctrlKey || metaKey;
+
+      if (cmdOrCtrl) {
+        switch (key) {
+          case 'n':
+          case 'N':
+            event.preventDefault();
+            handleNew();
+            break;
+          case 'o':
+          case 'O':
+            event.preventDefault();
+            handleOpenFileManager();
+            break;
+          case 's':
+          case 'S':
+            event.preventDefault();
+            if (shiftKey) {
+              // Export .scad (Cmd+Shift+S)
+              const scadContent = code;
+              const blob = new Blob([scadContent], { type: 'text/plain' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = 'model.scad';
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+            } else {
+              // Save (Cmd+S)
+              save();
+            }
+            break;
+          case 'e':
+          case 'E':
+            event.preventDefault();
+            // Export geometry (Cmd+E)
+            if (geometry) {
+              console.log('Export geometry requested');
+            }
+            break;
+          case 'z':
+          case 'Z':
+            event.preventDefault();
+            if (shiftKey) {
+              // Redo (Cmd+Shift+Z)
+              console.log('Redo requested');
+            } else {
+              // Undo (Cmd+Z)
+              console.log('Undo requested');
+            }
+            break;
+          case 'y':
+          case 'Y':
+            event.preventDefault();
+            // Redo (Cmd+Y)
+            console.log('Redo requested');
+            break;
+          case 'c':
+          case 'C':
+            event.preventDefault();
+            // Copy (Cmd+C)
+            navigator.clipboard.writeText(code);
+            console.log('Code copied to clipboard');
+            break;
+          case 'v':
+          case 'V':
+            event.preventDefault();
+            // Paste (Cmd+V)
+            navigator.clipboard.readText().then(text => {
+              setCode(text);
+              console.log('Code pasted from clipboard');
+            }).catch(error => {
+              console.error('Failed to paste:', error);
+            });
+            break;
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [code, geometry, save]);
 
   const handleEditorChange = (newCode: string) => {
     setCode(newCode);
@@ -115,7 +327,12 @@ export default function Home() {
         onNew={handleNew}
         onOpenFiles={handleOpenFileManager}
         onSave={() => save()}
+        onExportGeometry={() => {
+          // Show export dialog functionality
+          console.log('Export geometry dialog requested');
+        }}
         unsavedChanges={hasUnsavedChanges}
+        customMenus={customMenus}
       />
 
       {/* Main Content - Resizable Panels */}

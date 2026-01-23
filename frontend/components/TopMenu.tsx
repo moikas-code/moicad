@@ -1,8 +1,24 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { downloadFile, exportGeometry, GeometryResponse } from '@/lib/api-client';
 import { exportFileAsScad } from '@/lib/storage';
+
+interface MenuItem {
+  label?: string;
+  action?: () => void;
+  disabled?: boolean;
+  shortcut?: string;
+  separator?: boolean;
+  submenu?: MenuItem[];
+  badge?: string;
+  badgeColor?: string;
+}
+
+interface MenuSection {
+  label: string;
+  items: MenuItem[];
+}
 
 interface TopMenuProps {
   geometry: GeometryResponse | null;
@@ -10,7 +26,9 @@ interface TopMenuProps {
   onNew?: () => void;
   onOpenFiles?: () => void;
   onSave?: () => void;
+  onExportGeometry?: () => void;
   unsavedChanges?: boolean;
+  customMenus?: Record<string, MenuSection>;
 }
 
 export default function TopMenu({
@@ -19,10 +37,14 @@ export default function TopMenu({
   onNew,
   onOpenFiles,
   onSave,
+  onExportGeometry,
   unsavedChanges,
+  customMenus = {},
 }: TopMenuProps) {
   const [isExporting, setIsExporting] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
+  const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const menuRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const handleExportSTL = async () => {
     if (!geometry) return;
@@ -54,72 +76,125 @@ export default function TopMenu({
 
   const handleExportCode = () => {
     exportFileAsScad(code, 'model.scad');
+    setActiveMenu(null);
+  };
+
+  // Define menu structure
+  const menus: Record<string, MenuSection> = {
+    File: {
+      label: 'File',
+      items: [
+        {
+          label: 'New',
+          action: () => { onNew?.(); setActiveMenu(null); },
+          shortcut: 'Ctrl+N'
+        },
+        {
+          label: 'Open',
+          action: () => { onOpenFiles?.(); setActiveMenu(null); },
+          shortcut: 'Ctrl+O'
+        },
+        {
+          label: 'Save',
+          action: () => { onSave?.(); setActiveMenu(null); },
+          shortcut: 'Ctrl+S',
+          badge: unsavedChanges ? '●' : undefined,
+          badgeColor: unsavedChanges ? '#E66E00' : undefined
+        },
+        { separator: true },
+        {
+          label: 'Export Geometry…',
+          action: () => { onExportGeometry?.(); setShowExportDialog(true); setActiveMenu(null); },
+          disabled: !geometry || isExporting,
+          shortcut: 'Ctrl+E'
+        },
+        {
+          label: 'Export .scad',
+          action: handleExportCode,
+          shortcut: 'Ctrl+Shift+S'
+        }
+      ]
+    },
+    ...customMenus
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (activeMenu && menuRefs.current[activeMenu]) {
+        const menuElement = menuRefs.current[activeMenu];
+        if (menuElement && !menuElement.contains(event.target as Node)) {
+          setActiveMenu(null);
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [activeMenu]);
+
+  // Render menu item helper
+  const renderMenuItem = (item: MenuItem, index: number) => {
+    if (item.separator) {
+      return <div key={`sep-${index}`} className="border-t border-[#4D4D4D] my-1" />;
+    }
+
+    return (
+      <button
+        key={item.label}
+        onClick={item.action}
+        disabled={item.disabled}
+        className="w-full px-3 py-2 text-left text-xs text-white hover:bg-[#4D4D4D] disabled:bg-[#3D3D3D] disabled:cursor-not-allowed disabled:text-[#606060] transition-colors flex items-center justify-between"
+      >
+        <span className="flex items-center gap-2">
+          {item.label}
+          {item.badge && (
+            <span style={{ color: item.badgeColor }} className="text-xs">
+              {item.badge}
+            </span>
+          )}
+        </span>
+        {item.shortcut && <kbd className="text-[#808080] text-xs">{item.shortcut}</kbd>}
+      </button>
+    );
   };
 
   return (
     <div className="bg-[#2D2D2D] border-b border-[#3D3D3D] px-4 py-2">
       <div className="flex items-center justify-between">
-        {/* Left side - File Operations */}
+        {/* Left side - Menu Bar */}
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-[#A0A0A0]">File:</span>
-            <button
-              onClick={onNew}
-              className="px-2 py-1 bg-[#454545] hover:bg-[#555555] text-white text-xs rounded transition-colors"
+          {Object.entries(menus).map(([menuName, menuSection]) => (
+            <div 
+              key={menuName} 
+              className="relative" 
+              ref={(el) => { menuRefs.current[menuName] = el; }}
             >
-              New
-            </button>
-            <button
-              onClick={onOpenFiles}
-              className="px-2 py-1 bg-[#454545] hover:bg-[#555555] text-white text-xs rounded transition-colors"
-            >
-              Open
-            </button>
-            <button
-              onClick={onSave}
-              className="px-2 py-1 bg-[#454545] hover:bg-[#555555] text-white text-xs rounded transition-colors relative"
-            >
-              Save
-              {unsavedChanges && (
-                <span className="absolute -top-1 -right-1 text-[#E66E00] text-xs">●</span>
+              <button
+                onClick={() => setActiveMenu(activeMenu === menuName ? null : menuName)}
+                className="px-3 py-1 bg-[#454545] hover:bg-[#555555] text-white text-xs rounded transition-colors flex items-center gap-2"
+              >
+                {menuName}
+                <svg 
+                  className={`w-3 h-3 transition-transform ${activeMenu === menuName ? 'rotate-180' : ''}`} 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              
+              {activeMenu === menuName && (
+                <div className="absolute top-full left-0 mt-1 bg-[#3D3D3D] border border-[#4D4D4D] rounded shadow-lg min-w-[160px] z-50">
+                  {menuSection.items.map((item, index) => renderMenuItem(item, index))}
+                </div>
               )}
-            </button>
-          </div>
-
-          <div className="h-4 w-px bg-[#3D3D3D]" />
-
-          {/* Export Operations */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-[#A0A0A0]">Export:</span>
-            <button
-              onClick={() => setShowExportDialog(true)}
-              disabled={!geometry || isExporting}
-              className="px-2 py-1 bg-[#4CAF50] hover:bg-[#5CBF60] disabled:bg-[#454545] disabled:cursor-not-allowed text-white text-xs rounded transition-colors"
-            >
-              {isExporting ? 'Exporting...' : 'Geometry'}
-            </button>
-            <button
-              onClick={handleExportCode}
-              className="px-2 py-1 bg-[#4772B3] hover:bg-[#5882C3] text-white text-xs rounded transition-colors"
-            >
-              .scad
-            </button>
-          </div>
-        </div>
-
-        {/* Right side - Geometry Stats */}
-        {geometry && (
-          <div className="flex items-center gap-4 text-xs text-[#A0A0A0]">
-            <div className="flex items-center gap-3">
-              <span className="font-semibold">Stats:</span>
-              <span>V: {geometry.stats.vertexCount}</span>
-              <span>F: {geometry.stats.faceCount}</span>
-              <span className="text-[#808080]">
-                B: [{geometry.bounds.min.join(',')}] → [{geometry.bounds.max.join(',')}]
-              </span>
             </div>
-          </div>
-        )}
+          ))}
+        </div>
       </div>
 
       {/* Export Dialog */}

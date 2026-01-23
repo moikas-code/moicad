@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { SceneManager } from '@/lib/three-utils';
 import { GeometryResponse } from '@/lib/api-client';
+import StatsOverlay from './StatsOverlay';
 
 interface ViewportProps {
   geometry: GeometryResponse | null;
@@ -71,6 +72,9 @@ export default function Viewport({ geometry }: ViewportProps) {
       className="w-full h-full bg-[#303030]"
       style={{ position: 'relative' }}
     >
+      {/* Stats overlay */}
+      <StatsOverlay geometry={geometry} />
+      
       {/* Controls overlay */}
       <div className="absolute top-4 right-4 flex gap-2 z-10">
         <button
