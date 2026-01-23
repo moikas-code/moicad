@@ -13,6 +13,17 @@ export interface SavedFile {
   description?: string;
 }
 
+/** Layout preferences stored for resizable panels */
+export interface LayoutPrefs {
+  leftWidth: number; // percentage (0-100)
+  rightWidth?: number;
+  isLeftCollapsed?: boolean;
+  isRightCollapsed?: boolean;
+  lastModified?: number;
+}
+
+const LAYOUT_KEY = 'moicad-layout_v1';
+
 /**
  * Save file to localStorage
  */
@@ -145,4 +156,36 @@ export function importFileFromScad(file: File): Promise<string> {
     };
     reader.readAsText(file);
   });
+}
+
+/**
+ * Save layout preferences to localStorage
+ */
+export function saveLayoutPrefs(p: Partial<LayoutPrefs>): void {
+  try {
+    const current = loadLayoutPrefs() ?? { leftWidth: 40 } as LayoutPrefs;
+    const merged: LayoutPrefs = {
+      ...current,
+      ...p,
+      lastModified: Date.now(),
+    };
+    localStorage.setItem(LAYOUT_KEY, JSON.stringify(merged));
+  } catch (err) {
+    console.error('Failed to save layout prefs', err);
+  }
+}
+
+/**
+ * Load layout preferences from localStorage
+ */
+export function loadLayoutPrefs(): LayoutPrefs | null {
+  try {
+    const raw = localStorage.getItem(LAYOUT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as LayoutPrefs;
+    return parsed;
+  } catch (err) {
+    console.error('Failed to load layout prefs', err);
+    return null;
+  }
 }

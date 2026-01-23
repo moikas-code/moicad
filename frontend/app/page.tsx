@@ -1,6 +1,5 @@
 'use client';
-
-import { useRef } from 'react';
+import React, { useRef } from 'react';
 import { useEditor } from '@/hooks/useEditor';
 import { useGeometry } from '@/hooks/useGeometry';
 import { useWebSocket } from '@/hooks/useWebSocket';
@@ -9,6 +8,7 @@ import Viewport from '@/components/Viewport';
 import TopMenu from '@/components/TopMenu';
 import FileManager from '@/components/FileManager';
 import ErrorDisplay from '@/components/ErrorDisplay';
+import ResizablePanel from '@/components/ResizablePanel';
 
 export default function Home() {
   // State management
@@ -25,7 +25,7 @@ export default function Home() {
   const { connected: wsConnected } = useWebSocket();
 
   // File manager ref
-  const fileManagerRef = useRef<any>(null);
+  const fileManagerRef = React.useRef<any>(null);
 
   const handleEditorChange = (newCode: string) => {
     setCode(newCode);
@@ -33,21 +33,13 @@ export default function Home() {
 
   const handleEditorErrors = (errors: string[]) => {
     if (errors.length > 0) {
-      updateGeometry({
-        geometry: null,
-        errors,
-        executionTime: 0,
-      });
+      updateGeometry({ geometry: null, errors, executionTime: 0 });
     }
   };
 
   const handleEditorGeometry = (geometry: any) => {
     if (geometry) {
-      updateGeometry({
-        geometry,
-        errors: [],
-        executionTime: 0,
-      });
+      updateGeometry({ geometry, errors: [], executionTime: 0 });
     }
   };
 
@@ -68,8 +60,54 @@ export default function Home() {
     fileManagerRef.current?.openFileManager?.();
   };
 
+  // Build left (Editor) and right (Viewport) content for the resizable panel
+  const leftContent = (
+    <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col bg-[#2D2D2D] rounded-lg border border-[#3D3D3D] overflow-hidden">
+        <div className="px-4 py-2 border-b border-[#3D3D3D] flex justify-between items-center">
+          <h2 className="text-sm font-semibold text-[#E5E5E5]">Code Editor</h2>
+          <div className="flex gap-2">
+            {hasUnsavedChanges && <span className="text-xs text-[#E66E00]">●</span>}
+            {wsConnected && <span className="text-xs text-green-400">WS Connected</span>}
+          </div>
+        </div>
+        <div className="flex-1 overflow-hidden">
+          <Editor
+            code={code}
+            onChange={handleEditorChange}
+            onErrors={handleEditorErrors}
+            onGeometry={handleEditorGeometry}
+            onLoading={handleEditorLoading}
+          />
+        </div>
+      </div>
+      {error && (
+        <div className="mt-2">
+          <ErrorDisplay errors={error} />
+        </div>
+      )}
+      {executionTime !== null && (
+        <div className="mt-2 p-2 bg-[#3D3D3D] rounded text-xs text-[#B0B0B0]">
+          Execution time: {executionTime.toFixed(2)}ms
+        </div>
+      )}
+    </div>
+  );
+
+  const rightContent = (
+    <div className="flex-1 flex flex-col bg-[#2D2D2D] rounded-lg border border-[#3D3D3D] overflow-hidden">
+      <div className="px-4 py-2 border-b border-[#3D3D3D] flex justify-between items-center">
+        <h2 className="text-sm font-semibold text-[#E5E5E5]">3D Viewport</h2>
+        {loading && <span className="text-xs text-[#4772B3] animate-pulse">Rendering...</span>}
+      </div>
+      <div className="flex-1 overflow-hidden">
+        <Viewport geometry={geometry} />
+      </div>
+    </div>
+  );
+
   return (
-    <div className="flex flex-col h-full w-full bg-[#1D1D1D]">
+    <div className="flex flex-col h-full w-full bg-[#1D1D1D]" id="moicad-root">
       {/* Top Menu */}
       <TopMenu
         geometry={geometry}
@@ -80,54 +118,9 @@ export default function Home() {
         unsavedChanges={hasUnsavedChanges}
       />
 
-      {/* Main Content */}
-      <div className="flex-1 flex gap-2 p-2 overflow-hidden">
-        {/* Editor Panel */}
-        <div className="flex-shrink-0 w-2/5 flex flex-col">
-          <div className="flex-1 flex flex-col bg-[#2D2D2D] rounded-lg border border-[#3D3D3D] overflow-hidden">
-            <div className="px-4 py-2 border-b border-[#3D3D3D] flex justify-between items-center">
-              <h2 className="text-sm font-semibold text-[#E5E5E5]">Code Editor</h2>
-              <div className="flex gap-2">
-                {hasUnsavedChanges && <span className="text-xs text-[#E66E00]">●</span>}
-                {wsConnected && <span className="text-xs text-green-400">WS Connected</span>}
-              </div>
-            </div>
-            <div className="flex-1 overflow-hidden">
-              <Editor
-                code={code}
-                onChange={handleEditorChange}
-                onErrors={handleEditorErrors}
-                onGeometry={handleEditorGeometry}
-                onLoading={handleEditorLoading}
-              />
-            </div>
-          </div>
-
-          {/* Error Display */}
-          {error && (
-            <div className="mt-2">
-              <ErrorDisplay errors={error} />
-            </div>
-          )}
-
-          {/* Stats */}
-          {executionTime !== null && (
-            <div className="mt-2 p-2 bg-[#3D3D3D] rounded text-xs text-[#B0B0B0]">
-              Execution time: {executionTime.toFixed(2)}ms
-            </div>
-          )}
-        </div>
-
-        {/* Viewport Panel */}
-        <div className="flex-1 flex flex-col bg-[#2D2D2D] rounded-lg border border-[#3D3D3D] overflow-hidden">
-          <div className="px-4 py-2 border-b border-[#3D3D3D] flex justify-between items-center">
-            <h2 className="text-sm font-semibold text-[#E5E5E5]">3D Viewport</h2>
-            {loading && <span className="text-xs text-[#4772B3] animate-pulse">Rendering...</span>}
-          </div>
-          <div className="flex-1 overflow-hidden">
-            <Viewport geometry={geometry} />
-          </div>
-        </div>
+      {/* Main Content - Resizable Panels */}
+      <div className="flex-1 overflow-hidden">
+        <ResizablePanel left={leftContent} right={rightContent} defaultLeft={40} />
       </div>
 
       {/* File Manager */}
