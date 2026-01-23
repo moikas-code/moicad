@@ -272,6 +272,19 @@ impl Mat4 {
     }
 }
 
+/// 2D Vector
+#[derive(Debug, Clone, Copy)]
+pub struct Vec2 {
+    pub x: f32,
+    pub y: f32,
+}
+
+impl Vec2 {
+    pub fn new(x: f32, y: f32) -> Self {
+        Vec2 { x, y }
+    }
+}
+
 /// Convert array to Vec3
 pub fn vec3_from_array(arr: &[f32; 3]) -> Vec3 {
     Vec3::new(arr[0], arr[1], arr[2])

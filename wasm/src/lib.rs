@@ -161,6 +161,19 @@ pub fn create_square(size: f32) -> WasmMesh {
     }
 }
 
+#[wasm_bindgen]
+pub fn create_polygon(points: Vec<f32>) -> WasmMesh {
+    // Convert flat array to Vec2 points
+    let mut polygon_points = Vec::new();
+    for i in 0..points.len() / 2 {
+        polygon_points.push(math::Vec2::new(points[i * 2], points[i * 2 + 1]));
+    }
+
+    WasmMesh {
+        mesh: primitives::polygon(polygon_points, None),
+    }
+}
+
 // CSG Operations
 #[wasm_bindgen]
 pub fn union(a: &WasmMesh, b: &WasmMesh) -> WasmMesh {

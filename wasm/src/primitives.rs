@@ -1,6 +1,6 @@
 /// Primitive shape generators for CSG modeling
 use crate::geometry::Mesh;
-use crate::math::Vec3;
+use crate::math::{Vec2, Vec3};
 use std::f32::consts::{PI, TAU};
 
 /// Generate a cube centered at origin
@@ -266,4 +266,53 @@ pub fn square(size: f32) -> Mesh {
     let indices = vec![0, 1, 2, 0, 2, 3];
 
     Mesh::new(vertices, indices)
+}
+
+/// Generate a 2D polygon from points with optional paths
+pub fn polygon(points: Vec<Vec2>, paths: Option<Vec<Vec<usize>>>) -> Mesh {
+    if points.len() < 3 {
+        return Mesh::new(vec![], vec![]);
+    }
+
+    // Convert 2D points to 3D (z=0)
+    let vertices_3d: Vec<Vec3> = points.iter().map(|p| Vec3::new(p.x, p.y, 0.0)).collect();
+
+    let indices;
+
+    if let Some(paths) = paths {
+        // Triangulate each path separately
+        let mut all_indices = Vec::new();
+        for path in paths {
+            let path_points: Vec<Vec2> = path.iter().map(|&idx| points[idx]).collect();
+
+            if path_points.len() >= 3 {
+                let path_indices = triangulate_earclip(&path_points);
+                // Convert local indices to global indices
+                let base_idx = all_indices.len() as u32;
+                all_indices.extend(path_indices.iter().map(|&i| i + base_idx));
+            }
+        }
+        indices = all_indices;
+    } else {
+        // Single polygon with all points
+        indices = triangulate_earclip(&points);
+    }
+
+    Mesh::new(vertices_3d, indices)
+}
+
+/// Simple fan triangulation for convex polygons
+fn triangulate_earclip(polygon: &[Vec2]) -> Vec<u32> {
+    if polygon.len() < 3 {
+        return vec![];
+    }
+
+    // Simple fan triangulation from first vertex
+    let mut indices = Vec::new();
+    for i in 1..(polygon.len() - 1) {
+        indices.push(0);
+        indices.push(i as u32);
+        indices.push((i + 1) as u32);
+    }
+    indices
 }

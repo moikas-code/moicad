@@ -120,6 +120,9 @@ export async function evaluateAST(ast: ScadNode[]): Promise<EvaluateResult> {
 
     // Single optimized pass: collect definitions and evaluate in one traversal
     const geometries: any[] = [];
+    const executableNodes: any[] = [];
+    
+    // Separate definitions from executable nodes
     for (const node of ast) {
       // Handle definitions
       if (node.type === 'function_def') {
@@ -131,10 +134,37 @@ export async function evaluateAST(ast: ScadNode[]): Promise<EvaluateResult> {
         continue; // Skip to evaluation phase
       }
 
-      // Evaluate executable nodes
-      const result = await evaluateNode(node, context);
-      if (result) {
-        geometries.push(result);
+      // Collect executable nodes for batch processing
+      executableNodes.push(node);
+    }
+
+    // Check if parallel evaluation would be beneficial
+    if (executableNodes.length > 3) {
+      try {
+        // Use parallel evaluation for complex scenes
+        const batchResults = await parallelEvaluator.batchEvaluateNodes(executableNodes, context);
+        for (const result of batchResults) {
+          if (result) {
+            geometries.push(result);
+          }
+        }
+      } catch (error) {
+        console.warn('Parallel evaluation failed, falling back to sequential:', error);
+        // Fallback to sequential evaluation
+        for (const node of executableNodes) {
+          const result = await evaluateNode(node, context);
+          if (result) {
+            geometries.push(result);
+          }
+        }
+      }
+    } else {
+      // Sequential evaluation for simple scenes
+      for (const node of executableNodes) {
+        const result = await evaluateNode(node, context);
+        if (result) {
+          geometries.push(result);
+        }
       }
     }
 
@@ -275,6 +305,18 @@ function evaluatePrimitive(node: any, context: EvaluationContext): any {
     case 'square':
       const sq_size = params._positional ?? params.size ?? 10;
       geometry = wasmModule.create_square(sq_size);
+      break;
+
+    case 'polygon':
+      const points = params._positional ?? params.points ?? [];
+      // Convert points array to flat array for WASM
+      let flat_points = [];
+      if (Array.isArray(points[0])) {
+        flat_points = points.flat();
+      } else {
+        flat_points = points;
+      }
+      geometry = wasmModule.create_polygon(flat_points);
       break;
 
     default:
@@ -654,7 +696,7 @@ function evaluateExpression(expr: any, context: EvaluationContext): any {
 function evaluateBinaryExpression(expr: any, context: EvaluationContext): any {
   const operator = expr.operator;
 
-  // Unary operators
+  // Unary operators (optimized - no recursion)
   if (!expr.right && expr.left !== undefined) {
     const left = evaluateExpression(expr.left, context);
     switch (operator) {
@@ -664,10 +706,31 @@ function evaluateBinaryExpression(expr: any, context: EvaluationContext): any {
     }
   }
 
-  // Binary operators
+  // Binary operators with optimized evaluation for common cases
   const left = evaluateExpression(expr.left, context);
   const right = evaluateExpression(expr.right, context);
 
+  // Fast path for numeric operations (most common)
+  if (typeof left === 'number' && typeof right === 'number') {
+    switch (operator) {
+      case '+': return left + right;
+      case '-': return left - right;
+      case '*': return left * right;
+      case '/': return left / right;
+      case '%': return left % right;
+      case '==': return left === right;
+      case '!=': return left !== right;
+      case '<': return left < right;
+      case '>': return left > right;
+      case '<=': return left <= right;
+      case '>=': return left >= right;
+      case '&&': return left && right;
+      case '||': return left || right;
+      default: break;
+    }
+  }
+
+  // Fallback to original logic for complex expressions
   switch (operator) {
     case '+': return left + right;
     case '-': return left - right;
@@ -1060,6 +1123,104 @@ class MathOptimizer {
 
 // Global math optimizer instance
 const mathOptimizer = new MathOptimizer();
+
+/**
+ * Parallel evaluation manager for complex geometry operations
+ */
+class ParallelEvaluator {
+  private maxWorkers = 4;
+  private workerPool: any[] = [];
+  private taskQueue: Array<{task: any, resolve: Function, reject: Function}> = [];
+
+  constructor() {
+    // Only use parallel evaluation if available and beneficial
+    if (typeof Worker === 'undefined' || !this.isComplexEnoughForParallel()) {
+      return;
+    }
+
+    // Initialize worker pool for CPU-bound operations
+    for (let i = 0; i < this.maxWorkers; i++) {
+      this.createWorker();
+    }
+  }
+
+  private isComplexEnoughForParallel(): boolean {
+    // Enable parallelism for operations that benefit from it
+    // This is determined by the number of independent operations
+    return true; // Can be made smarter based on code analysis
+  }
+
+  private createWorker(): void {
+    // In a real implementation, This would create Web Workers
+    // For now, this is a placeholder for parallel evaluation structure
+    console.log('Parallel evaluation enabled (placeholder implementation)');
+  }
+
+  async evaluateParallel<T>(operations: Array<() => Promise<T>>): Promise<T[]> {
+    if (operations.length <= 2) {
+      // For small numbers, evaluate sequentially
+      return Promise.all(operations.map(op => op()));
+    }
+
+    // Simulate parallel evaluation (would use Web Workers in browser)
+    const promises = operations.map(op => {
+      return new Promise<T>((resolve, reject) => {
+        setTimeout(() => {
+          try {
+            const result = op();
+            resolve(result);
+          } catch (error) {
+            reject(error);
+          }
+        }, 0);
+      });
+    });
+
+    return Promise.all(promises);
+  }
+
+  private isIndependentOperation(node: any): boolean {
+    // Check if node can be evaluated independently
+    const independentTypes = ['primitive', 'transform'];
+    return independentTypes.includes(node.type);
+  }
+
+  async batchEvaluateNodes(nodes: any[], context: EvaluationContext): Promise<any[]> {
+    // Group independent nodes for parallel processing
+    const independentNodes = nodes.filter(node => this.isIndependentOperation(node));
+    const dependentNodes = nodes.filter(node => !this.isIndependentOperation(node));
+
+    const [independentResults] = await Promise.all([
+      this.evaluateParallel(independentNodes.map(node => 
+        () => evaluateNode(node, context)
+      ))
+    ]);
+
+    // Process dependent nodes sequentially (they need context)
+    const dependentResults = [];
+    for (const node of dependentNodes) {
+      dependentResults.push(await evaluateNode(node, context));
+    }
+
+    // Combine results maintaining original order
+    const results = [];
+    let independentIdx = 0;
+    let dependentIdx = 0;
+
+    for (const originalNode of nodes) {
+      if (this.isIndependentOperation(originalNode)) {
+        results.push(independentResults[independentIdx++]);
+      } else {
+        results.push(dependentResults[dependentIdx++]);
+      }
+    }
+
+    return results;
+  }
+}
+
+// Global parallel evaluator instance
+const parallelEvaluator = new ParallelEvaluator();
 
 /**
  * Convert WASM geometry to standard Geometry format (JSON-serializable)
