@@ -22,7 +22,7 @@ class Tokenizer {
     'translate', 'rotate', 'scale', 'mirror', 'multmatrix',
     'union', 'difference', 'intersection', 'hull', 'minkowski',
     'for', 'let', 'function', 'module', 'children',
-    'if', 'else', 'echo',
+    'if', 'else', 'echo', 'import', 'include', 'use',
   ]);
 
   // Initialize character type lookup table (called once)
@@ -435,6 +435,11 @@ class Parser {
       return this.parseBooleanOp();
     }
 
+    // Check for import/include statements
+    if (token.value === 'import' || token.value === 'include' || token.value === 'use') {
+      return this.parseImport();
+    }
+
     // Check for for loop
     if (token.value === 'for') {
       return this.parseForLoop();
@@ -548,6 +553,42 @@ class Parser {
     };
   }
 
+  private parseImport(): ScadNode {
+    const op = this.advance().value;
+    const line = this.current().line;
+    
+    let filename: string;
+    if (this.current().value === '<') {
+      // System import: <filename>
+      this.advance();
+      // Read identifier or path until '>'
+      let path = '';
+      while (this.current().value !== '>' && this.current().type !== 'eof') {
+        if (this.current().type === 'identifier' || this.current().value === '/') {
+          path += this.advance().value;
+        } else {
+          this.advance(); // Skip other chars like . in file extensions
+        }
+      }
+      filename = path;
+      this.expect('>');
+    } else {
+      // Regular import: "filename"
+      filename = this.expect('string').value;
+    }
+    
+    if (this.current().value === ';') {
+      this.advance();
+    }
+    
+    return {
+      type: 'import',
+      op,
+      filename,
+      line,
+    };
+  }
+
   private parseChildren(): ScadNode {
     this.expect('children');
     const line = this.current().line;
@@ -635,8 +676,15 @@ class Parser {
     return null;
   }
 
-  private parseArray(): any[] {
+  private parseArray(): any[] | any {
     this.expect('[');
+    
+    // Check if this is a list comprehension by looking for 'for' immediately after '['
+    if (this.current().value === 'for') {
+      return this.parseListComprehension(null);
+    }
+    
+    // Regular array
     const arr: any[] = [];
 
     while (this.current().value !== ']' && this.current().type !== 'eof') {
@@ -649,6 +697,43 @@ class Parser {
 
     this.expect(']');
     return arr;
+  }
+
+  private parseListComprehension(expression: any): any {
+    this.expect('for');
+    this.expect('(');
+    
+    // Parse variable assignment
+    const variable = this.expect('identifier').value;
+    this.expect('=');
+    const range = this.parseRange();
+    
+    this.expect(')');
+    
+    // Parse condition (optional)
+    let condition: any;
+    if (this.current().value === 'if') {
+      this.advance();
+      this.expect('(');
+      condition = this.parseExpression();
+      this.expect(')');
+    }
+    
+    // Parse the expression
+    console.log('About to parse expression, current token:', this.current());
+    const expr = this.parseExpression();
+    console.log('Expression parsed:', expr);
+    
+    console.log('About to expect ], current token:', this.current());
+    this.expect(']');
+    console.log('Finished list comprehension');
+    
+    return {
+      type: 'list_comprehension',
+      expression: expr,
+      comprehensions: [{ variable, range }],
+      condition,
+    };
   }
 
   private parseRange(): [number, number] | [number, number, number] {

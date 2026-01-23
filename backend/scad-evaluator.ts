@@ -11,6 +11,8 @@ interface WasmModule {
   create_cone: (radius: number, height: number, detail: number) => any;
   create_circle: (radius: number, detail: number) => any;
   create_square: (size: number) => any;
+  create_polygon: (points: number[]) => any;
+  create_polyhedron: (points: number[], faces: number[]) => any;
   union: (a: any, b: any) => any;
   difference: (a: any, b: any) => any;
   intersection: (a: any, b: any) => any;
@@ -240,6 +242,9 @@ async function evaluateNode(node: ScadNode, context: EvaluationContext): Promise
       // Already handled in first pass
       return null;
 
+    case 'import':
+      return evaluateImport(node as any, context);
+
     case 'children':
       // Children nodes are handled in parent context
       return null;
@@ -330,19 +335,6 @@ function evaluatePrimitive(node: any, context: EvaluationContext): any {
         poly_flat = poly_pts;
       }
       geometry = wasmModule.create_polyhedron(poly_flat, poly_faces);
-      break;
-
-    case 'polyhedron':
-      const pts = params._positional ?? params.points ?? [];
-      const fcs = params.faces ?? [];
-      // Convert points array to flat array for WASM
-      let flat_points = [];
-      if (Array.isArray(pts[0])) {
-        flat_points = pts.flat();
-      } else {
-        flat_points = pts;
-      }
-      geometry = wasmModule.create_polyhedron(flat_points, fcs);
       break;
 
     default:
@@ -695,6 +687,10 @@ function evaluateExpression(expr: any, context: EvaluationContext): any {
 
       case 'variable':
         result = context.variables.get(expr.name);
+        break;
+
+      case 'list_comprehension':
+        result = evaluateListComprehensionExpression(expr, context);
         break;
 
       default:
@@ -1242,6 +1238,180 @@ class ParallelEvaluator {
     }
 
     return results;
+  }
+}
+
+/**
+ * Evaluate list comprehension expression
+ */
+function evaluateListComprehensionExpression(comp: any, context: EvaluationContext): any[] {
+  const result: any[] = [];
+  
+  // Helper function to generate range values
+  const generateRange = (range: [number, number] | [number, number, number]): number[] => {
+    const values: number[] = [];
+    let start: number, step: number, end: number;
+    
+    if (range.length === 2) {
+      [start, end] = range;
+      step = 1;
+    } else {
+      [start, step, end] = range;
+    }
+    
+    for (let value = start; step > 0 ? value < end : value > end; value += step) {
+      values.push(value);
+    }
+    
+    return values;
+  };
+  
+  // Recursive function to handle multiple comprehensions
+  const generateCombinations = (
+    comprehensions: Array<{ variable: string; range: [number, number] | [number, number, number] }>,
+    index: number,
+    currentVars: Map<string, number>
+  ): void => {
+    if (index >= comprehensions.length) {
+      // All variables set, evaluate expression
+      // Create a temporary context with current variables
+      const tempContext = {
+        ...context,
+        variables: new Map([...context.variables, ...currentVars])
+      };
+      
+      // Check condition if present
+      if (comp.condition) {
+        const conditionResult = evaluateExpression(comp.condition, tempContext);
+        if (!Boolean(conditionResult)) {
+          return;
+        }
+      }
+      
+      // Evaluate expression
+      const exprResult = evaluateExpression(comp.expression, tempContext);
+      result.push(exprResult);
+      return;
+    }
+    
+    const compVar = comprehensions[index];
+    if (!compVar) return;
+    
+    const rangeValues = generateRange(compVar.range);
+    
+    for (const value of rangeValues) {
+      currentVars.set(compVar.variable, value);
+      generateCombinations(comprehensions, index + 1, currentVars);
+      currentVars.delete(compVar.variable);
+    }
+  };
+  
+  // Start generating combinations
+  generateCombinations(comp.comprehensions, 0, new Map());
+  
+  return result;
+}
+
+/**
+ * Evaluate import/include statement
+ */
+async function evaluateImport(node: any, context: EvaluationContext): Promise<any> {
+  try {
+    // For now, we'll implement a basic version that reads from allowed directories
+    // This is a simplified implementation - production would need more security
+    
+    const allowedPaths = ['./lib/', './modules/', './'];
+    
+    // Try to resolve the filename to a valid path
+    let filePath: string | null = null;
+    for (const basePath of allowedPaths) {
+      const testPath = basePath + node.filename;
+      try {
+        // Check if file exists (Bun file API)
+        const file = Bun.file(testPath);
+        if (await file.exists()) {
+          filePath = testPath;
+          break;
+        }
+      } catch (err) {
+        // Continue to next path
+      }
+    }
+    
+    if (!filePath) {
+      context.errors.push({ 
+        message: `Import file not found: ${node.filename}`,
+        line: node.line 
+      });
+      return null;
+    }
+    
+    // Read file content
+    const fileContent = await Bun.file(filePath).text();
+    
+    // Parse the imported file
+    const { parseOpenSCAD } = await import('./scad-parser.ts');
+    const parseResult = parseOpenSCAD(fileContent);
+    
+    if (!parseResult.success) {
+      context.errors.push(...parseResult.errors);
+      return null;
+    }
+    
+    // Evaluate imported AST
+    const importedGeometries: any[] = [];
+    
+    // Handle different import types
+    switch (node.op) {
+      case 'import':
+        // Import: Makes the content available as modules
+        for (const importedNode of parseResult.ast || []) {
+          if (importedNode.type === 'module_def') {
+            context.modules.set((importedNode as any).name, importedNode);
+          } else if (importedNode.type === 'function_def') {
+            context.functions.set((importedNode as any).name, importedNode);
+          } else if (importedNode.type === 'assignment') {
+            context.variables.set((importedNode as any).name, (importedNode as any).value);
+          }
+        }
+        break;
+        
+      case 'include':
+        // Include: Execute the content immediately
+        for (const importedNode of parseResult.ast || []) {
+          const result = await evaluateNode(importedNode, context);
+          if (result) {
+            importedGeometries.push(result);
+          }
+        }
+        break;
+        
+      case 'use':
+        // Use: Similar to include but only for modules
+        for (const importedNode of parseResult.ast || []) {
+          if (importedNode.type === 'module_def') {
+            context.modules.set((importedNode as any).name, importedNode);
+          }
+        }
+        break;
+    }
+    
+    // Return combined geometry for include statements
+    if (importedGeometries.length > 0 && wasmModule) {
+      let combined = importedGeometries[0];
+      for (let i = 1; i < importedGeometries.length; i++) {
+        combined = wasmModule.union(combined, importedGeometries[i]);
+      }
+      return combined;
+    }
+    
+    return null;
+  } catch (error: any) {
+    context.errors.push({ 
+      message: `Failed to import ${node.filename}: ${error.message}`,
+      line: node.line 
+    });
+    return null;
   }
 }
 

@@ -6,7 +6,7 @@ export const SCAD_KEYWORDS = [
   'translate', 'rotate', 'scale', 'mirror', 'multmatrix',
   'union', 'difference', 'intersection', 'hull', 'minkowski',
   'linear_extrude', 'rotate_extrude',
-  'for', 'let', 'function', 'module', 'include', 'use',
+  'for', 'let', 'function', 'module', 'include', 'use', 'import',
   'if', 'else', 'echo',
   'true', 'false', 'undef',
 ] as const;

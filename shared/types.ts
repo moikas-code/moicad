@@ -18,7 +18,9 @@ export type ScadNode =
   | ForLoopNode
   | ChildrenNode
   | EchoNode
-  | AssertNode;
+  | AssertNode
+  | ListComprehensionNode
+  | ImportNode;
 
 export interface PrimitiveNode {
   type: 'primitive';
@@ -126,6 +128,24 @@ export interface AssertNode {
   type: 'assert';
   condition: any;
   message?: any;
+  line?: number;
+}
+
+export interface ListComprehensionNode {
+  type: 'list_comprehension';
+  expression: any;
+  comprehensions: Array<{
+    variable: string;
+    range: [number, number] | [number, number, number];
+  }>;
+  condition?: any;
+  line?: number;
+}
+
+export interface ImportNode {
+  type: 'import';
+  op: 'import' | 'include' | 'use';
+  filename: string;
   line?: number;
 }
 
