@@ -5,7 +5,14 @@
 
 import { parseOpenSCAD } from './scad-parser';
 import { evaluateAST, setWasmModule } from './scad-evaluator';
-import type { EvaluateMessage, EvaluateResponse, ParseResult, EvaluateResult } from '../shared/types';
+import type { EvaluateMessage, EvaluateResponse, ParseResult, EvaluateResult, Geometry, ExportResult } from '../shared/types';
+
+// MCP imports
+import { mcpStore } from './mcp-store';
+import { wsManager } from './mcp-middleware';
+import { mcpWebSocketServer } from './mcp-server';
+import * as mcpApi from './mcp-api';
+import { aiManager } from './mcp-ai-adapter';
 
 // Dynamic import for WASM
 let wasmModule: any = null;
@@ -40,6 +47,8 @@ await initWasm();
 
 interface WebSocketData {
   requestId?: string;
+  isMCP?: boolean;
+  connectionId?: string;
 }
 
 const server = Bun.serve<WebSocketData>({
@@ -62,9 +71,14 @@ const server = Bun.serve<WebSocketData>({
       return new Response(null, { status: 204, headers: corsHeaders });
     }
 
-    // WebSocket upgrade
+    // WebSocket upgrade for original API
     if (path === '/ws' && req.headers.get('upgrade') === 'websocket') {
       return server.upgrade(req, { data: {} }) as any;
+    }
+
+    // WebSocket upgrade for MCP
+    if (path === '/ws/mcp' && req.headers.get('upgrade') === 'websocket') {
+      return server.upgrade(req, { data: { isMCP: true } }) as any;
     }
 
     // API Routes
@@ -78,6 +92,52 @@ const server = Bun.serve<WebSocketData>({
 
     if (path === '/api/export' && req.method === 'POST') {
       return handleExport(req);
+    }
+
+    // AI Suggestions
+    if (path === '/api/ai/suggestions' && req.method === 'POST') {
+      return handleAiSuggestions(req);
+    }
+
+    // MCP API Routes
+    // User management
+    if (path === '/api/mcp/auth/register' && req.method === 'POST') {
+      return mcpApi.handleRegisterUser(req);
+    }
+
+    if (path === '/api/mcp/auth/login' && req.method === 'POST') {
+      return mcpApi.handleLoginUser(req);
+    }
+
+    if (path === '/api/mcp/auth/me' && req.method === 'GET') {
+      return mcpApi.handleGetCurrentUser(req);
+    }
+
+    // Project management
+    if (path.startsWith('/api/mcp/projects') && req.method === 'GET') {
+      if (path.split('/').length === 4) { // /api/mcp/projects/:id
+        return mcpApi.handleGetProject(req);
+      } else { // /api/mcp/projects
+        return mcpApi.handleGetProjects(req);
+      }
+    }
+
+    if (path === '/api/mcp/projects' && req.method === 'POST') {
+      return mcpApi.handleCreateProject(req);
+    }
+
+    // Session management
+    if (path.startsWith('/api/mcp/sessions') && req.method === 'GET') {
+      return mcpApi.handleGetSessions(req);
+    }
+
+    if (path === '/api/mcp/sessions' && req.method === 'POST') {
+      return mcpApi.handleCreateSession(req);
+    }
+
+    // System endpoints
+    if (path === '/api/mcp/stats' && req.method === 'GET') {
+      return mcpApi.handleGetStats(req);
     }
 
     // Health check
@@ -96,7 +156,17 @@ const server = Bun.serve<WebSocketData>({
 
   websocket: {
     open(ws) {
-      console.log('✓ WebSocket client connected');
+      const connectionId = mcpStore.generateId();
+      
+      // Determine if this is MCP or regular connection
+      if (ws.data.isMCP) {
+        console.log('✓ MCP WebSocket client connected');
+        wsManager.addConnection(connectionId, ws, { isAuthenticated: false, isAnonymous: true });
+      } else {
+        console.log('✓ WebSocket client connected');
+      }
+      
+      ws.data.connectionId = connectionId;
     },
 
     async message(ws, message) {
@@ -105,23 +175,50 @@ const server = Bun.serve<WebSocketData>({
           ? JSON.parse(message)
           : message;
 
-        if (data.type === 'evaluate') {
-          const result = await handleEvaluateWs(data);
-          ws.send(JSON.stringify(result));
-        } else if (data.type === 'parse') {
-          const result = handleParseWs(data);
-          ws.send(JSON.stringify(result));
+        if (ws.data.isMCP) {
+          // Handle MCP messages
+          if (ws.data.connectionId) {
+            await mcpWebSocketServer.handleMessage(data, ws.data.connectionId);
+          }
+        } else {
+          // Handle original API messages
+          if (data.type === 'evaluate') {
+            const result = await handleEvaluateWs(data);
+            ws.send(JSON.stringify(result));
+          } else if (data.type === 'parse') {
+            const result = handleParseWs(data);
+            ws.send(JSON.stringify(result));
+          }
         }
       } catch (err: any) {
-        ws.send(JSON.stringify({
-          type: 'error',
-          error: err.message,
-        }));
+        if (ws.data.isMCP) {
+          // MCP error handling
+          const errorMessage = {
+            id: mcpStore.generateId(),
+            type: 'error',
+            timestamp: new Date(),
+            payload: { error: err.message },
+          };
+          ws.send(JSON.stringify(errorMessage));
+        } else {
+          // Original API error handling
+          ws.send(JSON.stringify({
+            type: 'error',
+            error: err.message,
+          }));
+        }
       }
     },
 
     close(ws) {
-      console.log('✓ WebSocket client disconnected');
+      if (ws.data.isMCP) {
+        console.log('✓ MCP WebSocket client disconnected');
+        if (ws.data.connectionId) {
+          wsManager.removeConnection(ws.data.connectionId);
+        }
+      } else {
+        console.log('✓ WebSocket client disconnected');
+      }
     },
 
     error(ws, error) {
@@ -130,18 +227,38 @@ const server = Bun.serve<WebSocketData>({
   },
 });
 
+// Initialize MCP store with sample data for testing
+mcpStore.initializeSampleData();
+
+// Set up periodic cleanup
+setInterval(() => {
+  mcpStore.cleanupExpired();
+  wsManager.cleanupInactive();
+}, 5 * 60 * 1000); // Every 5 minutes
+
 console.log(`
 ╔════════════════════════════════════════════════════════════╗
 ║         🏗️  moicad CAD Engine Server                       ║
 ║                                                            ║
 ║  Server running at: http://localhost:3000                ║
 ║  WebSocket:        ws://localhost:3000/ws               ║
+║  MCP WebSocket:     ws://localhost:3000/ws/mcp           ║
 ║  Health check:     http://localhost:3000/health         ║
 ║                                                            ║
 ║  API Endpoints:                                           ║
 ║    POST /api/parse     - Parse OpenSCAD code             ║
 ║    POST /api/evaluate  - Parse and evaluate to geometry   ║
 ║    POST /api/export    - Export geometry to STL/OBJ       ║
+║                                                            ║
+║  MCP Endpoints:                                          ║
+║    POST /api/mcp/auth/register    - User registration     ║
+║    POST /api/mcp/auth/login       - User login           ║
+║    GET  /api/mcp/auth/me         - Current user         ║
+║    GET  /api/mcp/projects        - List projects        ║
+║    POST /api/mcp/projects        - Create project       ║
+║    GET  /api/mcp/sessions       - List sessions        ║
+║    POST /api/mcp/sessions       - Create session        ║
+║    GET  /api/mcp/stats          - System statistics     ║
 ╚════════════════════════════════════════════════════════════╝
 `);
 
@@ -209,52 +326,116 @@ async function handleEvaluate(req: Request): Promise<Response> {
 }
 
 async function handleExport(req: Request): Promise<Response> {
+  // CORS headers for all responses
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
+
+  const body = await req.json() as { geometry: Geometry; format: string; binary?: boolean };
+  
   try {
-    const { geometry, format } = await req.json() as {
-      geometry: any;
-      format: 'stl' | 'obj' | '3mf';
-    };
-
-    if (!geometry) {
-      return sendJson({ error: 'geometry is required' }, 400);
-    }
-
-    if (!['stl', 'obj', '3mf'].includes(format)) {
-      return sendJson({ error: 'Invalid format. Use: stl, obj, or 3mf' }, 400);
-    }
-
     let data: string | ArrayBuffer;
     let contentType: string;
-    let filename: string;
-
-    if (format === 'stl') {
-      data = geometryToSTL(geometry, true);
+    
+    if (body.format === 'stl') {
+      data = geometryToSTL(body.geometry, body.binary ?? true);
       contentType = 'application/octet-stream';
-      filename = 'model.stl';
-    } else if (format === 'obj') {
-      data = geometryToOBJ(geometry);
+    } else if (body.format === 'obj') {
+      data = geometryToOBJ(body.geometry);
       contentType = 'text/plain';
-      filename = 'model.obj';
     } else {
-      // 3MF would require more complex handling
-      return sendJson({ error: '3MF export not yet implemented' }, 501);
+      throw new Error(`Unsupported export format: ${body.format}`);
     }
 
     return new Response(data, {
+      status: 200,
       headers: {
         'Content-Type': contentType,
-        'Content-Disposition': `attachment; filename="${filename}"`,
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
+        'Content-Disposition': `attachment; filename="model.${body.format}"`,
+        ...corsHeaders,
       },
     });
   } catch (err: any) {
-    return sendJson({
-      error: err.message,
-    }, 500);
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders },
+    });
   }
 }
+
+async function handleAiSuggestions(req: Request): Promise<Response> {
+  // CORS headers for all responses
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
+
+  try {
+    const body = await req.json() as any;
+    
+    // Build suggestion request
+    const suggestionRequest = {
+      code: body.code || '',
+      cursor: body.cursor,
+      selection: body.selection,
+      context: {
+        file: {
+          name: body.fileName || 'main.scad',
+          path: body.filePath || '/main.scad',
+          language: 'openscad'
+        },
+        project: body.project,
+        session: body.session,
+        history: {
+          recentSuggestions: [],
+          recentChanges: [],
+          evaluationErrors: []
+        }
+      },
+      preferences: {
+        types: body.preferences?.types || ['code', 'bug_fix', 'enhancement'],
+        minConfidence: body.preferences?.minConfidence || 0.5,
+        maxSuggestions: body.preferences?.maxSuggestions || 5,
+        categories: body.preferences?.categories || [],
+        autoApply: body.preferences?.autoApply || false,
+        requireReview: body.preferences?.requireReview || true,
+        excludeExperimental: body.preferences?.excludeExperimental || true,
+        customRules: body.preferences?.customRules || []
+      },
+      sessionId: body.sessionId,
+      userId: body.userId
+    };
+
+    // Generate suggestions
+    const response = await aiManager.generateSuggestions(suggestionRequest);
+
+    return new Response(JSON.stringify({
+      success: true,
+      suggestions: response.suggestions,
+      metadata: response.metadata,
+      provider: response.provider,
+      processingTime: response.processingTime,
+      requestId: response.requestId
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders },
+    });
+  } catch (err: any) {
+    console.error('AI suggestions error:', err);
+    return new Response(JSON.stringify({ 
+      success: false, 
+      error: err.message 
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders },
+    });
+  }
+}
+
+
 
 // ============================================================================
 // WebSocket Handlers
