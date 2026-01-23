@@ -153,10 +153,6 @@ export default function Home() {
         return;
       }
 
-      // Check if the event target is within Monaco editor
-      const target = event.target as HTMLElement;
-      const isMonacoEditor = target.closest('.monaco-editor') !== null;
-
       const { ctrlKey, metaKey, shiftKey, key } = event;
       const cmdOrCtrl = ctrlKey || metaKey;
 
@@ -202,55 +198,24 @@ export default function Home() {
             break;
           case 'z':
           case 'Z':
-            // Skip undo/redo when in Monaco editor - let Monaco handle it
-            if (isMonacoEditor) {
-              return;
-            }
-            event.preventDefault();
-            if (shiftKey) {
-              // Redo (Cmd+Shift+Z)
-              console.log('Redo requested');
-            } else {
-              // Undo (Cmd+Z)
-              console.log('Undo requested');
-            }
-            break;
+            // Don't handle undo/redo - let Monaco handle it natively
+            // TODO: Implement app-level undo when needed
+            return;
           case 'y':
           case 'Y':
-            // Skip undo/redo when in Monaco editor - let Monaco handle it
-            if (isMonacoEditor) {
-              return;
-            }
-            event.preventDefault();
-            // Redo (Cmd+Y)
-            console.log('Redo requested');
-            break;
+            // Don't handle undo/redo - let Monaco handle it natively
+            // TODO: Implement app-level undo when needed
+            return;
           case 'c':
           case 'C':
-            // Skip copy/paste when in Monaco editor - let Monaco handle it
-            if (isMonacoEditor) {
-              return;
-            }
-            event.preventDefault();
-            // Copy (Cmd+C) - only when not in editor
-            navigator.clipboard.writeText(code);
-            console.log('Code copied to clipboard');
-            break;
+            // Don't handle copy at all - let Monaco and browser handle it natively
+            // The Edit menu item will provide copy functionality if needed outside editor
+            return;
           case 'v':
           case 'V':
-            // Skip copy/paste when in Monaco editor - let Monaco handle it
-            if (isMonacoEditor) {
-              return;
-            }
-            event.preventDefault();
-            // Paste (Cmd+V) - only when not in editor
-            navigator.clipboard.readText().then(text => {
-              setCode(text);
-              console.log('Code pasted from clipboard');
-            }).catch(error => {
-              console.error('Failed to paste:', error);
-            });
-            break;
+            // Don't handle paste at all - let Monaco and browser handle it natively
+            // The Edit menu item will provide paste functionality if needed outside editor
+            return;
         }
       }
     };
