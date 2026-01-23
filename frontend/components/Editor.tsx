@@ -29,6 +29,11 @@ export default function EditorComponent({
   const handleEditorDidMount = (editor: editor.IStandaloneCodeEditor) => {
     editorRef.current = editor;
     // Let Monaco handle paste natively - no custom handling needed
+
+    // Give editor focus after mount to ensure clipboard events work
+    setTimeout(() => {
+      editor.focus();
+    }, 100);
   };
 
   useEffect(() => {
