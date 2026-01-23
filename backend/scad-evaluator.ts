@@ -332,29 +332,17 @@ function evaluatePrimitive(node: any, context: EvaluationContext): any {
       geometry = wasmModule.create_polyhedron(poly_flat, poly_faces);
       break;
 
-    case 'linear_extrude':
-      const height = params.height ?? 10;
-      const twist = params.twist ?? 0;
-      const scale = params.scale ?? 1;
-      const slices = params.slices ?? 10;
-      const center = params.center ?? false;
-      
-      if (node.children && node.children.length > 0) {
-        // Evaluate and combine all children
-        let childGeom = await evaluateNode(node.children[0], context);
-        for (let i = 1; i < node.children.length; i++) {
-          childGeom = await evaluateNode(node.children[i], context);
-          if (childGeom) {
-            childGeom = wasmModule.union(childGeom, childGeom);
-          }
-        }
-        geometry = childGeom;
+    case 'polyhedron':
+      const pts = params._positional ?? params.points ?? [];
+      const fcs = params.faces ?? [];
+      // Convert points array to flat array for WASM
+      let flat_points = [];
+      if (Array.isArray(pts[0])) {
+        flat_points = pts.flat();
       } else {
-        context.errors.push({ message: 'linear_extrude requires children geometry' });
-        return null;
+        flat_points = pts;
       }
-      
-      geometry = wasmModule.linear_extrude(geometry, height, twist, scale, slices);
+      geometry = wasmModule.create_polyhedron(flat_points, fcs);
       break;
 
     default:
