@@ -64,7 +64,6 @@ export default function EditorComponent({
       <Editor
         height="100%"
         defaultLanguage="cpp"
-        defaultValue={code}
         value={code}
         onChange={(value) => onChange(value || '')}
         onMount={handleEditorDidMount}
