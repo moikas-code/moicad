@@ -1,13 +1,16 @@
 'use client';
 
 import { GeometryResponse } from '@/lib/api-client';
+import { useViewportControls } from './ViewportControlsContext';
 
 interface StatsOverlayProps {
   geometry: GeometryResponse | null;
 }
 
 export default function StatsOverlay({ geometry }: StatsOverlayProps) {
-  if (!geometry) return null;
+  const { showStatsOverlay } = useViewportControls();
+  
+  if (!geometry || !showStatsOverlay) return null;
 
   const { vertexCount, faceCount } = geometry.stats;
   const { min, max } = geometry.bounds;

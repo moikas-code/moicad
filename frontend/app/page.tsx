@@ -1,5 +1,7 @@
 'use client';
-import React, { useRef, useEffect } from 'react';
+
+import { Metadata } from 'next';
+import React from 'react';
 import { useEditor } from '@/hooks/useEditor';
 import { useGeometry } from '@/hooks/useGeometry';
 import { useWebSocket } from '@/hooks/useWebSocket';
@@ -9,10 +11,12 @@ import TopMenu from '@/components/TopMenu';
 import FileManager from '@/components/FileManager';
 import ErrorDisplay from '@/components/ErrorDisplay';
 import ResizablePanel from '@/components/ResizablePanel';
+import { ViewportControlsProvider } from '@/components/ViewportControlsContext';
+import { useViewportMenus } from '@/hooks/useViewportMenus';
 
-export default function Home() {
+function HomeContent() {
   // State management
-  const { code, setCode, hasUnsavedChanges, save, savedFileId } = useEditor();
+  const { code, setCode, hasUnsavedChanges, save } = useEditor();
   const {
     geometry,
     loading,
@@ -27,202 +31,7 @@ export default function Home() {
   // File manager ref
   const fileManagerRef = React.useRef<any>(null);
 
-  // Example custom menus
-  const customMenus = {
-    Edit: {
-      label: 'Edit',
-      items: [
-        {
-          label: 'Undo',
-          action: () => console.log('Undo'),
-          shortcut: 'Ctrl+Z',
-          disabled: true // TODO: Implement undo functionality
-        },
-        {
-          label: 'Redo',
-          action: () => console.log('Redo'),
-          shortcut: 'Ctrl+Y',
-          disabled: true // TODO: Implement redo functionality
-        },
-        { separator: true },
-        {
-          label: 'Copy',
-          action: () => {
-            navigator.clipboard.writeText(code);
-            console.log('Code copied to clipboard');
-          },
-          shortcut: 'Ctrl+C'
-        },
-        {
-          label: 'Paste',
-          action: async () => {
-            try {
-              const text = await navigator.clipboard.readText();
-              setCode(text);
-              console.log('Code pasted from clipboard');
-            } catch (error) {
-              console.error('Failed to paste from clipboard:', error);
-            }
-          },
-          shortcut: 'Ctrl+V'
-        },
-        {
-          label: 'Select All',
-          action: () => {
-            // This would need to be handled by the Monaco editor
-            console.log('Select all requested');
-          },
-          shortcut: 'Ctrl+A'
-        }
-      ]
-    },
-    View: {
-      label: 'View',
-      items: [
-        {
-          label: 'Reset View',
-          action: () => console.log('Reset 3D view'),
-          shortcut: 'R'
-        },
-        {
-          label: 'Toggle Stats',
-          action: () => console.log('Toggle stats overlay'),
-          shortcut: 'Ctrl+I'
-        },
-        {
-          label: 'Toggle Grid',
-          action: () => console.log('Toggle grid'),
-          shortcut: 'G'
-        },
-        { separator: true },
-        {
-          label: 'Zoom to Fit',
-          action: () => console.log('Zoom to fit geometry'),
-          shortcut: 'F'
-        },
-        {
-          label: 'Front View',
-          action: () => console.log('Front view'),
-          shortcut: '1'
-        },
-        {
-          label: 'Top View',
-          action: () => console.log('Top view'),
-          shortcut: '7'
-        },
-        {
-          label: 'Side View',
-          action: () => console.log('Side view'),
-          shortcut: '3'
-        }
-      ]
-    },
-    Tools: {
-      label: 'Tools',
-      items: [
-        {
-          label: 'Validate Syntax',
-          action: () => console.log('Validate OpenSCAD syntax'),
-          shortcut: 'Ctrl+L'
-        },
-        {
-          label: 'Format Code',
-          action: () => console.log('Format OpenSCAD code'),
-          shortcut: 'Ctrl+Shift+F'
-        },
-        { separator: true },
-        {
-          label: 'Generate Documentation',
-          action: () => console.log('Generate documentation'),
-          disabled: true // TODO: Implement doc generation
-        },
-        {
-          label: 'Performance Analysis',
-          action: () => console.log('Performance analysis'),
-          disabled: true // TODO: Implement perf analysis
-        }
-      ]
-    }
-  };
-
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      // Prevent shortcuts in input fields
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
-        return;
-      }
-
-      const { ctrlKey, metaKey, shiftKey, key } = event;
-      const cmdOrCtrl = ctrlKey || metaKey;
-
-      if (cmdOrCtrl) {
-        switch (key) {
-          case 'n':
-          case 'N':
-            event.preventDefault();
-            handleNew();
-            break;
-          case 'o':
-          case 'O':
-            event.preventDefault();
-            handleOpenFileManager();
-            break;
-          case 's':
-          case 'S':
-            event.preventDefault();
-            if (shiftKey) {
-              // Export .scad (Cmd+Shift+S)
-              const scadContent = code;
-              const blob = new Blob([scadContent], { type: 'text/plain' });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = 'model.scad';
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-              URL.revokeObjectURL(url);
-            } else {
-              // Save (Cmd+S)
-              save();
-            }
-            break;
-          case 'e':
-          case 'E':
-            event.preventDefault();
-            // Export geometry (Cmd+E)
-            if (geometry) {
-              console.log('Export geometry requested');
-            }
-            break;
-          case 'z':
-          case 'Z':
-            // Don't handle undo/redo - let Monaco handle it natively
-            // TODO: Implement app-level undo when needed
-            return;
-          case 'y':
-          case 'Y':
-            // Don't handle undo/redo - let Monaco handle it natively
-            // TODO: Implement app-level undo when needed
-            return;
-          case 'c':
-          case 'C':
-            // Don't handle copy at all - let Monaco and browser handle it natively
-            // The Edit menu item will provide copy functionality if needed outside editor
-            return;
-          case 'v':
-          case 'V':
-            // Don't handle paste at all - let Monaco and browser handle it natively
-            // The Edit menu item will provide paste functionality if needed outside editor
-            return;
-        }
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [code, geometry, save]);
+  const customMenus = useViewportMenus();
 
   const handleEditorChange = (newCode: string) => {
     setCode(newCode);
@@ -257,7 +66,7 @@ export default function Home() {
     fileManagerRef.current?.openFileManager?.();
   };
 
-  // Build left (Editor) and right (Viewport) content for the resizable panel
+  // Build left (Editor) and right (Viewport) content for resizable panel
   const leftContent = (
     <div className="flex-1 flex flex-col">
       <div className="flex-1 flex flex-col bg-[#2D2D2D] rounded-lg border border-[#3D3D3D] overflow-hidden">
@@ -313,7 +122,6 @@ export default function Home() {
         onOpenFiles={handleOpenFileManager}
         onSave={() => save()}
         onExportGeometry={() => {
-          // Show export dialog functionality
           console.log('Export geometry dialog requested');
         }}
         unsavedChanges={hasUnsavedChanges}
@@ -330,5 +138,13 @@ export default function Home() {
         <FileManager onOpen={handleOpen} onNew={handleNew} />
       </div>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <ViewportControlsProvider>
+      <HomeContent />
+    </ViewportControlsProvider>
   );
 }

@@ -4,14 +4,16 @@ import { useEffect, useRef } from 'react';
 import { SceneManager } from '@/lib/three-utils';
 import { GeometryResponse } from '@/lib/api-client';
 import StatsOverlay from './StatsOverlay';
+import { ViewportControlsProvider, useViewportControls } from './ViewportControlsContext';
 
 interface ViewportProps {
   geometry: GeometryResponse | null;
 }
 
-export default function Viewport({ geometry }: ViewportProps) {
+function ViewportInner({ geometry }: ViewportProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<SceneManager | null>(null);
+  const { setSceneManager } = useViewportControls();
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -24,15 +26,17 @@ export default function Viewport({ geometry }: ViewportProps) {
     };
 
     sceneRef.current = new SceneManager(config);
+    setSceneManager(sceneRef.current);
 
     // Cleanup on unmount
     return () => {
       if (sceneRef.current) {
         sceneRef.current.dispose();
         sceneRef.current = null;
+        setSceneManager(null);
       }
     };
-  }, []);
+  }, [setSceneManager]);
 
   // Update geometry when it changes
   useEffect(() => {
@@ -85,5 +89,13 @@ export default function Viewport({ geometry }: ViewportProps) {
         </button>
       </div>
     </div>
+  );
+}
+
+export default function Viewport({ geometry }: ViewportProps) {
+  return (
+    <ViewportControlsProvider>
+      <ViewportInner geometry={geometry} />
+    </ViewportControlsProvider>
   );
 }
