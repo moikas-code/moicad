@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import Editor from '@monaco-editor/react';
 import { evaluateCode } from '@/lib/api-client';
+import type { editor } from 'monaco-editor';
 
 interface EditorProps {
   code: string;
@@ -22,6 +23,13 @@ export default function EditorComponent({
   // Use refs to avoid stale closures and prevent infinite loops
   const callbacksRef = useRef({ onGeometry, onErrors, onLoading });
   callbacksRef.current = { onGeometry, onErrors, onLoading };
+
+  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+
+  const handleEditorDidMount = (editor: editor.IStandaloneCodeEditor) => {
+    editorRef.current = editor;
+    // Let Monaco handle paste natively - no custom handling needed
+  };
 
   useEffect(() => {
     // Debounce evaluation - only triggers when code changes
@@ -54,6 +62,7 @@ export default function EditorComponent({
         defaultValue={code}
         value={code}
         onChange={(value) => onChange(value || '')}
+        onMount={handleEditorDidMount}
         theme="vs-dark"
         options={{
           minimap: { enabled: false },
