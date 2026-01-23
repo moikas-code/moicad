@@ -165,9 +165,10 @@ impl Mat4 {
             for j in 0..4 {
                 let mut sum = 0.0;
                 for k in 0..4 {
-                    sum += self.m[i * 4 + k] * other.m[k * 4 + j];
+                    // Column-major indexing: element at row i, col j is at index i + j*4
+                    sum += self.m[i + k * 4] * other.m[k + j * 4];
                 }
-                result[i * 4 + j] = sum;
+                result[i + j * 4] = sum;
             }
         }
         Mat4 { m: result }
@@ -185,6 +186,55 @@ impl Mat4 {
         let y = self.m[1] * v.x + self.m[5] * v.y + self.m[9] * v.z;
         let z = self.m[2] * v.x + self.m[6] * v.y + self.m[10] * v.z;
         Vec3::new(x, y, z)
+    }
+
+    /// Compute inverse transpose for normal transformation
+    /// For affine transformations, normals should be transformed by (M^-1)^T
+    pub fn inverse_transpose(&self) -> Mat4 {
+        // For now, implement a simple inverse for common transformations
+        // This handles translation, rotation, scale, but not general 4x4
+        // TODO: Implement full matrix inversion for general transformations
+
+        // Extract the 3x3 rotation/scale part
+        let mut inv = Mat4::identity();
+        let det = self.m[0] * (self.m[5] * self.m[10] - self.m[6] * self.m[9])
+                - self.m[4] * (self.m[1] * self.m[10] - self.m[2] * self.m[9])
+                + self.m[8] * (self.m[1] * self.m[6] - self.m[2] * self.m[5]);
+
+        if det.abs() < 1e-6 {
+            // Degenerate matrix, return identity
+            return Mat4::identity();
+        }
+
+        let inv_det = 1.0 / det;
+
+        // Compute inverse of 3x3 part
+        inv.m[0] = (self.m[5] * self.m[10] - self.m[6] * self.m[9]) * inv_det;
+        inv.m[1] = (self.m[2] * self.m[9] - self.m[1] * self.m[10]) * inv_det;
+        inv.m[2] = (self.m[1] * self.m[6] - self.m[2] * self.m[5]) * inv_det;
+
+        inv.m[4] = (self.m[6] * self.m[8] - self.m[4] * self.m[10]) * inv_det;
+        inv.m[5] = (self.m[0] * self.m[10] - self.m[2] * self.m[8]) * inv_det;
+        inv.m[6] = (self.m[2] * self.m[4] - self.m[0] * self.m[6]) * inv_det;
+
+        inv.m[8] = (self.m[4] * self.m[9] - self.m[5] * self.m[8]) * inv_det;
+        inv.m[9] = (self.m[1] * self.m[8] - self.m[0] * self.m[9]) * inv_det;
+        inv.m[10] = (self.m[0] * self.m[5] - self.m[1] * self.m[4]) * inv_det;
+
+        // Transpose the result (since we want (M^-1)^T)
+        let mut result = Mat4 { m: inv.m };
+        result.transpose();
+        result
+    }
+
+    pub fn transpose(&mut self) {
+        let temp = [
+            self.m[0], self.m[4], self.m[8], self.m[12],
+            self.m[1], self.m[5], self.m[9], self.m[13],
+            self.m[2], self.m[6], self.m[10], self.m[14],
+            self.m[3], self.m[7], self.m[11], self.m[15],
+        ];
+        self.m = temp;
     }
 }
 

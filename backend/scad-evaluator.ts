@@ -191,13 +191,16 @@ function evaluatePrimitive(node: any, context: EvaluationContext): any {
 async function evaluateTransform(node: any, context: EvaluationContext): Promise<any> {
   if (!wasmModule) throw new Error('WASM module not initialized');
 
-  // Evaluate children
+  // Evaluate and combine all children
   let geometry = null;
   for (const child of node.children) {
     const childGeom = await evaluateNode(child, context);
     if (childGeom) {
-      geometry = childGeom;
-      break; // For now, take first geometry (proper implementation would combine)
+      if (!geometry) {
+        geometry = childGeom;
+      } else {
+        geometry = wasmModule.union(geometry, childGeom);
+      }
     }
   }
 
@@ -220,14 +223,29 @@ async function evaluateTransform(node: any, context: EvaluationContext): Promise
     case 'rotate':
       const rot_a = params.a ?? params.angle ?? 0;
       const rot_v = params.v ?? [0, 0, 1];
-      // For simplicity, rotate around z-axis by default
-      if (rot_v[2] !== 0) {
-        return wasmModule.rotate_z(geometry, rot_a);
-      } else if (rot_v[1] !== 0) {
-        return wasmModule.rotate_y(geometry, rot_a);
-      } else {
-        return wasmModule.rotate_x(geometry, rot_a);
+
+      // Handle single axis rotations for backward compatibility
+      if (Array.isArray(rot_v) && rot_v.length === 3) {
+        const [rx, ry, rz] = rot_v;
+        // Check if it's a single axis rotation
+        const axis_count = (rx !== 0 ? 1 : 0) + (ry !== 0 ? 1 : 0) + (rz !== 0 ? 1 : 0);
+
+        if (axis_count === 1) {
+          // Single axis rotation
+          if (rx !== 0) return wasmModule.rotate_x(geometry, rot_a);
+          if (ry !== 0) return wasmModule.rotate_y(geometry, rot_a);
+          if (rz !== 0) return wasmModule.rotate_z(geometry, rot_a);
+        } else {
+          // Arbitrary axis rotation - use multmatrix for now
+          // TODO: Implement proper arbitrary axis rotation in WASM
+          // For now, fall back to Z-axis rotation as default
+          context.errors.push({ message: 'Arbitrary axis rotation not yet fully implemented, using Z-axis' });
+          return wasmModule.rotate_z(geometry, rot_a);
+        }
       }
+
+      // Default to Z-axis rotation
+      return wasmModule.rotate_z(geometry, rot_a);
 
     case 'scale':
       const s = params.v;

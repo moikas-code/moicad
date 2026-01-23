@@ -50,7 +50,7 @@ export default function EditorComponent({
     <div className="w-full h-full">
       <Editor
         height="100%"
-        defaultLanguage="text"
+        defaultLanguage="cpp"
         defaultValue={code}
         value={code}
         onChange={(value) => onChange(value || '')}

@@ -19,6 +19,9 @@ bun install
 
 # Start backend server (http://localhost:3000)
 bun --hot ./backend/index.ts
+
+#all
+WEBKIT_DISABLE_COMPOSITING_MODE=1 GDK_BACKEND=x11 cargo tauri dev
 ```
 
 The backend API is ready at `http://localhost:3000`. The frontend UI is pending development.

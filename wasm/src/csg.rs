@@ -2,7 +2,7 @@
 /// Uses BSP trees for proper boolean operations
 
 use crate::bsp::operations as bsp_ops;
-use crate::geometry::Mesh;
+use crate::geometry::{Mesh, Bounds};
 use crate::math::{Mat4, Vec3};
 
 /// Union: A + B
@@ -44,7 +44,28 @@ pub fn transform_mesh(mesh: &Mesh, matrix: &Mat4) -> Mesh {
         .map(|v| matrix.transform_point(*v))
         .collect();
 
-    Mesh::new(transformed_vertices, mesh.indices.clone())
+    // Transform normals using inverse transpose matrix
+    let normal_matrix = matrix.inverse_transpose();
+    let transformed_normals: Vec<Vec3> = mesh
+        .normals
+        .iter()
+        .map(|n| normal_matrix.transform_vector(*n).normalize())
+        .collect();
+
+    // Create mesh with transformed vertices and normals
+    let mut result = Mesh {
+        vertices: transformed_vertices,
+        indices: mesh.indices.clone(),
+        normals: transformed_normals,
+        bounds: Bounds::new(),
+    };
+
+    // Recalculate bounds
+    for v in &result.vertices {
+        result.bounds.add_point(*v);
+    }
+
+    result
 }
 
 /// Translate a mesh
