@@ -1,5 +1,4 @@
 /// Mesh and geometry data structures
-
 use crate::math::Vec3;
 use serde::{Deserialize, Serialize};
 
@@ -46,6 +45,7 @@ pub struct Mesh {
 
 impl Mesh {
     pub fn new(vertices: Vec<Vec3>, indices: Vec<u32>) -> Self {
+        let vertex_count = vertices.len();
         let mut bounds = Bounds::new();
         for v in &vertices {
             bounds.add_point(*v);
@@ -54,12 +54,29 @@ impl Mesh {
         let mut mesh = Mesh {
             vertices,
             indices,
-            normals: Vec::new(),
+            normals: Vec::with_capacity(vertex_count),
             bounds,
         };
 
         mesh.calculate_normals();
         mesh
+    }
+
+    // Create mesh with pre-allocated capacity
+    pub fn with_capacity(vertex_capacity: usize, index_capacity: usize) -> Self {
+        Mesh {
+            vertices: Vec::with_capacity(vertex_capacity),
+            indices: Vec::with_capacity(index_capacity),
+            normals: Vec::with_capacity(vertex_capacity),
+            bounds: Bounds::new(),
+        }
+    }
+
+    // Reserve additional capacity without reallocating
+    pub fn reserve(&mut self, additional_vertices: usize, additional_indices: usize) {
+        self.vertices.reserve(additional_vertices);
+        self.indices.reserve(additional_indices);
+        self.normals.reserve(additional_vertices);
     }
 
     pub fn calculate_normals(&mut self) {
@@ -177,4 +194,47 @@ impl Mesh {
             },
         }
     }
+}
+
+/// Memory pool for temporary Vec allocations
+pub struct VecPool<T> {
+    pool: Vec<Vec<T>>,
+}
+
+impl<T: Clone> VecPool<T> {
+    pub fn new() -> Self {
+        VecPool { pool: Vec::new() }
+    }
+
+    pub fn get(&mut self) -> Vec<T> {
+        self.pool.pop().unwrap_or_else(|| Vec::new())
+    }
+
+    pub fn return_vec(&mut self, mut vec: Vec<T>) {
+        vec.clear();
+        self.pool.push(vec);
+    }
+
+    pub fn with_capacity(&mut self, capacity: usize) -> Vec<T> {
+        if let Some(mut vec) = self.pool.pop() {
+            vec.reserve(capacity.saturating_sub(vec.capacity()));
+            vec
+        } else {
+            Vec::with_capacity(capacity)
+        }
+    }
+}
+
+// Global memory pools for common types
+thread_local! {
+    static VEC3_POOL: std::cell::RefCell<VecPool<Vec3>> = std::cell::RefCell::new(VecPool::new());
+    static U32_POOL: std::cell::RefCell<VecPool<u32>> = std::cell::RefCell::new(VecPool::new());
+}
+
+pub fn with_vec3_pool<R>(f: impl FnOnce(&mut VecPool<Vec3>) -> R) -> R {
+    VEC3_POOL.with(|pool| f(&mut pool.borrow_mut()))
+}
+
+pub fn with_u32_pool<R>(f: impl FnOnce(&mut VecPool<u32>) -> R) -> R {
+    U32_POOL.with(|pool| f(&mut pool.borrow_mut()))
 }

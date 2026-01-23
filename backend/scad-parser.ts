@@ -32,11 +32,11 @@ class Tokenizer {
 
   private peek(offset = 0): string {
     const idx = this.pos + offset;
-    return idx < this.input.length ? this.input[idx] : '';
+    return idx < this.input.length ? this.input[idx]! : '';
   }
 
   private advance(): string {
-    const ch = this.input[this.pos];
+    const ch = this.input[this.pos]!;
     this.pos++;
     if (ch === '\n') {
       this.line++;
@@ -121,6 +121,7 @@ class Tokenizer {
   }
 
   public tokenize(): Token[] {
+    resetTokenPool(); // Reset pool for fresh parsing
     const tokens: Token[] = [];
 
     while (this.pos < this.input.length) {
@@ -136,38 +137,69 @@ class Tokenizer {
 
       if (ch === '"' || ch === "'") {
         const str = this.readString(ch);
-        tokens.push({ type: 'string', value: str, line, column });
+        const token = getOrCreateToken();
+        token.type = 'string';
+        token.value = str;
+        token.line = line;
+        token.column = column;
+        tokens.push(token);
       } else if (this.isDigit(ch) || (ch === '-' && this.isDigit(this.peek(1)))) {
         if (ch === '-') this.advance();
         const num = this.readNumber();
-        tokens.push({
-          type: 'number',
-          value: parseFloat((ch === '-' ? '-' : '') + num),
-          line,
-          column,
-        });
+        const token = getOrCreateToken();
+        token.type = 'number';
+        token.value = parseFloat((ch === '-' ? '-' : '') + num);
+        token.line = line;
+        token.column = column;
+        tokens.push(token);
       } else if (this.isAlpha(ch) || ch === '$' || ch === '_') {
         const id = this.readIdentifier();
         const type = this.isKeyword(id) ? id : 'identifier';
-        tokens.push({ type: type as any, value: id, line, column });
+        const token = getOrCreateToken();
+        token.type = type as string;
+        token.value = id;
+        token.line = line;
+        token.column = column;
+        tokens.push(token);
       } else {
         // Operators and punctuation
         const twoChar = ch + this.peek(1);
         if (['==', '!=', '<=', '>=', '&&', '||'].includes(twoChar)) {
           this.advance();
           this.advance();
-          tokens.push({ type: 'operator', value: twoChar, line, column });
-        } else if (['!', '<', '>', '+', '-', '*', '/', '%', '='].includes(ch)) {
+          const token = getOrCreateToken();
+          token.type = 'operator';
+          token.value = twoChar;
+          token.line = line;
+          token.column = column;
+          tokens.push(token);
+        } else if (['!', '<', '>', '+', '-', '*', '/', '%', '=', '?', ':'].includes(ch)) {
           this.advance();
-          tokens.push({ type: 'operator', value: ch, line, column });
+          const token = getOrCreateToken();
+          token.type = 'operator';
+          token.value = ch;
+          token.line = line;
+          token.column = column;
+          tokens.push(token);
         } else {
           const punct = this.advance();
-          tokens.push({ type: 'punctuation', value: punct, line, column });
+          const token = getOrCreateToken();
+          token.type = 'punctuation';
+          token.value = punct;
+          token.line = line;
+          token.column = column;
+          tokens.push(token);
         }
       }
     }
 
-    tokens.push({ type: 'eof', value: '', line: this.line, column: this.column });
+    const eofToken = getOrCreateToken();
+    eofToken.type = 'eof';
+    eofToken.value = '';
+    eofToken.line = this.line;
+    eofToken.column = this.column;
+    tokens.push(eofToken);
+    
     return tokens;
   }
 
@@ -187,6 +219,35 @@ interface Token {
   value: any;
   line: number;
   column: number;
+}
+
+// Simple token reuse array for memory efficiency
+const tokenReusePool: Token[] = [];
+let tokenPoolIndex = 0;
+
+function getOrCreateToken(): Token {
+  if (tokenPoolIndex < tokenReusePool.length) {
+    const token = tokenReusePool[tokenPoolIndex++]!;
+    // Reset properties
+    token.type = '';
+    token.value = null;
+    token.line = 0;
+    token.column = 0;
+    return token;
+  }
+  
+  const token: Token = {
+    type: '',
+    value: null,
+    line: 0,
+    column: 0,
+  };
+  tokenReusePool[tokenPoolIndex++] = token;
+  return token;
+}
+
+function resetTokenPool(): void {
+  tokenPoolIndex = 0;
 }
 
 class Parser {
@@ -248,6 +309,42 @@ class Parser {
 
     if (token.type === 'eof') return null;
 
+    // Skip semicolons
+    if (token.value === ';') {
+      this.advance();
+      return null;
+    }
+
+    // Module definition
+    if (token.value === 'module') {
+      return this.parseModuleDef();
+    }
+
+    // Function definition
+    if (token.value === 'function') {
+      return this.parseFunctionDef();
+    }
+
+    // If statement
+    if (token.value === 'if') {
+      return this.parseIf();
+    }
+
+    // Echo statement
+    if (token.value === 'echo') {
+      return this.parseEcho();
+    }
+
+    // Assert statement
+    if (token.value === 'assert') {
+      return this.parseAssert();
+    }
+
+    // Variable assignment (identifier followed by =)
+    if (token.type === 'identifier' && this.peek().value === '=') {
+      return this.parseAssignment();
+    }
+
     // Check for primitive
     if (this.isPrimitive(token.value)) {
       return this.parsePrimitive();
@@ -271,6 +368,11 @@ class Parser {
     // Check for children
     if (token.value === 'children') {
       return this.parseChildren();
+    }
+
+    // Module call (user-defined module)
+    if (token.type === 'identifier') {
+      return this.parseModuleCall();
     }
 
     // Skip unknown tokens
@@ -401,20 +503,19 @@ class Parser {
     this.advance(); // (
 
     while (this.current().value !== ')' && this.current().type !== 'eof') {
-      if (this.current().type === 'identifier') {
+      // Check if this is a named parameter (identifier = value)
+      if (this.current().type === 'identifier' && this.peek().value === '=') {
         const name = this.advance().value;
-        if (this.current().value === '=') {
-          this.advance(); // =
-          const value = this.parseValue();
-          params[name] = value;
+        this.advance(); // =
+        const value = this.parseExpression();
+        params[name] = value;
 
-          if (this.current().value === ',') {
-            this.advance();
-          }
+        if (this.current().value === ',') {
+          this.advance();
         }
       } else {
-        // Positional parameter (for some primitives)
-        params['_positional'] = this.parseValue();
+        // Positional parameter - could be any expression
+        params['_positional'] = this.parseExpression();
         if (this.current().value === ',') {
           this.advance();
         }
@@ -502,12 +603,374 @@ class Parser {
   private parseBlock(): ScadNode[] {
     const nodes: ScadNode[] = [];
 
-    while (this.current().value !== '}' && this.current().type !== 'eof') {
+    while (this.current().value !== '}' && this.current().value !== ')' && this.current().type !== 'eof') {
       const node = this.parseStatement();
       if (node) nodes.push(node);
     }
 
     return nodes;
+  }
+
+  private parseModuleDef(): ScadNode {
+    this.expect('module');
+    const line = this.current().line;
+    const name = this.expect('identifier').value;
+
+    // Parse parameters
+    const params: string[] = [];
+    if (this.current().value === '(') {
+      this.advance(); // (
+      while (this.current().value !== ')' && this.current().type !== 'eof') {
+        params.push(this.expect('identifier').value);
+        if (this.current().value === ',') {
+          this.advance();
+        }
+      }
+      this.expect(')');
+    }
+
+    // Parse body
+    let body: ScadNode[] = [];
+    if (this.current().value === '{') {
+      this.advance(); // {
+      body = this.parseBlock();
+      this.expect('}');
+    }
+
+    return {
+      type: 'module_def',
+      name,
+      params,
+      body,
+      line,
+    };
+  }
+
+  private parseFunctionDef(): ScadNode {
+    this.expect('function');
+    const line = this.current().line;
+    const name = this.expect('identifier').value;
+
+    // Parse parameters
+    const params: string[] = [];
+    if (this.current().value === '(') {
+      this.advance(); // (
+      while (this.current().value !== ')' && this.current().type !== 'eof') {
+        params.push(this.expect('identifier').value);
+        if (this.current().value === ',') {
+          this.advance();
+        }
+      }
+      this.expect(')');
+    }
+
+    // Parse expression (function body = expression)
+    this.expect('=');
+    const expression = this.parseExpression();
+    if (this.current().value === ';') {
+      this.advance();
+    }
+
+    return {
+      type: 'function_def',
+      name,
+      params,
+      expression,
+      line,
+    };
+  }
+
+  private parseModuleCall(): ScadNode {
+    const name = this.advance().value;
+    const line = this.current().line;
+    const params = this.parseParameters();
+
+    let children: ScadNode[] = [];
+    if (this.current().value === '{') {
+      this.advance(); // {
+      children = this.parseBlock();
+      this.expect('}');
+    } else if (this.current().type !== 'eof' && this.current().value !== ';') {
+      // Single statement child
+      const child = this.parseStatement();
+      if (child) {
+        children = [child];
+      }
+    }
+
+    return {
+      type: 'module_call',
+      name,
+      params,
+      children,
+      line,
+    };
+  }
+
+  private parseAssignment(): ScadNode {
+    const name = this.advance().value;
+    const line = this.current().line;
+    this.expect('=');
+    const value = this.parseExpression();
+    if (this.current().value === ';') {
+      this.advance();
+    }
+
+    return {
+      type: 'assignment',
+      name,
+      value,
+      line,
+    };
+  }
+
+  private parseIf(): ScadNode {
+    this.expect('if');
+    const line = this.current().line;
+
+    this.expect('(');
+    const condition = this.parseExpression();
+    this.expect(')');
+
+    let thenBody: ScadNode[] = [];
+    if (this.current().value === '{') {
+      this.advance(); // {
+      thenBody = this.parseBlock();
+      this.expect('}');
+    } else {
+      const node = this.parseStatement();
+      if (node) thenBody = [node];
+    }
+
+    let elseBody: ScadNode[] | undefined;
+    if (this.current().value === 'else') {
+      this.advance();
+      if (this.current().value === '{') {
+        this.advance(); // {
+        elseBody = this.parseBlock();
+        this.expect('}');
+      } else {
+        const node = this.parseStatement();
+        if (node) elseBody = [node];
+      }
+    }
+
+    return {
+      type: 'if',
+      condition,
+      thenBody,
+      elseBody,
+      line,
+    };
+  }
+
+  private parseEcho(): ScadNode {
+    this.expect('echo');
+    const line = this.current().line;
+    this.expect('(');
+
+    const values: any[] = [];
+    while (this.current().value !== ')' && this.current().type !== 'eof') {
+      values.push(this.parseExpression());
+      if (this.current().value === ',') {
+        this.advance();
+      }
+    }
+
+    this.expect(')');
+    if (this.current().value === ';') {
+      this.advance();
+    }
+
+    return {
+      type: 'echo',
+      values,
+      line,
+    };
+  }
+
+  private parseAssert(): ScadNode {
+    this.expect('assert');
+    const line = this.current().line;
+    this.expect('(');
+
+    const condition = this.parseExpression();
+    let message: any = undefined;
+
+    if (this.current().value === ',') {
+      this.advance();
+      message = this.parseExpression();
+    }
+
+    this.expect(')');
+    if (this.current().value === ';') {
+      this.advance();
+    }
+
+    return {
+      type: 'assert',
+      condition,
+      message,
+      line,
+    };
+  }
+
+  private parseExpression(): any {
+    return this.parseTernary();
+  }
+
+  private parseTernary(): any {
+    let expr = this.parseLogicalOr();
+
+    if (this.current().value === '?') {
+      this.advance(); // ?
+      const thenExpr = this.parseExpression();
+      this.expect(':');
+      const elseExpr = this.parseExpression();
+      return {
+        type: 'ternary',
+        condition: expr,
+        thenExpr,
+        elseExpr,
+      };
+    }
+
+    return expr;
+  }
+
+  private parseLogicalOr(): any {
+    let left = this.parseLogicalAnd();
+
+    while (this.current().value === '||') {
+      const op = this.advance().value;
+      const right = this.parseLogicalAnd();
+      left = {
+        type: 'expression',
+        operator: op,
+        left,
+        right,
+      };
+    }
+
+    return left;
+  }
+
+  private parseLogicalAnd(): any {
+    let left = this.parseComparison();
+
+    while (this.current().value === '&&') {
+      const op = this.advance().value;
+      const right = this.parseComparison();
+      left = {
+        type: 'expression',
+        operator: op,
+        left,
+        right,
+      };
+    }
+
+    return left;
+  }
+
+  private parseComparison(): any {
+    let left = this.parseAdditive();
+
+    while (['==', '!=', '<', '>', '<=', '>='].includes(this.current().value)) {
+      const op = this.advance().value;
+      const right = this.parseAdditive();
+      left = {
+        type: 'expression',
+        operator: op,
+        left,
+        right,
+      };
+    }
+
+    return left;
+  }
+
+  private parseAdditive(): any {
+    let left = this.parseMultiplicative();
+
+    while (['+', '-'].includes(this.current().value)) {
+      const op = this.advance().value;
+      const right = this.parseMultiplicative();
+      left = {
+        type: 'expression',
+        operator: op,
+        left,
+        right,
+      };
+    }
+
+    return left;
+  }
+
+  private parseMultiplicative(): any {
+    let left = this.parseUnary();
+
+    while (['*', '/', '%'].includes(this.current().value)) {
+      const op = this.advance().value;
+      const right = this.parseUnary();
+      left = {
+        type: 'expression',
+        operator: op,
+        left,
+        right,
+      };
+    }
+
+    return left;
+  }
+
+  private parseUnary(): any {
+    if (this.current().value === '!' || this.current().value === '-') {
+      const op = this.advance().value;
+      const expr = this.parseUnary();
+      return {
+        type: 'expression',
+        operator: op,
+        left: expr,
+      };
+    }
+
+    return this.parsePrimary();
+  }
+
+  private parsePrimary(): any {
+    const token = this.current();
+
+    // Parenthesized expression
+    if (token.value === '(') {
+      this.advance(); // (
+      const expr = this.parseExpression();
+      this.expect(')');
+      return expr;
+    }
+
+    // Function call
+    if (token.type === 'identifier' && this.peek().value === '(') {
+      const name = this.advance().value;
+      this.advance(); // (
+
+      const args: any[] = [];
+      while (this.current().value !== ')' && this.current().type !== 'eof') {
+        args.push(this.parseExpression());
+        if (this.current().value === ',') {
+          this.advance();
+        }
+      }
+      this.expect(')');
+
+      return {
+        type: 'function_call',
+        name,
+        args,
+      };
+    }
+
+    // Regular value
+    return this.parseValue();
   }
 
   private isPrimitive(word: string): boolean {

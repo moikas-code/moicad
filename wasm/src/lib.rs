@@ -30,6 +30,78 @@ impl WasmMesh {
         self.mesh.to_normals_array()
     }
 
+    // Memory-efficient alternatives that don't allocate new Vecs
+    #[wasm_bindgen]
+    pub fn vertices_ptr(&self) -> *const f32 {
+        self.mesh.vertices.as_ptr() as *const f32
+    }
+
+    #[wasm_bindgen]
+    pub fn vertices_len(&self) -> usize {
+        self.mesh.vertices.len() * 3 // 3 floats per Vec3
+    }
+
+    #[wasm_bindgen]
+    pub fn indices_ptr(&self) -> *const u32 {
+        self.mesh.indices.as_ptr()
+    }
+
+    #[wasm_bindgen]
+    pub fn indices_len(&self) -> usize {
+        self.mesh.indices.len()
+    }
+
+    #[wasm_bindgen]
+    pub fn normals_ptr(&self) -> *const f32 {
+        self.mesh.normals.as_ptr() as *const f32
+    }
+
+    #[wasm_bindgen]
+    pub fn normals_len(&self) -> usize {
+        self.mesh.normals.len() * 3 // 3 floats per Vec3
+    }
+
+    // Efficient copy to existing buffer
+    #[wasm_bindgen]
+    pub fn copy_vertices_to_buffer(&self, ptr: *mut f32, len: usize) {
+        let vertices = &self.mesh.vertices;
+        let copy_len = len.min(vertices.len());
+        unsafe {
+            let dst = std::slice::from_raw_parts_mut(ptr, copy_len * 3);
+            // Convert Vec3 to flat f32 array
+            for (i, vertex) in vertices.iter().take(copy_len).enumerate() {
+                dst[i * 3] = vertex.x;
+                dst[i * 3 + 1] = vertex.y;
+                dst[i * 3 + 2] = vertex.z;
+            }
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn copy_indices_to_buffer(&self, ptr: *mut u32, len: usize) {
+        let indices = &self.mesh.indices;
+        let copy_len = len.min(indices.len());
+        unsafe {
+            let dst = std::slice::from_raw_parts_mut(ptr, copy_len);
+            dst.copy_from_slice(&indices[..copy_len]);
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn copy_normals_to_buffer(&self, ptr: *mut f32, len: usize) {
+        let normals = &self.mesh.normals;
+        let copy_len = len.min(normals.len());
+        unsafe {
+            let dst = std::slice::from_raw_parts_mut(ptr, copy_len * 3);
+            // Convert Vec3 to flat f32 array
+            for (i, normal) in normals.iter().take(copy_len).enumerate() {
+                dst[i * 3] = normal.x;
+                dst[i * 3 + 1] = normal.y;
+                dst[i * 3 + 2] = normal.z;
+            }
+        }
+    }
+
     #[wasm_bindgen]
     pub fn to_json(&self) -> String {
         serde_json::to_string(&self.mesh.to_json()).unwrap()
@@ -180,6 +252,32 @@ pub fn mirror_z(mesh: &WasmMesh) -> WasmMesh {
     WasmMesh {
         mesh: csg::mirror_z(&mesh.mesh),
     }
+}
+
+// In-place transformations for better memory efficiency
+#[wasm_bindgen]
+pub fn translate_in_place(mesh: &mut WasmMesh, x: f32, y: f32, z: f32) {
+    csg::translate_in_place(&mut mesh.mesh, x, y, z);
+}
+
+#[wasm_bindgen]
+pub fn rotate_x_in_place(mesh: &mut WasmMesh, angle: f32) {
+    csg::rotate_x_in_place(&mut mesh.mesh, angle);
+}
+
+#[wasm_bindgen]
+pub fn rotate_y_in_place(mesh: &mut WasmMesh, angle: f32) {
+    csg::rotate_y_in_place(&mut mesh.mesh, angle);
+}
+
+#[wasm_bindgen]
+pub fn rotate_z_in_place(mesh: &mut WasmMesh, angle: f32) {
+    csg::rotate_z_in_place(&mut mesh.mesh, angle);
+}
+
+#[wasm_bindgen]
+pub fn scale_in_place(mesh: &mut WasmMesh, sx: f32, sy: f32, sz: f32) {
+    csg::scale_in_place(&mut mesh.mesh, sx, sy, sz);
 }
 
 #[wasm_bindgen]

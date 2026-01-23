@@ -37,9 +37,67 @@ export function setWasmModule(module: WasmModule): void {
   wasmModule = module;
 }
 
+/**
+ * Primitive cache to avoid recreating identical geometries
+ */
+class PrimitiveCache {
+  private cache = new Map<string, any>();
+  private maxCacheSize = 100;
+  private accessOrder: string[] = [];
+
+  private getKey(type: string, params: any): string {
+    return `${type}:${JSON.stringify(params)}`;
+  }
+
+  get(type: string, params: any): any | null {
+    const key = this.getKey(type, params);
+    if (this.cache.has(key)) {
+      // Move to end of access order (LRU)
+      const index = this.accessOrder.indexOf(key);
+      if (index > -1) {
+        this.accessOrder.splice(index, 1);
+        this.accessOrder.push(key);
+      }
+      return this.cache.get(key)!;
+    }
+    return null;
+  }
+
+  set(type: string, params: any, geometry: any): void {
+    const key = this.getKey(type, params);
+    
+    // Remove oldest if cache is full
+    if (this.cache.size >= this.maxCacheSize) {
+      const oldestKey = this.accessOrder.shift();
+      if (oldestKey) {
+        this.cache.delete(oldestKey);
+      }
+    }
+    
+    this.cache.set(key, geometry);
+    this.accessOrder.push(key);
+  }
+
+  clear(): void {
+    this.cache.clear();
+    this.accessOrder = [];
+  }
+
+  getStats(): { size: number; maxSize: number } {
+    return {
+      size: this.cache.size,
+      maxSize: this.maxCacheSize,
+    };
+  }
+}
+
+// Global primitive cache instance
+const primitiveCache = new PrimitiveCache();
+
 interface EvaluationContext {
   variables: Map<string, any>;
-  functions: Map<string, ScadNode>;
+  functions: Map<string, any>;
+  modules: Map<string, any>;
   errors: EvaluationError[];
 }
 
@@ -51,6 +109,7 @@ export async function evaluateAST(ast: ScadNode[]): Promise<EvaluateResult> {
   const context: EvaluationContext = {
     variables: new Map(),
     functions: new Map(),
+    modules: new Map(),
     errors: [],
   };
 
@@ -59,17 +118,19 @@ export async function evaluateAST(ast: ScadNode[]): Promise<EvaluateResult> {
       throw new Error('WASM module not initialized');
     }
 
-    // First pass: collect function definitions
+    // First pass: collect function and module definitions
     for (const node of ast) {
-      if (node.type === 'function') {
+      if (node.type === 'function_def') {
         context.functions.set((node as any).name, node);
+      } else if (node.type === 'module_def') {
+        context.modules.set((node as any).name, node);
       }
     }
 
     // Second pass: evaluate statements and collect geometries
     const geometries: any[] = [];
     for (const node of ast) {
-      if (node.type !== 'function') {
+      if (node.type !== 'function_def' && node.type !== 'module_def') {
         const result = await evaluateNode(node, context);
         if (result) {
           geometries.push(result);
@@ -95,8 +156,7 @@ export async function evaluateAST(ast: ScadNode[]): Promise<EvaluateResult> {
     }
 
     // Convert WASM geometry to JSON
-    const geometryJson = JSON.parse(finalGeometry.to_json());
-    const geometry = convertWasmGeometry(geometryJson);
+    const geometry = convertWasmGeometry(finalGeometry);
 
     return {
       geometry,
@@ -130,6 +190,26 @@ async function evaluateNode(node: ScadNode, context: EvaluationContext): Promise
     case 'for':
       return evaluateForLoop(node as any, context);
 
+    case 'assignment':
+      return evaluateAssignment(node as any, context);
+
+    case 'if':
+      return evaluateIf(node as any, context);
+
+    case 'module_call':
+      return evaluateModuleCall(node as any, context);
+
+    case 'echo':
+      return evaluateEcho(node as any, context);
+
+    case 'assert':
+      return evaluateAssert(node as any, context);
+
+    case 'function_def':
+    case 'module_def':
+      // Already handled in first pass
+      return null;
+
     case 'children':
       // Children nodes are handled in parent context
       return null;
@@ -145,17 +225,28 @@ function evaluatePrimitive(node: any, context: EvaluationContext): any {
 
   const params = evaluateParameters(node.params, context);
 
+  // Check cache first
+  const cacheKey = node.op;
+  let cachedGeometry = primitiveCache.get(cacheKey, params);
+  if (cachedGeometry) {
+    return cachedGeometry;
+  }
+
+  let geometry = null;
+
   switch (node.op) {
     case 'cube':
       // Handle positional: cube(size) or named: cube(size=10)
       const cube_size = params._positional ?? params.size ?? 10;
-      return wasmModule.create_cube(cube_size);
+      geometry = wasmModule.create_cube(cube_size);
+      break;
 
     case 'sphere':
       // Handle positional: sphere(r) or named: sphere(r=5, $fn=20)
       const sphere_r = params._positional ?? params.r ?? params.radius ?? (params.d ? params.d / 2 : undefined) ?? (params.diameter ? params.diameter / 2 : undefined) ?? 10;
       const sphere_detail = params.$fn ?? params.detail ?? 20;
-      return wasmModule.create_sphere(sphere_r, sphere_detail);
+      geometry = wasmModule.create_sphere(sphere_r, sphere_detail);
+      break;
 
     case 'cylinder':
       // Handle positional: cylinder(h, r) or named params
@@ -165,27 +256,38 @@ function evaluatePrimitive(node: any, context: EvaluationContext): any {
       const cyl_r2 = params.r2 ?? cyl_r;
       const cyl_detail = params.$fn ?? params.detail ?? 20;
       const cyl_r_avg = (cyl_r1 + cyl_r2) / 2;
-      return wasmModule.create_cylinder(cyl_r_avg, cyl_h, cyl_detail);
+      geometry = wasmModule.create_cylinder(cyl_r_avg, cyl_h, cyl_detail);
+      break;
 
     case 'cone':
       const cone_h = Array.isArray(params._positional) ? params._positional[0] : (params._positional ?? params.h ?? params.height ?? 10);
       const cone_r = Array.isArray(params._positional) && params._positional[1] ? params._positional[1] : (params.r ?? params.radius ?? 5);
       const cone_detail = params.$fn ?? params.detail ?? 20;
-      return wasmModule.create_cone(cone_r, cone_h, cone_detail);
+      geometry = wasmModule.create_cone(cone_r, cone_h, cone_detail);
+      break;
 
     case 'circle':
       const circ_r = params._positional ?? params.r ?? params.radius ?? (params.d ? params.d / 2 : undefined) ?? (params.diameter ? params.diameter / 2 : undefined) ?? 5;
       const circ_detail = params.$fn ?? params.detail ?? 20;
-      return wasmModule.create_circle(circ_r, circ_detail);
+      geometry = wasmModule.create_circle(circ_r, circ_detail);
+      break;
 
     case 'square':
       const sq_size = params._positional ?? params.size ?? 10;
-      return wasmModule.create_square(sq_size);
+      geometry = wasmModule.create_square(sq_size);
+      break;
 
     default:
       context.errors.push({ message: `Unknown primitive: ${node.op}` });
       return null;
   }
+
+  // Cache the result for future use
+  if (geometry) {
+    primitiveCache.set(cacheKey, params, geometry);
+  }
+
+  return geometry;
 }
 
 async function evaluateTransform(node: any, context: EvaluationContext): Promise<any> {
@@ -374,6 +476,315 @@ async function evaluateForLoop(node: any, context: EvaluationContext): Promise<a
   return result;
 }
 
+async function evaluateEcho(node: any, context: EvaluationContext): Promise<any> {
+  const values = node.values.map((v: any) => {
+    const evaluated = evaluateExpression(v, context);
+    return evaluated;
+  });
+  console.log('ECHO:', ...values);
+  return null; // Echo doesn't produce geometry
+}
+
+async function evaluateAssert(node: any, context: EvaluationContext): Promise<any> {
+  const condition = evaluateExpression(node.condition, context);
+  console.log('ASSERT condition:', node.condition, '=> evaluated to:', condition, 'type:', typeof condition);
+  if (!condition) {
+    const message = node.message
+      ? evaluateExpression(node.message, context)
+      : 'Assertion failed';
+    context.errors.push({
+      message: `Assert failed: ${message}`,
+      line: node.line
+    });
+  }
+  return null; // Assert doesn't produce geometry
+}
+
+async function evaluateAssignment(node: any, context: EvaluationContext): Promise<any> {
+  const value = evaluateExpression(node.value, context);
+  context.variables.set(node.name, value);
+  return null; // Assignments don't produce geometry
+}
+
+async function evaluateIf(node: any, context: EvaluationContext): Promise<any> {
+  if (!wasmModule) throw new Error('WASM module not initialized');
+
+  const condition = evaluateExpression(node.condition, context);
+
+  // Evaluate condition as boolean
+  const isTrue = Boolean(condition);
+
+  const bodyToEvaluate = isTrue ? node.thenBody : (node.elseBody || []);
+
+  // Evaluate body and collect geometries
+  const geometries: any[] = [];
+  for (const bodyNode of bodyToEvaluate) {
+    const geom = await evaluateNode(bodyNode, context);
+    if (geom) {
+      geometries.push(geom);
+    }
+  }
+
+  // Combine geometries with union
+  if (geometries.length === 0) {
+    return null;
+  }
+
+  let result = geometries[0];
+  for (let i = 1; i < geometries.length; i++) {
+    result = wasmModule.union(result, geometries[i]);
+  }
+
+  return result;
+}
+
+async function evaluateModuleCall(node: any, context: EvaluationContext): Promise<any> {
+  if (!wasmModule) throw new Error('WASM module not initialized');
+
+  const moduleDef = context.modules.get(node.name);
+  if (!moduleDef) {
+    context.errors.push({ message: `Unknown module: ${node.name}` });
+    return null;
+  }
+
+  // Create new scope for module execution
+  const moduleContext: EvaluationContext = {
+    variables: new Map(context.variables),
+    functions: context.functions,
+    modules: context.modules,
+    errors: context.errors,
+  };
+
+  // Bind parameters
+  const params = evaluateParameters(node.params, context);
+
+  // Handle positional parameters
+  if (params._positional !== undefined) {
+    // Map positional parameter to first module parameter
+    if (moduleDef.params.length > 0) {
+      moduleContext.variables.set(moduleDef.params[0], params._positional);
+    }
+  }
+
+  // Handle named parameters
+  for (const [key, value] of Object.entries(params)) {
+    if (key !== '_positional') {
+      moduleContext.variables.set(key, value);
+    }
+  }
+
+  // Evaluate module body
+  const geometries: any[] = [];
+  for (const bodyNode of moduleDef.body) {
+    const geom = await evaluateNode(bodyNode, moduleContext);
+    if (geom) {
+      geometries.push(geom);
+    }
+  }
+
+  // Combine geometries with union
+  if (geometries.length === 0) {
+    return null;
+  }
+
+  let result = geometries[0];
+  for (let i = 1; i < geometries.length; i++) {
+    result = wasmModule.union(result, geometries[i]);
+  }
+
+  return result;
+}
+
+function evaluateExpression(expr: any, context: EvaluationContext): any {
+  if (expr === null || expr === undefined) {
+    return null;
+  }
+
+  // Handle expression nodes
+  if (typeof expr === 'object' && expr.type) {
+    switch (expr.type) {
+      case 'expression':
+        return evaluateBinaryExpression(expr, context);
+
+      case 'ternary':
+        const condition = evaluateExpression(expr.condition, context);
+        return Boolean(condition)
+          ? evaluateExpression(expr.thenExpr, context)
+          : evaluateExpression(expr.elseExpr, context);
+
+      case 'function_call':
+        return evaluateFunctionCall(expr, context);
+
+      case 'variable':
+        return context.variables.get(expr.name);
+
+      default:
+        return expr;
+    }
+  }
+
+  // Handle primitive values
+  if (typeof expr === 'number' || typeof expr === 'boolean' || typeof expr === 'string') {
+    return expr;
+  }
+
+  // Handle arrays
+  if (Array.isArray(expr)) {
+    return expr.map(e => evaluateExpression(e, context));
+  }
+
+  // Handle variable references (strings that are identifiers)
+  if (typeof expr === 'string' && context.variables.has(expr)) {
+    return context.variables.get(expr);
+  }
+
+  return expr;
+}
+
+function evaluateBinaryExpression(expr: any, context: EvaluationContext): any {
+  const operator = expr.operator;
+
+  // Unary operators
+  if (!expr.right && expr.left !== undefined) {
+    const left = evaluateExpression(expr.left, context);
+    switch (operator) {
+      case '!': return !left;
+      case '-': return -left;
+      default: return left;
+    }
+  }
+
+  // Binary operators
+  const left = evaluateExpression(expr.left, context);
+  const right = evaluateExpression(expr.right, context);
+
+  switch (operator) {
+    case '+': return left + right;
+    case '-': return left - right;
+    case '*': return left * right;
+    case '/': return left / right;
+    case '%': return left % right;
+    case '==': return left === right;
+    case '!=': return left !== right;
+    case '<': return left < right;
+    case '>': return left > right;
+    case '<=': return left <= right;
+    case '>=': return left >= right;
+    case '&&': return left && right;
+    case '||': return left || right;
+    default: return null;
+  }
+}
+
+function evaluateFunctionCall(call: any, context: EvaluationContext): any {
+  const funcDef = context.functions.get(call.name);
+  if (!funcDef) {
+    // Try built-in functions
+    switch (call.name) {
+      case 'abs': return Math.abs(evaluateExpression(call.args[0], context));
+      case 'ceil': return Math.ceil(evaluateExpression(call.args[0], context));
+      case 'floor': return Math.floor(evaluateExpression(call.args[0], context));
+      case 'round': return Math.round(evaluateExpression(call.args[0], context));
+      case 'sqrt': return Math.sqrt(evaluateExpression(call.args[0], context));
+      case 'sin': return Math.sin(evaluateExpression(call.args[0], context) * Math.PI / 180);
+      case 'cos': return Math.cos(evaluateExpression(call.args[0], context) * Math.PI / 180);
+      case 'tan': return Math.tan(evaluateExpression(call.args[0], context) * Math.PI / 180);
+      case 'min': return Math.min(...call.args.map((a: any) => evaluateExpression(a, context)));
+      case 'max': return Math.max(...call.args.map((a: any) => evaluateExpression(a, context)));
+      case 'pow': return Math.pow(
+        evaluateExpression(call.args[0], context),
+        evaluateExpression(call.args[1], context)
+      );
+      case 'len': {
+        const arg = evaluateExpression(call.args[0], context);
+        return Array.isArray(arg) ? arg.length : 0;
+      }
+
+      // Additional trigonometric functions
+      case 'asin': return Math.asin(evaluateExpression(call.args[0], context)) * 180 / Math.PI;
+      case 'acos': return Math.acos(evaluateExpression(call.args[0], context)) * 180 / Math.PI;
+      case 'atan': return Math.atan(evaluateExpression(call.args[0], context)) * 180 / Math.PI;
+      case 'atan2': return Math.atan2(
+        evaluateExpression(call.args[0], context),
+        evaluateExpression(call.args[1], context)
+      ) * 180 / Math.PI;
+
+      // Exponential and logarithmic functions
+      case 'exp': return Math.exp(evaluateExpression(call.args[0], context));
+      case 'log': return Math.log10(evaluateExpression(call.args[0], context));
+      case 'ln': return Math.log(evaluateExpression(call.args[0], context));
+
+      // Sign function
+      case 'sign': return Math.sign(evaluateExpression(call.args[0], context));
+
+      // Vector functions
+      case 'norm': {
+        const vec = evaluateExpression(call.args[0], context);
+        if (!Array.isArray(vec)) return 0;
+        return Math.sqrt(vec.reduce((sum: number, v: number) => sum + v * v, 0));
+      }
+      case 'cross': {
+        const v1 = evaluateExpression(call.args[0], context);
+        const v2 = evaluateExpression(call.args[1], context);
+        if (!Array.isArray(v1) || !Array.isArray(v2) || v1.length !== 3 || v2.length !== 3) {
+          context.errors.push({ message: 'cross() requires two 3D vectors' });
+          return null;
+        }
+        return [
+          v1[1] * v2[2] - v1[2] * v2[1],
+          v1[2] * v2[0] - v1[0] * v2[2],
+          v1[0] * v2[1] - v1[1] * v2[0]
+        ];
+      }
+
+      // Array functions
+      case 'concat': {
+        const arrays = call.args.map((a: any) => evaluateExpression(a, context));
+        return arrays.flat();
+      }
+
+      // String functions
+      case 'str': {
+        return call.args.map((a: any) => {
+          const val = evaluateExpression(a, context);
+          return String(val);
+        }).join('');
+      }
+      case 'chr': {
+        const code = evaluateExpression(call.args[0], context);
+        return String.fromCharCode(code);
+      }
+      case 'ord': {
+        const str = String(evaluateExpression(call.args[0], context));
+        return str.length > 0 ? str.charCodeAt(0) : 0;
+      }
+
+      default:
+        context.errors.push({ message: `Unknown function: ${call.name}` });
+        return null;
+    }
+  }
+
+  // User-defined function
+  const funcContext: Map<string, any> = new Map(context.variables);
+
+  // Bind arguments to parameters
+  const evaluatedArgs = call.args.map((arg: any) => evaluateExpression(arg, context));
+  funcDef.params.forEach((param: string, idx: number) => {
+    funcContext.set(param, evaluatedArgs[idx]);
+  });
+
+  // Create temporary context for function evaluation
+  const tempContext: EvaluationContext = {
+    variables: funcContext,
+    functions: context.functions,
+    modules: context.modules,
+    errors: context.errors,
+  };
+
+  return evaluateExpression(funcDef.expression, tempContext);
+}
+
 function evaluateParameters(params: Record<string, any>, context: EvaluationContext): Record<string, any> {
   const result: Record<string, any> = {};
 
@@ -385,55 +796,100 @@ function evaluateParameters(params: Record<string, any>, context: EvaluationCont
 }
 
 function evaluateValue(value: any, context: EvaluationContext): any {
-  if (typeof value === 'number' || typeof value === 'string') {
-    return value;
-  }
-
-  if (typeof value === 'object' && value !== null) {
-    if (Array.isArray(value)) {
-      return value.map((v) => evaluateValue(v, context));
-    }
-    return value;
-  }
-
-  if (typeof value === 'string' && context.variables.has(value)) {
-    return context.variables.get(value);
-  }
-
-  return value;
+  // Use the comprehensive expression evaluator
+  return evaluateExpression(value, context);
 }
+
+/**
+ * Memory-efficient geometry conversion with typed array reuse
+ */
+class GeometryConverter {
+  private vertexCache: Float32Array = new Float32Array(1024);
+  private indexCache: Uint32Array = new Uint32Array(1536); // Typically 1.5x vertices
+  private normalCache: Float32Array = new Float32Array(1024);
+
+  convertWasmGeometry(wasmGeom: any): Geometry {
+    const vertexCount = wasmGeom.vertex_count ? wasmGeom.vertex_count() : wasmGeom.vertexCount();
+    const indexCount = wasmGeom.face_count ? wasmGeom.face_count() : wasmGeom.faceCount();
+    const normalCount = vertexCount;
+
+    // Resize caches if needed
+    this.resizeCaches(vertexCount, indexCount, normalCount);
+
+    // Use efficient copy methods if available, fallback to array getters
+    if (wasmGeom.copy_vertices_to_buffer) {
+      wasmGeom.copy_vertices_to_buffer(this.vertexCache, vertexCount);
+      wasmGeom.copy_indices_to_buffer(this.indexCache, indexCount);
+      wasmGeom.copy_normals_to_buffer(this.normalCache, normalCount);
+    } else {
+      // Fallback to original method
+      return this.convertFallback(wasmGeom);
+    }
+
+    // Convert to plain arrays for JSON serialization
+    return {
+      vertices: Array.from(this.vertexCache.slice(0, vertexCount * 3)),
+      indices: Array.from(this.indexCache.slice(0, indexCount)),
+      normals: Array.from(this.normalCache.slice(0, normalCount * 3)),
+      bounds: wasmGeom.bounds,
+      stats: {
+        vertexCount: vertexCount,
+        faceCount: indexCount / 3,
+      },
+    };
+  }
+
+  private resizeCaches(vertexCount: number, indexCount: number, normalCount: number) {
+    if (this.vertexCache.length < vertexCount * 3) {
+      this.vertexCache = new Float32Array(Math.ceil(vertexCount * 3 * 1.5));
+    }
+    if (this.indexCache.length < indexCount) {
+      this.indexCache = new Uint32Array(Math.ceil(indexCount * 1.5));
+    }
+    if (this.normalCache.length < normalCount * 3) {
+      this.normalCache = new Float32Array(Math.ceil(normalCount * 3 * 1.5));
+    }
+  }
+
+  private convertFallback(wasmGeom: any): Geometry {
+    // Original conversion logic as fallback
+    const vertices = wasmGeom.vertices instanceof Float32Array
+      ? Array.from(wasmGeom.vertices)
+      : Array.isArray(wasmGeom.vertices)
+      ? wasmGeom.vertices
+      : Object.values(wasmGeom.vertices) as number[];
+
+    const indices = wasmGeom.indices instanceof Uint32Array
+      ? Array.from(wasmGeom.indices)
+      : Array.isArray(wasmGeom.indices)
+      ? wasmGeom.indices
+      : Object.values(wasmGeom.indices) as number[];
+
+    const normals = wasmGeom.normals instanceof Float32Array
+      ? Array.from(wasmGeom.normals)
+      : Array.isArray(wasmGeom.normals)
+      ? wasmGeom.normals
+      : Object.values(wasmGeom.normals) as number[];
+
+    return {
+      vertices: vertices as number[],
+      indices: indices as number[],
+      normals: normals as number[],
+      bounds: wasmGeom.bounds,
+      stats: {
+        vertexCount: wasmGeom.stats.vertex_count,
+        faceCount: wasmGeom.stats.face_count,
+      },
+    };
+  }
+}
+
+// Global converter instance for reuse
+const geometryConverter = new GeometryConverter();
 
 /**
  * Convert WASM geometry to standard Geometry format (JSON-serializable)
  */
 function convertWasmGeometry(wasmGeom: any): Geometry {
-  // Convert to plain arrays for JSON serialization
-  const vertices = wasmGeom.vertices instanceof Float32Array
-    ? Array.from(wasmGeom.vertices)
-    : Array.isArray(wasmGeom.vertices)
-    ? wasmGeom.vertices
-    : Object.values(wasmGeom.vertices) as number[];
-
-  const indices = wasmGeom.indices instanceof Uint32Array
-    ? Array.from(wasmGeom.indices)
-    : Array.isArray(wasmGeom.indices)
-    ? wasmGeom.indices
-    : Object.values(wasmGeom.indices) as number[];
-
-  const normals = wasmGeom.normals instanceof Float32Array
-    ? Array.from(wasmGeom.normals)
-    : Array.isArray(wasmGeom.normals)
-    ? wasmGeom.normals
-    : Object.values(wasmGeom.normals) as number[];
-
-  return {
-    vertices: vertices as number[],
-    indices: indices as number[],
-    normals: normals as number[],
-    bounds: wasmGeom.bounds,
-    stats: {
-      vertexCount: wasmGeom.stats.vertex_count,
-      faceCount: wasmGeom.stats.face_count,
-    },
-  };
+  return geometryConverter.convertWasmGeometry(wasmGeom);
 }
