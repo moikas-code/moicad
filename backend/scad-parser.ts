@@ -18,8 +18,8 @@ class Tokenizer {
   // Eliminates regex overhead for every character check
   private static readonly CHAR_TYPES = new Uint8Array(256);
   private static readonly KEYWORDS = new Set([
-    'cube', 'sphere', 'cylinder', 'cone', 'circle', 'square', 'polygon',
-    'translate', 'rotate', 'scale', 'mirror', 'multmatrix',
+    'cube', 'sphere', 'cylinder', 'cone', 'circle', 'square', 'polygon', 'text',
+    'translate', 'rotate', 'scale', 'mirror', 'multmatrix', 'color',
     'union', 'difference', 'intersection', 'hull', 'minkowski',
     'for', 'let', 'function', 'module', 'children',
     'if', 'else', 'echo', 'import', 'include', 'use',
@@ -254,14 +254,22 @@ class Tokenizer {
           token.line = line;
           token.column = column;
           tokens.push(token);
-        } else if (['!', '<', '>', '+', '-', '*', '/', '%', '=', '?', ':'].includes(ch)) {
-          this.advance();
-          const token = getOrCreateToken();
-          token.type = 'operator';
-          token.value = ch;
-          token.line = line;
-          token.column = column;
-          tokens.push(token);
+      } else if (['<', '>', '+', '-', '*', '/', '=', '?', ':'].includes(ch)) {
+        this.advance();
+        const token = getOrCreateToken();
+        token.type = 'operator';
+        token.value = ch;
+        token.line = line;
+        token.column = column;
+        tokens.push(token);
+      } else if (['!', '#', '%'].includes(ch)) {
+        this.advance();
+        const token = getOrCreateToken();
+        token.type = 'modifier';
+        token.value = ch;
+        token.line = line;
+        token.column = column;
+        tokens.push(token);
         } else {
           const punct = this.advance();
           const token = getOrCreateToken();
@@ -390,6 +398,38 @@ class Parser {
       return null;
     }
 
+    // Check for modifier at the start of statement
+    // Handle * specially since it can be either modifier or operator
+    if (token.type === 'modifier' || (token.type === 'operator' && token.value === '*')) {
+      // Check if * appears at the beginning of a statement (modifier) vs in an expression (operator)
+      // Look at the previous token context - if we're at statement start, treat as modifier
+      const prevToken = this.pos > 0 ? this.tokens[this.pos - 1] : null;
+      const isAtStatementStart = !prevToken || 
+        prevToken.value === ';' || 
+        prevToken.value === '{' || 
+        prevToken.value === '}' ||
+        prevToken.value === ')' ||
+        prevToken.type === 'eof';
+      
+      if (isAtStatementStart || token.type === 'modifier') {
+        // Convert * operator token to modifier if needed
+        if (token.type === 'operator' && token.value === '*') {
+          this.advance(); // Skip the * operator token
+          // Create a synthetic modifier token for parsing
+          const modifierToken = {
+            type: 'modifier',
+            value: '*',
+            line: token.line,
+            column: token.column
+          };
+          // We'll handle this in parseModifier by checking the next token
+          return this.parseModifierWithToken(modifierToken);
+        } else {
+          return this.parseModifier();
+        }
+      }
+    }
+
     // Module definition
     if (token.value === 'module') {
       return this.parseModuleDef();
@@ -413,6 +453,11 @@ class Parser {
     // Assert statement
     if (token.value === 'assert') {
       return this.parseAssert();
+    }
+
+    // Let statement
+    if (token.value === 'let') {
+      return this.parseLet();
     }
 
     // Variable assignment (identifier followed by =)
@@ -505,17 +550,20 @@ class Parser {
     const op = this.advance().value;
     const line = this.current().line;
 
+    // Parse parameters first (this handles the parentheses)
+    const params = this.parseParameters();
+
     let children: ScadNode[] = [];
-    if (this.current().value === '(') {
+    if (this.current().value === '{') {
+      this.advance(); // {
+      children = this.parseBlock();
+      this.expect('}');
+    } else if (this.current().value === '(') {
       this.advance(); // (
       if (this.current().value !== ')') {
         children = this.parseBlock();
       }
       this.expect(')');
-    } else if (this.current().value === '{') {
-      this.advance(); // {
-      children = this.parseBlock();
-      this.expect('}');
     }
 
     return {
@@ -1135,19 +1183,97 @@ class Parser {
 
   private isPrimitive(word: string): boolean {
     return [
-      'cube', 'sphere', 'cylinder', 'cone', 'circle', 'square', 'polygon', 'polyhedron',
+      'cube', 'sphere', 'cylinder', 'cone', 'circle', 'square', 'polygon', 'polyhedron', 'text',
     ].includes(word);
   }
 
   private isTransform(word: string): boolean {
     return [
-      'translate', 'rotate', 'scale', 'mirror', 'multmatrix',
+      'translate', 'rotate', 'scale', 'mirror', 'multmatrix', 'color',
       'minkowski',
     ].includes(word);
   }
 
   private isBooleanOp(word: string): boolean {
-    return ['union', 'difference', 'intersection', 'hull'].includes(word);
+    return ['union', 'difference', 'intersection', 'hull', 'minkowski'].includes(word);
+  }
+
+  private parseLet(): ScadNode {
+    this.expect('let');
+    const line = this.current().line;
+    
+    // Parse bindings: let(x=10, y=20) ...
+    this.expect('(');
+    const bindings: Record<string, any> = {};
+    
+    while (this.current().value !== ')' && this.current().type !== 'eof') {
+      const name = this.expect('identifier').value;
+      this.expect('=');
+      const value = this.parseExpression();
+      bindings[name] = value;
+      
+      if (this.current().value === ',') {
+        this.advance(); // Skip comma
+      }
+    }
+    
+    this.expect(')');
+    
+    // Parse body (block or single statement)
+    let body: ScadNode[] = [];
+    if (this.current().value === '{') {
+      this.advance();
+      body = this.parseBlock();
+      this.expect('}');
+    } else {
+      const stmt = this.parseStatement();
+      if (stmt) {
+        body = [stmt];
+      }
+    }
+    
+    return {
+      type: 'let',
+      bindings,
+      body,
+      line,
+    };
+  }
+
+  private parseModifier(): ScadNode {
+    const modifierToken = this.advance();
+    return this.parseModifierWithToken(modifierToken);
+  }
+
+  private parseModifierWithToken(modifierToken: { value: string; line: number; column: number }): ScadNode {
+    const modifier = modifierToken.value as '!' | '#' | '%' | '*';
+    const line = modifierToken.line;
+
+    // Parse the statement that follows the modifier
+    const child = this.parseStatement();
+    
+    if (!child) {
+      this.error(`Expected statement after modifier '${modifier}'`);
+      // Create a fallback node to avoid complete failure
+      return {
+        type: 'modifier',
+        modifier,
+        child: {
+          type: 'primitive',
+          op: 'cube',
+          params: { size: 0 },
+          line,
+        },
+        line,
+      };
+    }
+
+    return {
+      type: 'modifier',
+      modifier,
+      child,
+      line,
+    };
   }
 
   public getErrors(): ParseError[] {

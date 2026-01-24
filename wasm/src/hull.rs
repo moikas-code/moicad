@@ -12,7 +12,7 @@ pub fn compute_hull(mesh: &Mesh) -> Mesh {
     }
 
     // Get unique points
-    let points: Vec<Vec3> = dedup_points_optimized(&mesh.vertices);
+    let points: Vec<Vec3> = dedup_points(&mesh.vertices);
 
     if points.len() < 4 {
         return mesh.clone();
@@ -25,134 +25,20 @@ pub fn compute_hull(mesh: &Mesh) -> Mesh {
     }
 }
 
-/// Spatial hash grid for efficient point deduplication
-struct SpatialHashGrid {
-    grid: Vec<Vec<usize>>,
-    grid_x: usize,
-    grid_y: usize,
-    grid_z: usize,
-    cell_size: f32,
-    min_bounds: Vec3,
-    max_bounds: Vec3,
-}
-
-impl SpatialHashGrid {
-    fn new(points: &[Vec3]) -> Self {
-        if points.is_empty() {
-            return Self {
-                grid: Vec::new(),
-                grid_x: 0,
-                grid_y: 0,
-                grid_z: 0,
-                cell_size: 1.0,
-                min_bounds: Vec3::new(f32::MAX, f32::MAX, f32::MAX),
-                max_bounds: Vec3::new(f32::MIN, f32::MIN, f32::MIN),
-            };
-        }
-
-        // Calculate bounds
-        let mut min_x = points[0].x;
-        let mut min_y = points[0].y;
-        let mut min_z = points[0].z;
-        let mut max_x = points[0].x;
-        let mut max_y = points[0].y;
-        let mut max_z = points[0].z;
-
-        for p in points {
-            min_x = min_x.min(p.x);
-            min_y = min_y.min(p.y);
-            min_z = min_z.min(p.z);
-            max_x = max_x.max(p.x);
-            max_y = max_y.max(p.y);
-            max_z = max_z.max(p.z);
-        }
-
-        // Calculate optimal cell size (aim for ~16 points per cell)
-        let range_x = max_x - min_x;
-        let range_y = max_y - min_y;
-        let range_z = max_z - min_z;
-        let max_range = range_x.max(range_y).max(range_z);
-        let cell_size = if max_range > 0.0 {
-            max_range / 4.0
-        } else {
-            1.0
-        };
-
-        // Calculate grid dimensions
-        let grid_x = ((range_x / cell_size) as usize + 1).min(64);
-        let grid_y = ((range_y / cell_size) as usize + 1).min(64);
-        let grid_z = ((range_z / cell_size) as usize + 1).min(64);
-
-        let mut grid = Vec::with_capacity(grid_x * grid_y * grid_z);
-        for _ in 0..(grid_x * grid_y * grid_z) {
-            grid.push(Vec::new());
-        }
-
-        Self {
-            grid,
-            grid_x,
-            grid_y,
-            grid_z,
-            cell_size,
-            min_bounds: Vec3::new(min_x, min_y, min_z),
-            max_bounds: Vec3::new(max_x, max_y, max_z),
+/// Remove duplicate points
+fn dedup_points(points: &[Vec3]) -> Vec<Vec3> {
+    let mut result = Vec::new();
+    for p in points {
+        let exists = result.iter().any(|r: &Vec3| {
+            (r.x - p.x).abs() < EPSILON
+                && (r.y - p.y).abs() < EPSILON
+                && (r.z - p.z).abs() < EPSILON
+        });
+        if !exists {
+            result.push(*p);
         }
     }
-
-    fn insert(&mut self, point: Vec3, index: usize) {
-        // Calculate grid coordinates
-        let gx = ((point.x - self.min_bounds.x) / self.cell_size) as usize;
-        let gy = ((point.y - self.min_bounds.y) / self.cell_size) as usize;
-        let gz = ((point.z - self.min_bounds.z) / self.cell_size) as usize;
-
-        let grid_idx = gz * self.grid.len() / (self.grid.len() / (self.grid_y * self.grid_z))
-            + gy * (self.grid.len() / self.grid_z)
-            + gx;
-
-        if grid_idx < self.grid.len() {
-            self.grid[grid_idx].push(index);
-        }
-    }
-
-    fn get(&self, point: Vec3) -> Option<&Vec<usize>> {
-        let gx = ((point.x - self.min_bounds.x) / self.cell_size) as usize;
-        let gy = ((point.y - self.min_bounds.y) / self.cell_size) as usize;
-        let gz = ((point.z - self.min_bounds.z) / self.cell_size) as usize;
-
-        let grid_idx = gz * self.grid.len() / (self.grid.len() / (self.grid_y * self.grid_z))
-            + gy * (self.grid.len() / self.grid_z)
-            + gx;
-
-        if grid_idx < self.grid.len() && !self.grid[grid_idx].is_empty() {
-            Some(&self.grid[grid_idx])
-        } else {
-            None
-        }
-    }
-}
-
-/// Optimized point deduplication using spatial hashing
-fn dedup_points_optimized(points: &[Vec3]) -> Vec<Vec3> {
-    if points.len() <= 4 {
-        return points.to_vec();
-    }
-
-    let mut hash_grid = SpatialHashGrid::new(points);
-    let mut unique_points = Vec::with_capacity(points.len());
-
-    for (i, point) in points.iter().enumerate() {
-        // Check if point already exists using spatial lookup
-        if let Some(_existing_indices) = hash_grid.get(*point) {
-            // Point already exists, skip
-            continue;
-        }
-
-        // Add to spatial hash and unique points
-        hash_grid.insert(*point, i);
-        unique_points.push(*point);
-    }
-
-    unique_points
+    result
 }
 
 /// Find the extreme points to form initial tetrahedron

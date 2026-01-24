@@ -1,7 +1,8 @@
 /// Constructive Solid Geometry operations
 /// Uses BSP trees for proper boolean operations
 use crate::bsp::operations as bsp_ops;
-use crate::geometry::{Bounds, Mesh};
+use crate::geometry::Mesh;
+use crate::hull;
 use crate::math::{Mat4, Vec3};
 
 /// Union: A + B
@@ -9,16 +10,8 @@ use crate::math::{Mat4, Vec3};
 /// For non-overlapping meshes, this produces correct results
 /// For overlapping meshes, internal faces remain (visual only, not watertight)
 pub fn union(mesh_a: &Mesh, mesh_b: &Mesh) -> Mesh {
-    let total_vertices = mesh_a.vertices.len() + mesh_b.vertices.len();
-    let total_indices = mesh_a.indices.len() + mesh_b.indices.len();
-
-    // Pre-allocate with exact capacity needed
-    let mut combined_vertices = Vec::with_capacity(total_vertices);
-    let mut combined_indices = Vec::with_capacity(total_indices);
-
-    // Copy first mesh
-    combined_vertices.extend_from_slice(&mesh_a.vertices);
-    combined_indices.extend_from_slice(&mesh_a.indices);
+    let mut combined_vertices = mesh_a.vertices.clone();
+    let mut combined_indices = mesh_a.indices.clone();
 
     // Offset indices for second mesh
     let offset = mesh_a.vertices.len() as u32;
@@ -26,28 +19,9 @@ pub fn union(mesh_a: &Mesh, mesh_b: &Mesh) -> Mesh {
         combined_indices.push(idx + offset);
     }
 
-    // Add second mesh vertices
     combined_vertices.extend_from_slice(&mesh_b.vertices);
 
     Mesh::new(combined_vertices, combined_indices)
-}
-
-/// Memory-efficient union into existing mesh
-pub fn union_into(target: &mut Mesh, additional: &Mesh) {
-    let offset = target.vertices.len() as u32;
-
-    // Offset new indices
-    let offset_indices: Vec<u32> = additional.indices.iter().map(|&idx| idx + offset).collect();
-
-    // Extend with new vertices and indices
-    target.vertices.extend_from_slice(&additional.vertices);
-    target.indices.extend_from_slice(&offset_indices);
-    target.normals.extend_from_slice(&additional.normals);
-
-    // Recalculate bounds
-    for v in &additional.vertices {
-        target.bounds.add_point(*v);
-    }
 }
 
 /// Difference: A - B
@@ -70,28 +44,7 @@ pub fn transform_mesh(mesh: &Mesh, matrix: &Mat4) -> Mesh {
         .map(|v| matrix.transform_point(*v))
         .collect();
 
-    // Transform normals using inverse transpose matrix
-    let normal_matrix = matrix.inverse_transpose();
-    let transformed_normals: Vec<Vec3> = mesh
-        .normals
-        .iter()
-        .map(|n| normal_matrix.transform_vector(*n).normalize())
-        .collect();
-
-    // Create mesh with transformed vertices and normals
-    let mut result = Mesh {
-        vertices: transformed_vertices,
-        indices: mesh.indices.clone(),
-        normals: transformed_normals,
-        bounds: Bounds::new(),
-    };
-
-    // Recalculate bounds
-    for v in &result.vertices {
-        result.bounds.add_point(*v);
-    }
-
-    result
+    Mesh::new(transformed_vertices, mesh.indices.clone())
 }
 
 /// Translate a mesh
@@ -139,58 +92,8 @@ pub fn mirror_z(mesh: &Mesh) -> Mesh {
 
 /// Apply a custom 4x4 transformation matrix
 pub fn multmatrix(mesh: &Mesh, matrix_array: &[f32; 16]) -> Mesh {
-    let matrix = Mat4::from_array(matrix_array);
+    let matrix = Mat4 { m: *matrix_array };
     transform_mesh(mesh, &matrix)
-}
-
-// In-place transformations for memory efficiency
-pub fn transform_mesh_in_place(mesh: &mut Mesh, matrix: &Mat4) {
-    // Transform vertices in place
-    for vertex in &mut mesh.vertices {
-        *vertex = matrix.transform_point(*vertex);
-    }
-
-    // Transform normals using inverse transpose matrix
-    let normal_matrix = matrix.inverse_transpose();
-    for normal in &mut mesh.normals {
-        *normal = normal_matrix.transform_vector(*normal).normalize();
-    }
-
-    // Recalculate bounds
-    mesh.bounds = Bounds::new();
-    for v in &mesh.vertices {
-        mesh.bounds.add_point(*v);
-    }
-}
-
-/// Translate a mesh in place
-pub fn translate_in_place(mesh: &mut Mesh, x: f32, y: f32, z: f32) {
-    let matrix = Mat4::translation(x, y, z);
-    transform_mesh_in_place(mesh, &matrix);
-}
-
-/// Rotate a mesh around X axis in place (degrees)
-pub fn rotate_x_in_place(mesh: &mut Mesh, angle: f32) {
-    let matrix = Mat4::rotation_x(angle);
-    transform_mesh_in_place(mesh, &matrix);
-}
-
-/// Rotate a mesh around Y axis in place (degrees)
-pub fn rotate_y_in_place(mesh: &mut Mesh, angle: f32) {
-    let matrix = Mat4::rotation_y(angle);
-    transform_mesh_in_place(mesh, &matrix);
-}
-
-/// Rotate a mesh around Z axis in place (degrees)
-pub fn rotate_z_in_place(mesh: &mut Mesh, angle: f32) {
-    let matrix = Mat4::rotation_z(angle);
-    transform_mesh_in_place(mesh, &matrix);
-}
-
-/// Scale a mesh in place
-pub fn scale_in_place(mesh: &mut Mesh, sx: f32, sy: f32, sz: f32) {
-    let matrix = Mat4::scale(sx, sy, sz);
-    transform_mesh_in_place(mesh, &matrix);
 }
 
 #[cfg(test)]
@@ -200,9 +103,50 @@ mod tests {
     #[test]
     fn test_union_combines_meshes() {
         let m1 = Mesh::new(vec![Vec3::new(0.0, 0.0, 0.0)], vec![0]);
-        let m2 = Mesh::new(vec![Vec3::new(1.0, 1.0, 1.0)], vec![0]);
-
+        let m2 = Mesh::new(vec![Vec3::new(1.0, 0.0, 0.0)], vec![0]);
         let result = union(&m1, &m2);
         assert_eq!(result.vertex_count(), 2);
     }
+}
+
+/// Compute minkowski sum of two meshes using convex hull approach
+/// For each face in mesh A, add translated copy of mesh B
+/// Then compute convex hull of all points
+pub fn minkowski(mesh_a: &Mesh, mesh_b: &Mesh) -> Mesh {
+    if mesh_a.vertices.is_empty() || mesh_b.vertices.is_empty() {
+        return Mesh::new(vec![], vec![]);
+    }
+
+    // Strategy: For each face in A, add entire mesh B translated along that face's normal
+    let mut expanded_vertices = Vec::new();
+
+    // Add original mesh A vertices
+    expanded_vertices.extend_from_slice(&mesh_a.vertices);
+
+    // For each face in mesh A, translate mesh B along that face's normal
+    let mesh_a_polys = bsp_ops::mesh_to_polygons(mesh_a);
+    for poly_a in mesh_a_polys {
+        let normal = poly_a.plane.normal;
+
+        // Translate each vertex of mesh B by the normal (extrude it along the normal)
+        let face_offset = normal.scale(0.001); // Small offset to avoid self-intersection
+        for vertex_b in &mesh_b.vertices {
+            expanded_vertices.push(vertex_b.add(normal).add(face_offset));
+        }
+    }
+
+    // For each face in mesh B, add translated copy of mesh A
+    // This ensures both shapes contribute to the minkowski sum
+    let mesh_b_polys = bsp_ops::mesh_to_polygons(mesh_b);
+    for poly_b in mesh_b_polys {
+        let normal = poly_b.plane.normal;
+        let face_offset = normal.scale(0.001);
+
+        for vertex_a in &mesh_a.vertices {
+            expanded_vertices.push(vertex_a.add(normal).add(face_offset));
+        }
+    }
+
+    // Create convex hull of all expanded vertices
+    hull::compute_hull(&Mesh::new(expanded_vertices, vec![]))
 }

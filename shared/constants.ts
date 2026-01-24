@@ -3,7 +3,7 @@
 // OpenSCAD keywords
 export const SCAD_KEYWORDS = [
   'cube', 'sphere', 'cylinder', 'cone', 'polygon', 'polyhedron', 'circle', 'square',
-  'translate', 'rotate', 'scale', 'mirror', 'multmatrix',
+  'translate', 'rotate', 'scale', 'mirror', 'multmatrix', 'color',
   'union', 'difference', 'intersection', 'hull', 'minkowski',
   'linear_extrude', 'rotate_extrude',
   'for', 'let', 'function', 'module', 'include', 'use', 'import',
@@ -18,12 +18,12 @@ export const PRIMITIVES = [
 ] as const;
 
 // Boolean operations
-export const BOOLEAN_OPS = ['union', 'difference', 'intersection', 'hull'] as const;
+export const BOOLEAN_OPS = ['union', 'difference', 'intersection', 'hull', 'minkowski'] as const;
 
 // Transformation operations
 export const TRANSFORMS = [
-  'translate', 'rotate', 'scale', 'mirror', 'multmatrix',
-  'minkowski', 'linear_extrude', 'rotate_extrude',
+  'translate', 'rotate', 'scale', 'mirror', 'multmatrix', 'color',
+  'linear_extrude', 'rotate_extrude',
 ] as const;
 
 // Mathematical functions

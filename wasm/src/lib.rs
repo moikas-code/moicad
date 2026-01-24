@@ -5,13 +5,23 @@ mod geometry;
 mod hull;
 mod math;
 mod primitives;
+mod text;
 
 use geometry::Mesh;
 use wasm_bindgen::prelude::*;
 
+fn create_wasm_mesh(mesh: Mesh) -> WasmMesh {
+    WasmMesh { mesh, color: None }
+}
+
+fn create_wasm_mesh_with_color(mesh: Mesh, color: Option<[f32; 4]>) -> WasmMesh {
+    WasmMesh { mesh, color }
+}
+
 #[wasm_bindgen]
 pub struct WasmMesh {
     mesh: Mesh,
+    color: Option<[f32; 4]>, // RGBA color (0-1 range)
 }
 
 #[wasm_bindgen]
@@ -31,78 +41,6 @@ impl WasmMesh {
         self.mesh.to_normals_array()
     }
 
-    // Memory-efficient alternatives that don't allocate new Vecs
-    #[wasm_bindgen]
-    pub fn vertices_ptr(&self) -> *const f32 {
-        self.mesh.vertices.as_ptr() as *const f32
-    }
-
-    #[wasm_bindgen]
-    pub fn vertices_len(&self) -> usize {
-        self.mesh.vertices.len() * 3 // 3 floats per Vec3
-    }
-
-    #[wasm_bindgen]
-    pub fn indices_ptr(&self) -> *const u32 {
-        self.mesh.indices.as_ptr()
-    }
-
-    #[wasm_bindgen]
-    pub fn indices_len(&self) -> usize {
-        self.mesh.indices.len()
-    }
-
-    #[wasm_bindgen]
-    pub fn normals_ptr(&self) -> *const f32 {
-        self.mesh.normals.as_ptr() as *const f32
-    }
-
-    #[wasm_bindgen]
-    pub fn normals_len(&self) -> usize {
-        self.mesh.normals.len() * 3 // 3 floats per Vec3
-    }
-
-    // Efficient copy to existing buffer
-    #[wasm_bindgen]
-    pub fn copy_vertices_to_buffer(&self, ptr: *mut f32, len: usize) {
-        let vertices = &self.mesh.vertices;
-        let copy_len = len.min(vertices.len());
-        unsafe {
-            let dst = std::slice::from_raw_parts_mut(ptr, copy_len * 3);
-            // Convert Vec3 to flat f32 array
-            for (i, vertex) in vertices.iter().take(copy_len).enumerate() {
-                dst[i * 3] = vertex.x;
-                dst[i * 3 + 1] = vertex.y;
-                dst[i * 3 + 2] = vertex.z;
-            }
-        }
-    }
-
-    #[wasm_bindgen]
-    pub fn copy_indices_to_buffer(&self, ptr: *mut u32, len: usize) {
-        let indices = &self.mesh.indices;
-        let copy_len = len.min(indices.len());
-        unsafe {
-            let dst = std::slice::from_raw_parts_mut(ptr, copy_len);
-            dst.copy_from_slice(&indices[..copy_len]);
-        }
-    }
-
-    #[wasm_bindgen]
-    pub fn copy_normals_to_buffer(&self, ptr: *mut f32, len: usize) {
-        let normals = &self.mesh.normals;
-        let copy_len = len.min(normals.len());
-        unsafe {
-            let dst = std::slice::from_raw_parts_mut(ptr, copy_len * 3);
-            // Convert Vec3 to flat f32 array
-            for (i, normal) in normals.iter().take(copy_len).enumerate() {
-                dst[i * 3] = normal.x;
-                dst[i * 3 + 1] = normal.y;
-                dst[i * 3 + 2] = normal.z;
-            }
-        }
-    }
-
     #[wasm_bindgen]
     pub fn to_json(&self) -> String {
         serde_json::to_string(&self.mesh.to_json()).unwrap()
@@ -117,92 +55,198 @@ impl WasmMesh {
     pub fn face_count(&self) -> usize {
         self.mesh.face_count()
     }
+
+    #[wasm_bindgen]
+    pub fn get_color(&self) -> Option<Vec<f32>> {
+        self.color.map(|c| c.to_vec())
+    }
 }
 
 // Primitive generators
 #[wasm_bindgen]
 pub fn create_cube(size: f32) -> WasmMesh {
-    WasmMesh {
-        mesh: primitives::cube(size),
-    }
+    create_wasm_mesh(primitives::cube(size))
 }
 
 #[wasm_bindgen]
 pub fn create_sphere(radius: f32, detail: u32) -> WasmMesh {
-    WasmMesh {
-        mesh: primitives::sphere(radius, detail),
-    }
+    create_wasm_mesh(primitives::sphere(radius, detail))
 }
 
 #[wasm_bindgen]
 pub fn create_cylinder(radius: f32, height: f32, detail: u32) -> WasmMesh {
-    WasmMesh {
-        mesh: primitives::cylinder(radius, height, detail),
-    }
+    create_wasm_mesh(primitives::cylinder(radius, height, detail))
 }
 
 #[wasm_bindgen]
 pub fn create_cone(radius: f32, height: f32, detail: u32) -> WasmMesh {
-    WasmMesh {
-        mesh: primitives::cone(radius, height, detail),
-    }
+    create_wasm_mesh(primitives::cone(radius, height, detail))
 }
 
 #[wasm_bindgen]
 pub fn create_circle(radius: f32, detail: u32) -> WasmMesh {
-    WasmMesh {
-        mesh: primitives::circle(radius, detail),
-    }
+    create_wasm_mesh(primitives::circle(radius, detail))
 }
 
 #[wasm_bindgen]
 pub fn create_square(size: f32) -> WasmMesh {
-    WasmMesh {
-        mesh: primitives::square(size),
-    }
+    create_wasm_mesh(primitives::square(size))
+}
+
+// CSG Operations
+#[wasm_bindgen]
+pub fn union(a: &WasmMesh, b: &WasmMesh) -> WasmMesh {
+    let result_mesh = csg::union(&a.mesh, &b.mesh);
+    // Preserve color from first mesh if available
+    create_wasm_mesh_with_color(result_mesh, a.color)
 }
 
 #[wasm_bindgen]
-pub fn create_polygon(points: Vec<f32>) -> WasmMesh {
-    // Convert flat array to Vec2 points
-    let mut polygon_points = Vec::new();
-    for i in 0..points.len() / 2 {
-        polygon_points.push(math::Vec2::new(points[i * 2], points[i * 2 + 1]));
-    }
-
-    WasmMesh {
-        mesh: primitives::polygon(polygon_points, None),
-    }
+pub fn difference(a: &WasmMesh, b: &WasmMesh) -> WasmMesh {
+    let result_mesh = csg::difference(&a.mesh, &b.mesh);
+    // Preserve color from first mesh if available
+    create_wasm_mesh_with_color(result_mesh, a.color)
 }
 
 #[wasm_bindgen]
-pub fn create_polyhedron(points: Vec<f32>) -> WasmMesh {
-    // Create a simple tetrahedron from first 4 points
-    if points.len() < 12 {
-        return WasmMesh {
-            mesh: primitives::cube(10.0),
-        };
+pub fn intersection(a: &WasmMesh, b: &WasmMesh) -> WasmMesh {
+    let result_mesh = csg::intersection(&a.mesh, &b.mesh);
+    // Preserve color from first mesh if available
+    create_wasm_mesh_with_color(result_mesh, a.color)
+}
+
+#[wasm_bindgen]
+pub fn hull(mesh: &WasmMesh) -> WasmMesh {
+    create_wasm_mesh_with_color(hull::compute_hull(&mesh.mesh), mesh.color)
+}
+
+#[wasm_bindgen]
+pub fn hull_two(a: &WasmMesh, b: &WasmMesh) -> WasmMesh {
+    let result_mesh = hull::hull_meshes(&[&a.mesh, &b.mesh]);
+    // Preserve color from first mesh if available
+    create_wasm_mesh_with_color(result_mesh, a.color)
+}
+
+// Color operations
+#[wasm_bindgen]
+pub fn set_color(mesh: &WasmMesh, r: f32, g: f32, b: f32, a: Option<f32>) -> WasmMesh {
+    let alpha = a.unwrap_or(1.0);
+    let color = [r, g, b, alpha];
+    create_wasm_mesh_with_color(mesh.mesh.clone(), Some(color))
+}
+
+// Transformations
+#[wasm_bindgen]
+pub fn translate(mesh: &WasmMesh, x: f32, y: f32, z: f32) -> WasmMesh {
+    create_wasm_mesh_with_color(csg::translate(&mesh.mesh, x, y, z), mesh.color)
+}
+
+#[wasm_bindgen]
+pub fn rotate_x(mesh: &WasmMesh, angle: f32) -> WasmMesh {
+    create_wasm_mesh_with_color(csg::rotate_x(&mesh.mesh, angle), mesh.color)
+}
+
+#[wasm_bindgen]
+pub fn rotate_y(mesh: &WasmMesh, angle: f32) -> WasmMesh {
+    create_wasm_mesh_with_color(csg::rotate_y(&mesh.mesh, angle), mesh.color)
+}
+
+#[wasm_bindgen]
+pub fn rotate_z(mesh: &WasmMesh, angle: f32) -> WasmMesh {
+    create_wasm_mesh_with_color(csg::rotate_z(&mesh.mesh, angle), mesh.color)
+}
+
+#[wasm_bindgen]
+pub fn scale(mesh: &WasmMesh, sx: f32, sy: f32, sz: f32) -> WasmMesh {
+    create_wasm_mesh_with_color(csg::scale(&mesh.mesh, sx, sy, sz), mesh.color)
+}
+
+#[wasm_bindgen]
+pub fn mirror_x(mesh: &WasmMesh) -> WasmMesh {
+    create_wasm_mesh_with_color(csg::mirror_x(&mesh.mesh), mesh.color)
+}
+
+#[wasm_bindgen]
+pub fn mirror_y(mesh: &WasmMesh) -> WasmMesh {
+    create_wasm_mesh_with_color(csg::mirror_y(&mesh.mesh), mesh.color)
+}
+
+#[wasm_bindgen]
+pub fn mirror_z(mesh: &WasmMesh) -> WasmMesh {
+    create_wasm_mesh_with_color(csg::mirror_z(&mesh.mesh), mesh.color)
+}
+
+#[wasm_bindgen]
+pub fn multmatrix(mesh: &WasmMesh, matrix: Vec<f32>) -> WasmMesh {
+    if matrix.len() != 16 {
+        panic!("Matrix must have 16 elements");
+    }
+    let mut mat_array = [0.0; 16];
+    mat_array.copy_from_slice(&matrix);
+    create_wasm_mesh_with_color(csg::multmatrix(&mesh.mesh, &mat_array), mesh.color)
+}
+
+#[wasm_bindgen]
+pub fn polygon(points: Vec<f32>) -> WasmMesh {
+    if points.len() % 2 != 0 {
+        panic!("Points array must have even number of elements (x,y pairs)");
     }
 
-    let mut vertices_3d = Vec::new();
-    for i in 0..4 {
-        vertices_3d.push(math::Vec3::new(
-            points[i * 3],
-            points[i * 3 + 1],
-            points[i * 3 + 2],
-        ));
+    let num_points = points.len() / 2;
+    let mut vec2_points = Vec::with_capacity(num_points);
+
+    for i in 0..num_points {
+        let x = points[i * 2];
+        let y = points[i * 2 + 1];
+        vec2_points.push(math::Vec2::new(x, y));
     }
 
-    let faces = vec![
-        vec![0, 1, 2], // Base triangle
-        vec![0, 2, 3], // Side triangles
-        vec![0, 3, 1],
-        vec![1, 3, 2],
-    ];
+    create_wasm_mesh(primitives::polygon(&vec2_points))
+}
 
-    WasmMesh {
-        mesh: primitives::polyhedron(vertices_3d, faces),
+#[wasm_bindgen]
+pub fn minkowski(a: &WasmMesh, b: &WasmMesh) -> WasmMesh {
+    let result_mesh = csg::minkowski(&a.mesh, &b.mesh);
+    // Preserve color from first mesh if available
+    create_wasm_mesh_with_color(result_mesh, a.color)
+}
+
+#[wasm_bindgen]
+pub fn polyhedron(points: Vec<f32>, faces: Vec<u32>) -> WasmMesh {
+    if points.len() % 3 != 0 {
+        panic!("Points array must have multiple of 3 elements (x,y,z triples)");
     }
+
+    let num_points = points.len() / 3;
+    let mut vec3_points = Vec::with_capacity(num_points);
+
+    for i in 0..num_points {
+        let x = points[i * 3];
+        let y = points[i * 3 + 1];
+        let z = points[i * 3 + 2];
+        vec3_points.push(math::Vec3::new(x, y, z));
+    }
+
+    // Parse faces - each face starts with count, then vertex indices
+    let mut parsed_faces = Vec::new();
+    let mut i = 0;
+    while i < faces.len() {
+        if i >= faces.len() {
+            break;
+        }
+        let count = faces[i] as usize;
+        if i + count >= faces.len() {
+            break;
+        }
+        let face_vertices: Vec<usize> = faces[i + 1..=i + count]
+            .iter()
+            .map(|&idx| idx as usize)
+            .collect();
+        parsed_faces.push(face_vertices);
+        i += count + 1;
+    }
+
+    create_wasm_mesh(primitives::polyhedron(&vec3_points, &parsed_faces))
 }
 
 // Extrusion Operations
@@ -214,123 +258,27 @@ pub fn linear_extrude(
     scale: f32,
     slices: u32,
 ) -> WasmMesh {
-    WasmMesh {
-        mesh: extrude::linear_extrude(&mesh.mesh, height, twist, scale, slices),
-    }
+    create_wasm_mesh_with_color(
+        extrude::linear_extrude(&mesh.mesh, height, twist, scale, slices),
+        mesh.color,
+    )
 }
 
 #[wasm_bindgen]
 pub fn rotate_extrude(mesh: &WasmMesh, angle: f32, segments: u32) -> WasmMesh {
-    WasmMesh {
-        mesh: extrude::rotate_extrude(&mesh.mesh, angle, segments),
-    }
+    create_wasm_mesh_with_color(
+        extrude::rotate_extrude(&mesh.mesh, angle, segments),
+        mesh.color,
+    )
 }
 
-// Transformations
+// Text primitive
 #[wasm_bindgen]
-pub fn translate(mesh: &WasmMesh, x: f32, y: f32, z: f32) -> WasmMesh {
-    WasmMesh {
-        mesh: csg::translate(&mesh.mesh, x, y, z),
-    }
-}
-
-#[wasm_bindgen]
-pub fn rotate_x(mesh: &WasmMesh, angle: f32) -> WasmMesh {
-    WasmMesh {
-        mesh: csg::rotate_x(&mesh.mesh, angle),
-    }
+pub fn create_text(text: String, size: f32) -> WasmMesh {
+    create_wasm_mesh(text::create_text(&text, size))
 }
 
 #[wasm_bindgen]
-pub fn rotate_y(mesh: &WasmMesh, angle: f32) -> WasmMesh {
-    WasmMesh {
-        mesh: csg::rotate_y(&mesh.mesh, angle),
-    }
-}
-
-#[wasm_bindgen]
-pub fn rotate_z(mesh: &WasmMesh, angle: f32) -> WasmMesh {
-    WasmMesh {
-        mesh: csg::rotate_z(&mesh.mesh, angle),
-    }
-}
-
-#[wasm_bindgen]
-pub fn rotate_axis(mesh: &WasmMesh, x: f32, y: f32, z: f32, angle: f32) -> WasmMesh {
-    let axis = math::Vec3::new(x, y, z);
-    let matrix = math::Mat4::rotation_axis_angle(axis, angle);
-    WasmMesh {
-        mesh: csg::transform_mesh(&mesh.mesh, &matrix),
-    }
-}
-
-#[wasm_bindgen]
-pub fn scale(mesh: &WasmMesh, sx: f32, sy: f32, sz: f32) -> WasmMesh {
-    WasmMesh {
-        mesh: csg::scale(&mesh.mesh, sx, sy, sz),
-    }
-}
-
-#[wasm_bindgen]
-pub fn mirror_x(mesh: &WasmMesh) -> WasmMesh {
-    WasmMesh {
-        mesh: csg::mirror_x(&mesh.mesh),
-    }
-}
-
-#[wasm_bindgen]
-pub fn mirror_y(mesh: &WasmMesh) -> WasmMesh {
-    WasmMesh {
-        mesh: csg::mirror_y(&mesh.mesh),
-    }
-}
-
-#[wasm_bindgen]
-pub fn mirror_z(mesh: &WasmMesh) -> WasmMesh {
-    WasmMesh {
-        mesh: csg::mirror_z(&mesh.mesh),
-    }
-}
-
-#[wasm_bindgen]
-pub fn multmatrix(mesh: &WasmMesh, matrix: Vec<f32>) -> WasmMesh {
-    WasmMesh {
-        mesh: csg::multmatrix(&mesh.mesh, &matrix),
-    }
-}
-
-// CSG Operations
-#[wasm_bindgen]
-pub fn union(a: &WasmMesh, b: &WasmMesh) -> WasmMesh {
-    WasmMesh {
-        mesh: csg::union(&a.mesh, &b.mesh),
-    }
-}
-
-#[wasm_bindgen]
-pub fn difference(a: &WasmMesh, b: &WasmMesh) -> WasmMesh {
-    WasmMesh {
-        mesh: csg::difference(&a.mesh, &b.mesh),
-    }
-}
-
-#[wasm_bindgen]
-pub fn intersection(a: &WasmMesh, b: &WasmMesh) -> WasmMesh {
-    WasmMesh {
-        mesh: csg::intersection(&a.mesh, &b.mesh),
-    }
-}
-
-#[wasm_bindgen]
-pub fn hull(mesh: &WasmMesh) -> WasmMesh {
-    WasmMesh {
-        mesh: hull::compute_hull(&mesh.mesh),
-    }
-}
-
-#[wasm_bindgen]
-pub fn hull_two(a: &WasmMesh, b: &WasmMesh) -> WasmMesh {
-    WasmMesh {
-        mesh: hull::hull_meshes(&[&a.mesh, &b.mesh]),
-    }
+pub fn create_text_3d(text: String, size: f32, depth: f32) -> WasmMesh {
+    create_wasm_mesh(text::create_text_3d(&text, size, depth))
 }

@@ -1,4 +1,4 @@
-import type { ScadNode, Geometry, EvaluateResult, EvaluationError } from '../shared/types';
+import type { ScadNode, Geometry, EvaluateResult, EvaluationError, ModifierInfo } from '../shared/types';
 
 /**
  * OpenSCAD Evaluator - Executes AST using WASM CSG engine
@@ -11,8 +11,8 @@ interface WasmModule {
   create_cone: (radius: number, height: number, detail: number) => any;
   create_circle: (radius: number, detail: number) => any;
   create_square: (size: number) => any;
-  create_polygon: (points: number[]) => any;
-  create_polyhedron: (points: number[], faces: number[]) => any;
+  polygon: (points: number[] | Float32Array) => any;
+  polyhedron: (points: number[] | Float32Array, faces: number[] | Uint32Array) => any;
   union: (a: any, b: any) => any;
   difference: (a: any, b: any) => any;
   intersection: (a: any, b: any) => any;
@@ -109,7 +109,12 @@ interface EvaluationContext {
 export async function evaluateAST(ast: ScadNode[]): Promise<EvaluateResult> {
   const startTime = performance.now();
   const context: EvaluationContext = {
-    variables: new Map(),
+    variables: new Map([
+      ['$fn', 0],      // Fragment number (facets)
+      ['$fa', 12],     // Fragment angle in degrees
+      ['$fs', 2],      // Fragment size in mm
+      ['$t', 0]        // Animation time
+    ]),
     functions: new Map(),
     modules: new Map(),
     errors: [],
@@ -124,7 +129,9 @@ export async function evaluateAST(ast: ScadNode[]): Promise<EvaluateResult> {
     const geometries: any[] = [];
     const executableNodes: any[] = [];
     
-    // Separate definitions from executable nodes
+    // Check for root modifiers (!) - if found, only evaluate those and ignore others
+    const rootModifiers: any[] = [];
+    
     for (const node of ast) {
       // Handle definitions
       if (node.type === 'function_def') {
@@ -136,23 +143,47 @@ export async function evaluateAST(ast: ScadNode[]): Promise<EvaluateResult> {
         continue; // Skip to evaluation phase
       }
 
+      // Check for root modifier
+      if (node.type === 'modifier' && (node as any).modifier === '!') {
+        rootModifiers.push(node);
+        continue; // Will be processed separately
+      }
+
       // Collect executable nodes for batch processing
       executableNodes.push(node);
     }
 
-    // Check if parallel evaluation would be beneficial
-    if (executableNodes.length > 3) {
-      try {
-        // Use parallel evaluation for complex scenes
-        const batchResults = await parallelEvaluator.batchEvaluateNodes(executableNodes, context);
-        for (const result of batchResults) {
-          if (result) {
-            geometries.push(result);
+    // If we have root modifiers, only evaluate those and ignore other geometry
+    if (rootModifiers.length > 0) {
+      for (const modifierNode of rootModifiers) {
+        const result = await evaluateNode(modifierNode, context);
+        if (result) {
+          geometries.push(result);
+        }
+      }
+    } else {
+      // Check if parallel evaluation would be beneficial
+      if (executableNodes.length > 3) {
+        try {
+          // Use parallel evaluation for complex scenes
+          const batchResults = await parallelEvaluator.batchEvaluateNodes(executableNodes, context);
+          for (const result of batchResults) {
+            if (result) {
+              geometries.push(result);
+            }
+          }
+        } catch (error) {
+          console.warn('Parallel evaluation failed, falling back to sequential:', error);
+          // Fallback to sequential evaluation
+          for (const node of executableNodes) {
+            const result = await evaluateNode(node, context);
+            if (result) {
+              geometries.push(result);
+            }
           }
         }
-      } catch (error) {
-        console.warn('Parallel evaluation failed, falling back to sequential:', error);
-        // Fallback to sequential evaluation
+      } else {
+        // Sequential evaluation for simple scenes
         for (const node of executableNodes) {
           const result = await evaluateNode(node, context);
           if (result) {
@@ -160,31 +191,36 @@ export async function evaluateAST(ast: ScadNode[]): Promise<EvaluateResult> {
           }
         }
       }
-    } else {
-      // Sequential evaluation for simple scenes
-      for (const node of executableNodes) {
-        const result = await evaluateNode(node, context);
-        if (result) {
-          geometries.push(result);
-        }
-      }
     }
 
     // Combine all geometries with union
-    let finalGeometry = geometries[0];
-    if (geometries.length > 1) {
-      for (let i = 1; i < geometries.length; i++) {
-        finalGeometry = wasmModule.union(finalGeometry, geometries[i]);
-      }
-    }
-
-    if (!finalGeometry) {
+    if (geometries.length === 0) {
       return {
         geometry: null,
         errors: [{ message: 'No geometry generated' }],
         success: false,
         executionTime: performance.now() - startTime,
       };
+    }
+
+    // Filter out null/undefined geometries
+    const validGeometries = geometries.filter(g => g !== null && g !== undefined);
+    if (validGeometries.length === 0) {
+      return {
+        geometry: null,
+        errors: [{ message: 'No valid geometry generated' }],
+        success: false,
+        executionTime: performance.now() - startTime,
+      };
+    }
+
+    let finalGeometry = validGeometries[0];
+    if (validGeometries.length > 1) {
+      for (let i = 1; i < validGeometries.length; i++) {
+        if (finalGeometry && validGeometries[i]) {
+          finalGeometry = wasmModule.union(finalGeometry, validGeometries[i]);
+        }
+      }
     }
 
     // Convert WASM geometry to JSON
@@ -248,6 +284,9 @@ async function evaluateNode(node: ScadNode, context: EvaluationContext): Promise
     case 'children':
       // Children nodes are handled in parent context
       return null;
+
+    case 'modifier':
+      return evaluateModifier(node as any, context);
 
     default:
       context.errors.push({ message: `Unknown node type: ${node.type}` });
@@ -321,7 +360,7 @@ function evaluatePrimitive(node: any, context: EvaluationContext): any {
       } else {
         polygon_flat = polygon_pts;
       }
-      geometry = wasmModule.create_polygon(polygon_flat);
+      geometry = wasmModule.polygon(polygon_flat);
       break;
 
     case 'polyhedron':
@@ -334,7 +373,7 @@ function evaluatePrimitive(node: any, context: EvaluationContext): any {
       } else {
         poly_flat = poly_pts;
       }
-      geometry = wasmModule.create_polyhedron(poly_flat, poly_faces);
+      geometry = wasmModule.polyhedron(poly_flat, poly_faces);
       break;
 
     default:
@@ -557,6 +596,58 @@ async function evaluateAssert(node: any, context: EvaluationContext): Promise<an
     });
   }
   return null; // Assert doesn't produce geometry
+}
+
+async function evaluateModifier(node: any, context: EvaluationContext): Promise<any> {
+  if (!wasmModule) throw new Error('WASM module not initialized');
+
+  const modifier = node.modifier as '!' | '#' | '%' | '*';
+  
+  switch (modifier) {
+    case '!': {
+      // Root modifier - show only this and children, ignore everything else
+      // Evaluate the child normally - root filtering is handled at the AST level
+      const childGeometry = await evaluateNode(node.child, context);
+      return childGeometry;
+    }
+
+    case '#': {
+      // Debug modifier - highlight in red
+      // Evaluate child and mark for red highlighting in frontend
+      const childGeometry = await evaluateNode(node.child, context);
+      if (childGeometry) {
+        // Store modifier information on the geometry object
+        // The WASM geometry object might have different structure, so we need to be careful
+        if (typeof childGeometry === 'object' && childGeometry !== null) {
+          (childGeometry as any)._modifier = '#';
+        }
+      }
+      return childGeometry;
+    }
+
+    case '%': {
+      // Transparent modifier - show as transparent
+      // Evaluate child and mark for transparency in frontend
+      const childGeometry = await evaluateNode(node.child, context);
+      if (childGeometry) {
+        // Store modifier information for frontend rendering
+        if (typeof childGeometry === 'object' && childGeometry !== null) {
+          (childGeometry as any)._modifier = '%';
+        }
+      }
+      return childGeometry;
+    }
+
+    case '*': {
+      // Disable modifier - ignore in preview (completely skip)
+      // Simply return null to exclude this geometry
+      return null;
+    }
+
+    default:
+      context.errors.push({ message: `Unknown modifier: ${modifier}` });
+      return null;
+  }
 }
 
 async function evaluateAssignment(node: any, context: EvaluationContext): Promise<any> {
@@ -922,7 +1013,7 @@ class GeometryConverter {
     }
 
     // Convert to plain arrays for JSON serialization
-    return {
+    const geometry: Geometry = {
       vertices: Array.from(this.vertexCache.slice(0, vertexCount * 3)),
       indices: Array.from(this.indexCache.slice(0, indexCount)),
       normals: Array.from(this.normalCache.slice(0, normalCount * 3)),
@@ -932,6 +1023,13 @@ class GeometryConverter {
         faceCount: indexCount / 3,
       },
     };
+
+    // Add modifier information if present
+    if (wasmGeom._modifier) {
+      geometry.modifier = { type: wasmGeom._modifier as '!' | '#' | '%' | '*' };
+    }
+
+    return geometry;
   }
 
   private resizeCaches(vertexCount: number, indexCount: number, normalCount: number) {
@@ -966,16 +1064,27 @@ class GeometryConverter {
       ? wasmGeom.normals
       : Object.values(wasmGeom.normals) as number[];
 
-    return {
+    // Calculate stats from arrays
+    const vertexCount = vertices.length / 3;
+    const faceCount = indices.length / 3;
+
+    const geometry: Geometry = {
       vertices: vertices as number[],
       indices: indices as number[],
       normals: normals as number[],
       bounds: wasmGeom.bounds,
       stats: {
-        vertexCount: wasmGeom.stats.vertex_count,
-        faceCount: wasmGeom.stats.face_count,
+        vertexCount,
+        faceCount,
       },
     };
+
+    // Add modifier information if present
+    if (wasmGeom._modifier) {
+      geometry.modifier = { type: wasmGeom._modifier as '!' | '#' | '%' | '*' };
+    }
+
+    return geometry;
   }
 }
 

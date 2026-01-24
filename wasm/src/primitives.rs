@@ -253,6 +253,183 @@ pub fn circle(radius: f32, detail: u32) -> Mesh {
     Mesh::new(vertices, indices)
 }
 
+/// Generate a polygon from 2D points using ear-clipping triangulation
+pub fn polygon(points: &[Vec2]) -> Mesh {
+    if points.len() < 3 {
+        // Return empty mesh for invalid polygons
+        return Mesh::new(vec![], vec![]);
+    }
+
+    // Convert 2D points to 3D vertices (z=0)
+    let vertices_3d: Vec<Vec3> = points.iter().map(|p| Vec3::new(p.x, p.y, 0.0)).collect();
+
+    // Triangulate using ear-clipping algorithm
+    let indices = ear_clipping_triangulation(points);
+
+    Mesh::new(vertices_3d, indices)
+}
+
+/// Ear-clipping triangulation for simple polygons
+fn ear_clipping_triangulation(points: &[Vec2]) -> Vec<u32> {
+    let n = points.len();
+    if n < 3 {
+        return vec![];
+    }
+
+    // Convert points to mutable list of vertex indices
+    let mut vertex_indices: Vec<usize> = (0..n).collect();
+    let mut triangles = Vec::new();
+
+    // Helper function to check if point is inside triangle
+    fn point_in_triangle(p: Vec2, a: Vec2, b: Vec2, c: Vec2) -> bool {
+        let s1 = c.y - a.y;
+        let s2 = c.x - a.x;
+        let s3 = b.y - a.y;
+        let s4 = p.y - a.y;
+
+        let w1 = (a.x * s1 + s4 * s2 - c.x * s4) / (s3 * s2 - s2 * s1);
+        let w2 = (s4 - w1 * s3) / s1;
+
+        w1 >= 0.0 && w2 >= 0.0 && (w1 + w2) <= 1.0
+    }
+
+    // Helper functions
+    let is_convex = |i: usize, indices: &[usize], points: &[Vec2]| {
+        let prev = indices[(i + indices.len() - 1) % indices.len()];
+        let curr = indices[i];
+        let next = indices[(i + 1) % indices.len()];
+
+        let a = points[prev];
+        let b = points[curr];
+        let c = points[next];
+
+        // Cross product to check if triangle is convex (counter-clockwise)
+        (c.x - a.x) * (b.y - a.y) - (b.x - a.x) * (c.y - a.y) > 0.0
+    };
+
+    let is_ear = |i: usize, indices: &[usize], points: &[Vec2]| {
+        let prev = indices[(i + indices.len() - 1) % indices.len()];
+        let curr = indices[i];
+        let next = indices[(i + 1) % indices.len()];
+
+        // Check if any other vertex is inside this triangle
+        for (j, &vertex_idx) in indices.iter().enumerate() {
+            if vertex_idx == prev || vertex_idx == curr || vertex_idx == next {
+                continue;
+            }
+
+            if point_in_triangle(points[vertex_idx], points[prev], points[curr], points[next]) {
+                return false;
+            }
+        }
+        true
+    };
+
+    // Main ear-clipping loop
+    while vertex_indices.len() > 3 {
+        let mut ear_found = false;
+
+        for i in 0..vertex_indices.len() {
+            if is_convex(i, &vertex_indices, points) && is_ear(i, &vertex_indices, points) {
+                // Found an ear, clip it
+                let prev = vertex_indices[(i + vertex_indices.len() - 1) % vertex_indices.len()];
+                let curr = vertex_indices[i];
+                let next = vertex_indices[(i + 1) % vertex_indices.len()];
+
+                // Add triangle
+                triangles.push(prev as u32);
+                triangles.push(curr as u32);
+                triangles.push(next as u32);
+
+                // Remove the ear vertex
+                vertex_indices.remove(i);
+                ear_found = true;
+                break;
+            }
+        }
+
+        if !ear_found {
+            // Polygon might be self-intersecting or degenerate
+            // Use fan triangulation as fallback
+            break;
+        }
+    }
+
+    // Add the final triangle if we have exactly 3 vertices left
+    if vertex_indices.len() == 3 {
+        triangles.push(vertex_indices[0] as u32);
+        triangles.push(vertex_indices[1] as u32);
+        triangles.push(vertex_indices[2] as u32);
+    } else if vertex_indices.len() > 3 {
+        // Fallback: fan triangulation from first vertex
+        let first = vertex_indices[0];
+        for i in 1..vertex_indices.len() - 1 {
+            triangles.push(first as u32);
+            triangles.push(vertex_indices[i] as u32);
+            triangles.push(vertex_indices[i + 1] as u32);
+        }
+    }
+
+    triangles
+}
+
+/// Generate a polyhedron from 3D points and face indices
+pub fn polyhedron(points: &[Vec3], faces: &[Vec<usize>]) -> Mesh {
+    if points.is_empty() || faces.is_empty() {
+        return Mesh::new(vec![], vec![]);
+    }
+
+    // Validate face indices are within range
+    for face in faces {
+        for &point_idx in face {
+            if point_idx >= points.len() {
+                return Mesh::new(vec![], vec![]);
+            }
+        }
+    }
+
+    let mut vertices = Vec::new();
+    let mut indices = Vec::new();
+
+    // Copy vertices
+    vertices.extend_from_slice(points);
+
+    // Triangulate faces
+    for face in faces {
+        match face.len() {
+            3 => {
+                // Triangle - add as is
+                indices.push(face[0] as u32);
+                indices.push(face[1] as u32);
+                indices.push(face[2] as u32);
+            }
+            4 => {
+                // Quad - split into two triangles
+                indices.push(face[0] as u32);
+                indices.push(face[1] as u32);
+                indices.push(face[2] as u32);
+                indices.push(face[0] as u32);
+                indices.push(face[2] as u32);
+                indices.push(face[3] as u32);
+            }
+            n if n > 4 => {
+                // N-gon - fan triangulation from first vertex
+                for i in 1..(n - 1) {
+                    indices.push(face[0] as u32);
+                    indices.push(face[i] as u32);
+                    indices.push(face[i + 1] as u32);
+                }
+            }
+            _ => {
+                // Invalid face (less than 3 vertices)
+                continue;
+            }
+        }
+    }
+
+    Mesh::new(vertices, indices)
+}
+
 /// Generate a square
 pub fn square(size: f32) -> Mesh {
     let half = size / 2.0;
@@ -266,108 +443,4 @@ pub fn square(size: f32) -> Mesh {
     let indices = vec![0, 1, 2, 0, 2, 3];
 
     Mesh::new(vertices, indices)
-}
-
-/// Generate a 2D polygon from points with optional paths
-pub fn polygon(points: Vec<Vec2>, paths: Option<Vec<Vec<usize>>>) -> Mesh {
-    if points.len() < 3 {
-        return Mesh::new(vec![], vec![]);
-    }
-
-    // Convert 2D points to 3D (z=0)
-    let vertices_3d: Vec<Vec3> = points.iter().map(|p| Vec3::new(p.x, p.y, 0.0)).collect();
-
-    let indices;
-
-    if let Some(paths) = paths {
-        // Triangulate each path separately
-        let mut all_indices = Vec::new();
-        for path in paths {
-            let path_points: Vec<Vec2> = path.iter().map(|&idx| points[idx]).collect();
-
-            if path_points.len() >= 3 {
-                let path_indices = triangulate_earclip(&path_points);
-                // Convert local indices to global indices
-                let base_idx = all_indices.len() as u32;
-                all_indices.extend(path_indices.iter().map(|&i| i + base_idx));
-            }
-        }
-        indices = all_indices;
-    } else {
-        // Single polygon with all points
-        indices = triangulate_earclip(&points);
-    }
-
-    Mesh::new(vertices_3d, indices)
-}
-
-/// Simple fan triangulation for convex polygons
-fn triangulate_earclip(polygon: &[Vec2]) -> Vec<u32> {
-    if polygon.len() < 3 {
-        return vec![];
-    }
-
-    // Simple fan triangulation from first vertex
-    let mut indices = Vec::new();
-    for i in 1..(polygon.len() - 1) {
-        indices.push(0);
-        indices.push(i as u32);
-        indices.push((i + 1) as u32);
-    }
-    indices
-}
-
-/// Generate a 3D polyhedron from vertices and faces
-pub fn polyhedron(points: Vec<Vec3>, faces: Vec<Vec<usize>>) -> Mesh {
-    if points.len() < 4 || faces.is_empty() {
-        return Mesh::new(vec![], vec![]);
-    }
-
-    // Validate face indices
-    for face in &faces {
-        for &vertex_idx in face {
-            if vertex_idx >= points.len() {
-                // Invalid vertex index, return empty mesh
-                return Mesh::new(vec![], vec![]);
-            }
-        }
-    }
-
-    // Use vertices directly (they're already 3D)
-    let vertices = points;
-
-    // Convert face indices to triangles
-    let mut indices = Vec::new();
-    for face in &faces {
-        match face.len() {
-            3 => {
-                // Triangle face
-                indices.push(face[0] as u32);
-                indices.push(face[1] as u32);
-                indices.push(face[2] as u32);
-            }
-            4 => {
-                // Quad face - triangulate into two triangles
-                indices.push(face[0] as u32);
-                indices.push(face[1] as u32);
-                indices.push(face[2] as u32);
-
-                indices.push(face[0] as u32);
-                indices.push(face[2] as u32);
-                indices.push(face[3] as u32);
-            }
-            _ => {
-                // Complex face - fan triangulation from first vertex
-                for i in 1..(face.len() - 1) {
-                    indices.push(face[0] as u32);
-                    indices.push(face[i] as u32);
-                    indices.push(face[i + 1] as u32);
-                }
-            }
-        }
-    }
-
-    let mut mesh = Mesh::new(vertices, indices);
-    mesh.calculate_normals();
-    mesh
 }

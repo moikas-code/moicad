@@ -19,6 +19,8 @@ export type ScadNode =
   | ChildrenNode
   | EchoNode
   | AssertNode
+  | LetNode
+  | ModifierNode
   | ListComprehensionNode
   | ImportNode;
 
@@ -31,7 +33,7 @@ export interface PrimitiveNode {
 
 export interface TransformNode {
   type: 'transform';
-  op: 'translate' | 'rotate' | 'scale' | 'mirror' | 'multmatrix';
+  op: 'translate' | 'rotate' | 'scale' | 'mirror' | 'multmatrix' | 'color' | 'linear_extrude' | 'rotate_extrude';
   params: Record<string, any>;
   children: ScadNode[];
   line?: number;
@@ -39,7 +41,7 @@ export interface TransformNode {
 
 export interface BooleanOpNode {
   type: 'boolean';
-  op: 'union' | 'difference' | 'intersection';
+  op: 'union' | 'difference' | 'intersection' | 'hull' | 'minkowski';
   children: ScadNode[];
   line?: number;
 }
@@ -131,6 +133,20 @@ export interface AssertNode {
   line?: number;
 }
 
+export interface LetNode {
+  type: 'let';
+  bindings: Record<string, any>;
+  body: ScadNode[];
+  line?: number;
+}
+
+export interface ModifierNode {
+  type: 'modifier';
+  modifier: '!' | '%' | '#' | '*';
+  child: ScadNode;
+  line?: number;
+}
+
 export interface ListComprehensionNode {
   type: 'list_comprehension';
   expression: any;
@@ -150,6 +166,16 @@ export interface ImportNode {
 }
 
 /**
+ * Color information for geometry
+ */
+export interface ColorInfo {
+  r: number;     // Red component 0-1
+  g: number;     // Green component 0-1  
+  b: number;     // Blue component 0-1
+  a?: number;    // Alpha component 0-1 (optional)
+}
+
+/**
  * Geometry data structure (output from WASM)
  */
 export interface Geometry {
@@ -165,6 +191,16 @@ export interface Geometry {
     faceCount: number;
     volume?: number;
   };
+  color?: ColorInfo;  // Optional color metadata
+  modifier?: ModifierInfo; // Optional visualization modifier
+}
+
+/**
+ * Visualization modifier information
+ */
+export interface ModifierInfo {
+  type: '!' | '%' | '#' | '*';
+  // Additional metadata for the frontend could be added here
 }
 
 /**

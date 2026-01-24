@@ -16,53 +16,52 @@ pub fn linear_extrude(shape_2d: &Mesh, height: f32, _twist: f32, _scale: f32, sl
     let mut extruded_vertices = Vec::new();
     let mut extruded_indices = Vec::new();
 
-    // Add bottom face (original shape)
-    extruded_vertices.extend(shape_2d.vertices.iter().cloned());
-
-    // Generate slices
-    for slice in 1..=slices {
+    // Generate all vertices for all slices (including bottom at z=0)
+    for slice in 0..=slices {
         let slice_height = slice as f32 * height_per_slice;
-
-        // Add vertices for this slice
-        let start_idx = extruded_vertices.len() as u32;
         for vertex in &shape_2d.vertices {
             extruded_vertices.push(Vec3::new(vertex.x, vertex.y, slice_height));
         }
+    }
 
-        // Create side faces
-        if slice > 1 {
-            let prev_slice_start = (slice - 1) as u32 * vertex_count;
-            let current_slice_start = slice as u32 * vertex_count;
+    // Create side faces between consecutive slices
+    for slice in 0..slices {
+        let current_slice_start = slice * vertex_count;
+        let next_slice_start = (slice + 1) * vertex_count;
 
-            for i in 0..vertex_count {
-                let next_i = (i + 1) % vertex_count;
+        for i in 0..vertex_count {
+            let next_i = (i + 1) % vertex_count;
 
-                // Quad from previous slice to current slice
-                extruded_indices.push(prev_slice_start + i);
-                extruded_indices.push(current_slice_start + i);
-                extruded_indices.push(current_slice_start + next_i);
-                extruded_indices.push(prev_slice_start + next_i);
-                extruded_indices.push(prev_slice_start + i);
-                extruded_indices.push(current_slice_start + i);
-            }
+            // Two triangles forming a quad between current and next slice
+            // Triangle 1: bottom-left, top-left, top-right
+            extruded_indices.push(current_slice_start + i);
+            extruded_indices.push(next_slice_start + i);
+            extruded_indices.push(next_slice_start + next_i);
+
+            // Triangle 2: bottom-left, top-right, bottom-right
+            extruded_indices.push(current_slice_start + i);
+            extruded_indices.push(next_slice_start + next_i);
+            extruded_indices.push(current_slice_start + next_i);
         }
     }
 
-    // Add top face
-    let top_start = (slices * vertex_count) as u32;
-    extruded_vertices.extend(
-        shape_2d
-            .vertices
-            .iter()
-            .map(|v| Vec3::new(v.x, v.y, height)),
-    );
+    // Add bottom cap (at z=0, reverse winding for outward normal)
+    if vertex_count >= 3 {
+        for i in 1..(vertex_count - 1) {
+            extruded_indices.push(0);
+            extruded_indices.push(i + 1);
+            extruded_indices.push(i);
+        }
+    }
 
-    // Close top face
-    for i in 0..vertex_count {
-        let next_i = (i + 1) % vertex_count;
-        extruded_indices.push(top_start + i);
-        extruded_indices.push(top_start + next_i);
-        extruded_indices.push(top_start);
+    // Add top cap (at z=height)
+    let top_start = slices * vertex_count;
+    if vertex_count >= 3 {
+        for i in 1..(vertex_count - 1) {
+            extruded_indices.push(top_start);
+            extruded_indices.push(top_start + i);
+            extruded_indices.push(top_start + i + 1);
+        }
     }
 
     let mut mesh = Mesh::new(extruded_vertices, extruded_indices);
