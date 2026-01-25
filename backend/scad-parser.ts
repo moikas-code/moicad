@@ -475,10 +475,15 @@ class Parser {
     if (this.isTransform(token.value)) {
       return this.parseTransform();
     }
-
+    
     // Check for boolean operation
     if (this.isBooleanOp(token.value)) {
       return this.parseBooleanOp();
+    }
+    
+    // Check for projection operations
+    if (token.value === 'projection') {
+      return this.parseProjection();
     }
 
     // Check for import/include statements
@@ -525,7 +530,7 @@ class Parser {
     const params = this.parseParameters();
 
     let children: ScadNode[] = [];
-    if (this.current().value === '{') {
+      if (this.current().value === '{') {
       // Block with braces
       this.advance(); // {
       children = this.parseBlock();
@@ -536,6 +541,7 @@ class Parser {
       if (child) {
         children = [child];
       }
+    }
     }
 
     return {
@@ -1191,8 +1197,110 @@ class Parser {
   private isTransform(word: string): boolean {
     return [
       'translate', 'rotate', 'scale', 'mirror', 'multmatrix', 'color',
-      'linear_extrude', 'rotate_extrude',
+      'linear_extrude', 'rotate_extrude', 'projection',
     ].includes(word);
+  }
+
+  private parseProjection(): ScadNode {
+    const op = this.advance().value;
+    const line = this.current().line;
+
+    // Parse parameters following exact transform pattern
+    this.expect('(');
+    const params = this.parseParameters();
+    this.expect(')');
+
+    let children: ScadNode[] = [];
+    
+    // Handle optional block
+    if (this.current().value === '{') {
+      this.advance(); // {
+      children = this.parseBlock();
+      this.expect('}');
+    } else if (this.current().type !== 'eof' && this.current().value !== ';') {
+      // Single statement child (OpenSCAD syntax: projection(...) sphere(10);)
+      const child = this.parseStatement();
+      if (child) {
+        children = [child];
+      }
+    }
+
+    return {
+      type: 'transform',
+      op: 'projection',
+      params,
+      children,
+      line,
+    };
+  }
+      }
+      
+      // Handle positional parameters (first non-named value)
+      else if (this.current().value !== ')' && this.current().type !== 'eof') {
+        params._positional = this.parseExpression();
+      }
+      
+      this.expect(')');
+    }
+    
+    // Consume the closing parenthesis - projection syntax already had it
+    
+    let children: ScadNode[] = [];
+    
+    // Handle optional block with braces
+    if (this.current().value === '{') {
+      this.advance(); // {
+      children = this.parseBlock();
+      this.expect('}');
+    } else if (this.current().type !== 'eof' && this.current().value !== ';') {
+      // Single statement child (OpenSCAD syntax: projection(...) sphere(10);)
+      const child = this.parseStatement();
+      if (child) {
+        children = [child];
+      }
+    }
+
+    return {
+      type: 'transform',
+      op: 'projection',
+      params,
+      children,
+      line,
+    };
+  }
+      }
+      
+      // Handle positional parameters (first non-named value)
+      else if (this.current().value !== ')' && this.current().value !== 'eof') {
+        params._positional = this.parseExpression();
+      }
+      
+      this.expect(')');
+    }
+    
+    let children: ScadNode[] = [];
+    
+    // Handle optional block with braces
+    if (this.current().value === '{') {
+      this.advance(); // {
+      children = this.parseBlock();
+      this.expect('}');
+    } else if (this.current().type !== 'eof' && this.current().value !== ';') {
+      // Single statement child (OpenSCAD syntax: projection(...) sphere(10);)
+      const child = this.parseStatement();
+      if (child) {
+        children = [child];
+      }
+    }
+    }
+
+    return {
+      type: 'transform',
+      op: 'projection',
+      params,
+      children,
+      line,
+    };
   }
 
   private isBooleanOp(word: string): boolean {

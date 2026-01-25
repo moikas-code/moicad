@@ -13,6 +13,8 @@ interface WasmModule {
   create_square: (size: number) => any;
   polygon: (points: number[] | Float32Array) => any;
   polyhedron: (points: number[] | Float32Array, faces: number[] | Uint32Array) => any;
+  create_text: (text: string, size: number) => any;
+  create_text_3d: (text: string, size: number, depth: number) => any;
   union: (a: any, b: any) => any;
   difference: (a: any, b: any) => any;
   intersection: (a: any, b: any) => any;
@@ -28,6 +30,10 @@ interface WasmModule {
   mirror_y: (mesh: any) => any;
   mirror_z: (mesh: any) => any;
   multmatrix: (mesh: any, matrix: number[]) => any;
+  linear_extrude: (mesh: any, height: number, twist: number, scale: number, slices: number) => any;
+  rotate_extrude: (mesh: any, angle: number, segments: number) => any;
+  project_orthographic: (mesh: any, convexity: boolean) => any;
+  project_slice: (mesh: any, scale: number[], convexity: boolean) => any;
 }
 
 let wasmModule: WasmModule | null = null;
@@ -65,6 +71,31 @@ class PrimitiveCache {
     }
     return null;
   }
+
+async function evaluateProjection(node: any, context: EvaluationContext): Promise<any> {
+  if (!wasmModule) throw new Error('WASM module not initialized');
+
+  // Parse projection parameters
+  const params = evaluateParameters(node.params, context);
+  
+  // Check which projection type
+  const cut = params.cut ?? true;
+  const scale = params.scale ?? [1, 1, 1];
+  const convexity = params.convexity ?? false;
+  
+  // Get child geometry
+  const childGeom = await evaluateNode(node.children[0], context);
+  if (!childGeom) {
+    context.errors.push({ message: 'Projection requires child geometry' });
+    return null;
+  }
+
+  if (cut) {
+    return wasmModule.project_slice(childGeom, scale, convexity);
+  } else {
+    return wasmModule.project_orthographic(childGeom, convexity);
+  }
+}
 
   set(type: string, params: any, geometry: any): void {
     const key = this.getKey(type, params);
@@ -286,6 +317,12 @@ async function evaluateNode(node: ScadNode, context: EvaluationContext): Promise
       // Children nodes are handled in parent context
       return null;
 
+    case 'let':
+      return evaluateLet(node as any, context);
+
+    case 'projection':
+      return evaluateProjection(node as any, context);
+
     case 'modifier':
       return evaluateModifier(node as any, context);
 
@@ -377,6 +414,19 @@ function evaluatePrimitive(node: any, context: EvaluationContext): any {
       geometry = wasmModule.polyhedron(poly_flat, poly_faces);
       break;
 
+    case 'text':
+      const text_content = params.text ?? params.t ?? params._positional ?? "";
+      const text_size = params.size ?? params.s ?? 10;
+      const text_depth = params.h ?? params.depth ?? 0; // Default 2D text
+      const spacing = params.spacing ?? 1;
+      
+      if (text_depth > 0) {
+        geometry = wasmModule.create_text_3d(text_content, text_size, text_depth);
+      } else {
+        geometry = wasmModule.create_text(text_content, text_size);
+      }
+      break;
+
     default:
       context.errors.push({ message: `Unknown primitive: ${node.op}` });
       return null;
@@ -441,7 +491,35 @@ function handleColor(geometry: any, params: any, context: EvaluationContext): an
 async function evaluateTransform(node: any, context: EvaluationContext): Promise<any> {
   if (!wasmModule) throw new Error('WASM module not initialized');
 
-  // Evaluate and combine all children
+  // Handle extrusion operations separately - they only operate on first child
+  if (node.op === 'linear_extrude' || node.op === 'rotate_extrude') {
+    if (!node.children || node.children.length === 0) {
+      context.errors.push({ message: `${node.op} requires child geometry` });
+      return null;
+    }
+    
+    const childGeom = await evaluateNode(node.children[0], context);
+    if (!childGeom) {
+      context.errors.push({ message: `${node.op} child geometry evaluation failed` });
+      return null;
+    }
+    
+    const params = evaluateParameters(node.params, context);
+    
+    if (node.op === 'linear_extrude') {
+      const height = params.h ?? params.height ?? 10;
+      const twist = params.twist ?? 0;
+      const scale_val = params.scale ?? 1;
+      const slices = params.slices ?? params.$fn ?? 20;
+      return wasmModule.linear_extrude(childGeom, height, twist, scale_val, slices);
+    } else { // rotate_extrude
+      const angle = params.angle ?? 360;
+      const segments = params.$fn ?? params.segments ?? 20;
+      return wasmModule.rotate_extrude(childGeom, angle, segments);
+    }
+  }
+
+  // For regular transforms, evaluate and combine all children
   let geometry = null;
   for (const child of node.children) {
     const childGeom = await evaluateNode(child, context);
@@ -661,6 +739,46 @@ async function evaluateAssert(node: any, context: EvaluationContext): Promise<an
   return null; // Assert doesn't produce geometry
 }
 
+async function evaluateLet(node: any, context: EvaluationContext): Promise<any> {
+  if (!wasmModule) throw new Error('WASM module not initialized');
+
+  // Create new scope for let statement (inherits from parent context)
+  const letContext: EvaluationContext = {
+    variables: new Map(context.variables), // Copy existing variables
+    functions: context.functions,
+    modules: context.modules,
+    errors: context.errors,
+  };
+
+  // Evaluate and bind all let variables in the local scope
+  const bindings = node.bindings || {};
+  for (const [varName, varValue] of Object.entries(bindings)) {
+    const evaluatedValue = evaluateExpression(varValue, letContext);
+    letContext.variables.set(varName, evaluatedValue);
+  }
+
+  // Evaluate body statements within the let scope
+  const geometries: any[] = [];
+  for (const bodyNode of node.body || []) {
+    const geom = await evaluateNode(bodyNode, letContext);
+    if (geom) {
+      geometries.push(geom);
+    }
+  }
+
+  // Combine geometries with union (if multiple)
+  if (geometries.length === 0) {
+    return null;
+  }
+
+  let result = geometries[0];
+  for (let i = 1; i < geometries.length; i++) {
+    result = wasmModule.union(result, geometries[i]);
+  }
+
+  return result;
+}
+
 async function evaluateModifier(node: any, context: EvaluationContext): Promise<any> {
   if (!wasmModule) throw new Error('WASM module not initialized');
 
@@ -753,6 +871,34 @@ async function evaluateIf(node: any, context: EvaluationContext): Promise<any> {
 
 async function evaluateModuleCall(node: any, context: EvaluationContext): Promise<any> {
   if (!wasmModule) throw new Error('WASM module not initialized');
+
+  // Handle built-in extrusion operations as special cases
+  if (node.name === 'linear_extrude' || node.name === 'rotate_extrude') {
+    if (!node.children || node.children.length === 0) {
+      context.errors.push({ message: `${node.name} requires child geometry` });
+      return null;
+    }
+    
+    const childGeom = await evaluateNode(node.children[0], context);
+    if (!childGeom) {
+      context.errors.push({ message: `${node.name} child geometry evaluation failed` });
+      return null;
+    }
+    
+    const params = evaluateParameters(node.params, context);
+    
+    if (node.name === 'linear_extrude') {
+      const height = params.h ?? params.height ?? 10;
+      const twist = params.twist ?? 0;
+      const scale_val = params.scale ?? 1;
+      const slices = params.slices ?? params.$fn ?? 20;
+      return wasmModule.linear_extrude(childGeom, height, twist, scale_val, slices);
+    } else { // rotate_extrude
+      const angle = params.angle ?? 360;
+      const segments = params.$fn ?? params.segments ?? 20;
+      return wasmModule.rotate_extrude(childGeom, angle, segments);
+    }
+  }
 
   const moduleDef = context.modules.get(node.name);
   if (!moduleDef) {
@@ -1428,8 +1574,12 @@ class ParallelEvaluator {
  */
 function evaluateListComprehensionExpression(comp: any, context: EvaluationContext): any[] {
   const result: any[] = [];
+  const MAX_ITERATIONS = 10000; // Prevent infinite loops
+  const MAX_RANGE_VALUES = 1000; // Prevent range explosion
   
-  // Helper function to generate range values
+  let iterationCount = 0;
+  
+  // Helper function to generate range values with iteration limits
   const generateRange = (range: [number, number] | [number, number, number]): number[] => {
     const values: number[] = [];
     let start: number, step: number, end: number;
@@ -1441,7 +1591,16 @@ function evaluateListComprehensionExpression(comp: any, context: EvaluationConte
       [start, step, end] = range;
     }
     
+    // Prevent infinite loops and range explosion
     for (let value = start; step > 0 ? value < end : value > end; value += step) {
+      if (iterationCount++ > MAX_ITERATIONS) {
+        context.errors.push({ message: 'List comprehension iteration limit exceeded' });
+        break;
+      }
+      if (values.length >= MAX_RANGE_VALUES) {
+        context.errors.push({ message: 'List comprehension range limit exceeded' });
+        break;
+      }
       values.push(value);
     }
     
@@ -1482,6 +1641,10 @@ function evaluateListComprehensionExpression(comp: any, context: EvaluationConte
     const rangeValues = generateRange(compVar.range);
     
     for (const value of rangeValues) {
+      if (iterationCount++ > MAX_ITERATIONS) {
+        context.errors.push({ message: 'List comprehension iteration limit exceeded in combinations' });
+        break;
+      }
       currentVars.set(compVar.variable, value);
       generateCombinations(comprehensions, index + 1, currentVars);
       currentVars.delete(compVar.variable);
