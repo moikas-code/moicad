@@ -10,10 +10,10 @@ interface StatsOverlayProps {
 export default function StatsOverlay({ geometry }: StatsOverlayProps) {
   const { showStatsOverlay } = useViewportControls();
   
-  if (!geometry || !showStatsOverlay) return null;
+  if (!geometry || !showStatsOverlay || !geometry.stats || !geometry.bounds) return null;
 
-  const { vertexCount, faceCount } = geometry.stats;
-  const { min, max } = geometry.bounds;
+  const { vertexCount = 0, faceCount = 0 } = geometry.stats;
+  const { min = [0, 0, 0], max = [0, 0, 0] } = geometry.bounds;
 
   // Calculate dimensions
   const dimensions = {

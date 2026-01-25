@@ -51,12 +51,19 @@ export function useGeometry() {
   }, []);
 
   const updateGeometry = useCallback((response: { geometry: GeometryResponse | null; errors: string[]; executionTime: number }) => {
-    if (response.errors.length > 0) {
-      setError(response.errors.join('\n'));
-    } else {
-      setGeometry(response.geometry);
+    try {
+      if (response.errors.length > 0) {
+        setError(response.errors.join('\n'));
+      } else if (response.geometry && response.geometry.vertices && response.geometry.indices) {
+        setGeometry(response.geometry);
+      } else if (response.geometry) {
+        setError('Invalid geometry data received');
+      }
+      setExecutionTime(response.executionTime);
+    } catch (error) {
+      console.error('Error updating geometry:', error);
+      setError('Failed to update geometry');
     }
-    setExecutionTime(response.executionTime);
   }, [setGeometry, setError, setExecutionTime]);
 
   const clearGeometry = useCallback(() => {

@@ -1,10 +1,10 @@
 'use client';
 
-import { Metadata } from 'next';
 import React from 'react';
 import { useEditor } from '@/hooks/useEditor';
 import { useGeometry } from '@/hooks/useGeometry';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import ErrorBoundary from '@/components/ErrorBoundary';
 import Editor from '@/components/Editor';
 import Viewport from '@/components/Viewport';
 import TopMenu from '@/components/TopMenu';
@@ -143,8 +143,10 @@ function HomeContent() {
 
 export default function Home() {
   return (
-    <ViewportControlsProvider>
-      <HomeContent />
-    </ViewportControlsProvider>
+    <ErrorBoundary>
+      <ViewportControlsProvider>
+        <HomeContent />
+      </ViewportControlsProvider>
+    </ErrorBoundary>
   );
 }

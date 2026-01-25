@@ -47,12 +47,16 @@ export default function TopMenu({
   const menuRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const handleExportSTL = async () => {
-    if (!geometry) return;
+    if (!geometry || !geometry.vertices || !geometry.indices) {
+      alert('No valid geometry to export');
+      return;
+    }
     setIsExporting(true);
     try {
       const blob = await exportGeometry(geometry, 'stl', true);
       downloadFile(blob, 'model.stl');
     } catch (error) {
+      console.error('STL export error:', error);
       alert(`Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsExporting(false);
@@ -61,12 +65,16 @@ export default function TopMenu({
   };
 
   const handleExportOBJ = async () => {
-    if (!geometry) return;
+    if (!geometry || !geometry.vertices || !geometry.indices) {
+      alert('No valid geometry to export');
+      return;
+    }
     setIsExporting(true);
     try {
       const blob = await exportGeometry(geometry, 'obj', false);
       downloadFile(blob, 'model.obj');
     } catch (error) {
+      console.error('OBJ export error:', error);
       alert(`Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsExporting(false);

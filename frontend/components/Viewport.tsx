@@ -40,8 +40,12 @@ function ViewportInner({ geometry }: ViewportProps) {
 
   // Update geometry when it changes
   useEffect(() => {
-    if (geometry && sceneRef.current) {
-      sceneRef.current.renderGeometry(geometry);
+    try {
+      if (geometry && sceneRef.current && geometry.vertices && geometry.indices) {
+        sceneRef.current.renderGeometry(geometry);
+      }
+    } catch (error) {
+      console.error('Failed to render geometry:', error);
     }
   }, [geometry]);
 
