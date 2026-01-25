@@ -21,6 +21,7 @@ class Tokenizer {
     'cube', 'sphere', 'cylinder', 'cone', 'circle', 'square', 'polygon', 'text',
     'translate', 'rotate', 'scale', 'mirror', 'multmatrix', 'color',
     'union', 'difference', 'intersection', 'hull', 'minkowski',
+    'linear_extrude', 'rotate_extrude', 'projection',
     'for', 'let', 'function', 'module', 'children',
     'if', 'else', 'echo', 'import', 'include', 'use',
   ]);
@@ -1190,6 +1191,7 @@ class Parser {
   private isTransform(word: string): boolean {
     return [
       'translate', 'rotate', 'scale', 'mirror', 'multmatrix', 'color',
+      'linear_extrude', 'rotate_extrude',
     ].includes(word);
   }
 
