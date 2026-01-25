@@ -372,23 +372,48 @@ cube(result);
 - `let(var1=val1, var2=val2) { ... }` - Local variable scoping ✅ **IMPLEMENTED**
 - `[for (i=[start:end]) expr]` - List comprehensions ✅ **FIXED!** (2026-01-24)
 
-### Special Variables ✅ **VERIFIED WORKING!**
+### Special Variables ✅ **FULLY IMPLEMENTED!**
 - `$fn` - Fragment number (controls mesh detail) - ✅ VERIFIED
 - `$fa` - Fragment angle in degrees (minimum angle) - ✅ VERIFIED
 - `$fs` - Fragment size in mm (minimum size) - ✅ VERIFIED
 - `$t` - Animation time (0-1) - ✅ VERIFIED
+- `$children` - Number of module children - ✅ VERIFIED
+- `$vpr` - Viewport rotation [x, y, z] in degrees - ✅ **NEW!**
+- `$vpt` - Viewport translation [x, y, z] - ✅ **NEW!**
+- `$vpd` - Viewport camera distance - ✅ **NEW!**
+- `$vpf` - Viewport field of view in degrees - ✅ **NEW!**
+- `$preview` - Preview mode flag (auto-detected with manual override) - ✅ **NEW!**
 
 Example:
 ```scad
 sphere(10, $fn=32);  // High detail sphere with 32 segments
 $fn = 16;            // Set global detail level
 cylinder(5, 10);     // Uses global $fn=16
+
+// Viewport variables
+$vpr = [45, 30, 60]; // Set viewport rotation
+$vpt = [10, 20, 30]; // Set viewport translation  
+$vpd = 200;          // Set camera distance
+$vpf = 90;           // Set field of view
+
+// Preview mode (auto-detected: true for /api/evaluate, false for /api/export)
+if ($preview) {
+    cube(10);         // Preview geometry
+} else {
+    sphere(10);       // Render geometry
+}
 ```
 
 ### Not Yet Implemented ❌
 - Visualization Modifiers: `!`, `#`, `*`, `%` - Parser support exists, evaluator partially implemented
 - File imports: `include`, `use` - Not implemented  
 - Color/material: `color()` - Enhanced with CSS names and hex colors ✅ **IMPROVED**
+
+### ✅ **NEWLY IMPLEMENTED**:
+- **All Viewport Special Variables**: `$vpr`, `$vpt`, `$vpd`, `$vpf`, `$preview`
+  - Automatic preview/render mode detection via API endpoints
+  - Hybrid approach: auto-detect with manual override capability
+  - Full integration with parser, evaluator, and constants
 
 ---
 
@@ -411,7 +436,6 @@ cylinder(5, 10);     // Uses global $fn=16
 - List comprehensions (98%+ OpenSCAD compatible! 🎉 - Full support for array expressions without hangs
 
 **Needs Testing** (❓):
-- Special variables ($fn, $fa, $fs, $t) - Parser support exists
 - Visualization modifiers (!, %, #, *) - Parser support exists
 
 **Not Implemented** (❌):

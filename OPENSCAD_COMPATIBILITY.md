@@ -110,7 +110,7 @@ translate([offset, 0, 0]) cube(10);
 - ❌ `polygon()`, `polyhedron()` - Custom shape definitions (basic WASM support exists)
 - ❌ `minkowski()` - Advanced CSG operations
 - ❌ `color()`, `%` (transparency), `#` (debug), `!` (show only) - Visualization modifiers
-- ❌ Special variables: `$fa`, `$fs`, `$t`, `$vpr`, `$vpt`, `$vpd` - System parameters
+- ✅ Special variables: `$fa`, `$fs`, `$t`, `$vpr`, `$vpt`, `$vpd`, `$vpf`, `$preview`, `$children`, `$fn` - System parameters
 - ❌ `children()` indexing: `children(0)` - Advanced module features
 - ❌ `echo()`, `assert()` - Debug utilities (basic AST parsing exists)
 - ❌ String operations - Text processing functions

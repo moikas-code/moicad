@@ -137,23 +137,32 @@ interface EvaluationContext {
   modules: Map<string, any>;
   errors: EvaluationError[];
   children?: ScadNode[];
+  includedFiles?: Set<string>; // Track included files for circular dependency detection
 }
 
 /**
  * Evaluate AST to produce geometry
  */
-export async function evaluateAST(ast: ScadNode[]): Promise<EvaluateResult> {
+export async function evaluateAST(ast: ScadNode[], options?: { previewMode?: boolean }): Promise<EvaluateResult> {
   const startTime = performance.now();
   const context: EvaluationContext = {
-    variables: new Map([
+    variables: new Map<string, any>([
       ['$fn', 0],      // Fragment number (facets)
       ['$fa', 12],     // Fragment angle in degrees
       ['$fs', 2],      // Fragment size in mm
-      ['$t', 0]        // Animation time
+      ['$t', 0],       // Animation time
+      ['$children', 0], // Number of children (for modules)
+      // Viewport special variables
+      ['$vpr', [0, 0, 0]],    // Viewport rotation [x, y, z] in degrees
+      ['$vpt', [0, 0, 0]],    // Viewport translation [x, y, z]
+      ['$vpd', 100],          // Viewport camera distance
+      ['$vpf', 45],           // Viewport field of view in degrees
+      ['$preview', options?.previewMode ?? true],     // Preview mode flag (auto-detected with manual override)
     ]),
     functions: new Map(),
     modules: new Map(),
     errors: [],
+    includedFiles: new Set(),
   };
 
   try {
@@ -839,6 +848,7 @@ async function evaluateLet(node: any, context: EvaluationContext): Promise<any> 
     functions: context.functions,
     modules: context.modules,
     errors: context.errors,
+    includedFiles: context.includedFiles,
   };
 
   // Evaluate and bind all let variables in the local scope
@@ -1004,6 +1014,7 @@ async function evaluateModuleCall(node: any, context: EvaluationContext): Promis
     modules: context.modules,
     errors: context.errors,
     children: node.children || [],
+    includedFiles: context.includedFiles,
   };
 
   // Bind parameters
@@ -1280,6 +1291,7 @@ function evaluateFunctionCall(call: any, context: EvaluationContext): any {
     functions: context.functions,
     modules: context.modules,
     errors: context.errors,
+    includedFiles: context.includedFiles,
   };
 
   return evaluateExpression(funcDef.expression, tempContext);
@@ -1767,15 +1779,37 @@ function evaluateListComprehensionExpression(comp: any, context: EvaluationConte
  */
 async function evaluateImport(node: any, context: EvaluationContext): Promise<any> {
   try {
-    // For now, we'll implement a basic version that reads from allowed directories
-    // This is a simplified implementation - production would need more security
+    // OpenSCAD-style library path resolution
+    // Search order: 1) Current directory, 2) lib/, 3) modules/, 4) system library paths
+    const envLibPath = process.env.OPENSCADPATH || '';
+    const searchPaths = [
+      './',  // Current directory first
+      './lib/', 
+      './modules/',
+      ...envLibPath.split(':').filter(p => p).map(p => p + '/'), // Environment OPENSCADPATH
+      '/usr/share/openscad/libraries/',  // System libraries (Unix)
+      '/usr/local/share/openscad/libraries/',  // Local system libraries (Unix)
+      'C:\\Program Files\\OpenSCAD\\libraries\\',  // System libraries (Windows)
+    ];
     
-    const allowedPaths = ['./lib/', './modules/', './'];
+    // Check for circular dependencies
+    const normalizedFilename = node.filename.replace(/\\/g, '/');
+    if (context.includedFiles?.has(normalizedFilename)) {
+      context.errors.push({ 
+        message: `Circular dependency detected: ${node.filename} is already included`,
+        line: node.line 
+      });
+      return null;
+    }
+    
+    // Support subdirectory imports (e.g., shapes/cube.scad)
+    const hasPath = node.filename.includes('/');
+    const baseDir = hasPath ? './' : '';
     
     // Try to resolve the filename to a valid path
     let filePath: string | null = null;
-    for (const basePath of allowedPaths) {
-      const testPath = basePath + node.filename;
+    for (const searchPath of searchPaths) {
+      const testPath = searchPath + node.filename;
       try {
         // Check if file exists (Bun file API)
         const file = Bun.file(testPath);
@@ -1784,7 +1818,8 @@ async function evaluateImport(node: any, context: EvaluationContext): Promise<an
           break;
         }
       } catch (err) {
-        // Continue to next path
+        // Continue to next path (especially for system paths that might not exist)
+        continue;
       }
     }
     
@@ -1795,6 +1830,9 @@ async function evaluateImport(node: any, context: EvaluationContext): Promise<an
       });
       return null;
     }
+    
+    // Add to included files set to prevent circular dependencies
+    context.includedFiles?.add(normalizedFilename);
     
     // Read file content
     const fileContent = await Bun.file(filePath).text();
@@ -1852,11 +1890,17 @@ async function evaluateImport(node: any, context: EvaluationContext): Promise<an
       for (let i = 1; i < importedGeometries.length; i++) {
         combined = wasmModule.union(combined, importedGeometries[i]);
       }
+      // Remove from included files set when done
+      context.includedFiles?.delete(normalizedFilename);
       return combined;
     }
     
+    // Remove from included files set when done
+    context.includedFiles?.delete(normalizedFilename);
     return null;
   } catch (error: any) {
+    // Remove from included files set on error
+    context.includedFiles?.delete(normalizedFilename);
     context.errors.push({ 
       message: `Failed to import ${node.filename}: ${error.message}`,
       line: node.line 

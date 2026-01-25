@@ -11,6 +11,34 @@ export const SCAD_KEYWORDS = [
   'true', 'false', 'undef',
 ] as const;
 
+// OpenSCAD special variables
+export const SPECIAL_VARIABLES = [
+  '$fn',      // Fragment number (facets)
+  '$fa',      // Fragment angle in degrees
+  '$fs',      // Fragment size in mm
+  '$t',       // Animation time (0-1)
+  '$children', // Number of module children
+  '$vpr',     // Viewport rotation [x, y, z] in degrees
+  '$vpt',     // Viewport translation [x, y, z]
+  '$vpd',     // Viewport camera distance
+  '$vpf',     // Viewport field of view in degrees
+  '$preview', // Preview mode flag
+] as const;
+
+// Default values for special variables
+export const DEFAULT_SPECIAL_VARIABLES = {
+  $fn: 0,
+  $fa: 12,
+  $fs: 2,
+  $t: 0,
+  $children: 0,
+  $vpr: [0, 0, 0],
+  $vpt: [0, 0, 0],
+  $vpd: 100,
+  $vpf: 45,
+  $preview: true,
+} as const;
+
 // Primitive operators
 export const PRIMITIVES = [
   'cube', 'sphere', 'cylinder', 'cone', 'circle', 'square',

@@ -142,9 +142,10 @@ if (this.current().value === 'for') {
 ### 3.2 Special Variables (2%)
 
 **Implementation**:
-- `$fa`, `$fs` - Fragment angle/size (affects detail)
-- `$t` - Animation time (0-1)
-- `$vpr`, `$vpt`, `$vpd` - Viewport position/rotation/distance
+- `$fa`, `$fs` - Fragment angle/size (affects detail) ✅ **COMPLETED**
+- `$t` - Animation time (0-1) ✅ **COMPLETED**
+- `$vpr`, `$vpt`, `$vpd` - Viewport position/rotation/distance ✅ **COMPLETED**
+- `$vpf`, `$preview`, `$children` - Additional viewport and system variables ✅ **COMPLETED**
 
 ```typescript
 context.variables.set('$fa', 12); // Default fragment angle

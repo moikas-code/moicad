@@ -311,8 +311,8 @@ async function handleEvaluate(req: Request): Promise<Response> {
       });
     }
 
-    // Evaluate
-    const evalResult = await evaluateAST(parseResult.ast);
+    // Evaluate (preview mode for /api/evaluate)
+    const evalResult = await evaluateAST(parseResult.ast, { previewMode: true });
 
     return sendJson(evalResult);
   } catch (err: any) {
@@ -472,7 +472,7 @@ async function handleEvaluateWs(data: EvaluateMessage): Promise<EvaluateResponse
     };
   }
 
-  const evalResult = await evaluateAST(parseResult.ast);
+  const evalResult = await evaluateAST(parseResult.ast, { previewMode: true });
   return {
     type: 'evaluate_response',
     requestId: data.requestId,

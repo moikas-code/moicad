@@ -509,6 +509,51 @@ class ApiCompatibilityValidator {
       {
         name: '$t in conditional',
         code: 'if ($t < 0.5) { cube(8); } else { sphere(5); }'
+      },
+      // Viewport special variables tests
+      {
+        name: '$vpr default rotation',
+        code: 'rotate($vpr) cube(5);'
+      },
+      {
+        name: '$vpr custom rotation',
+        code: '$vpr = [45, 30, 60]; rotate($vpr) sphere(5);'
+      },
+      {
+        name: '$vpt translation',
+        code: 'translate($vpt) cube(5);'
+      },
+      {
+        name: '$vpt custom translation',
+        code: '$vpt = [10, 20, 30]; translate($vpt) sphere(5);'
+      },
+      {
+        name: '$vpd distance usage',
+        code: 'cube(5); // Default $vpd distance'
+      },
+      {
+        name: '$vpd custom distance',
+        code: '$vpd = 200; cube(5);'
+      },
+      {
+        name: '$vpf field of view',
+        code: 'cube(5); // Default $vpf field of view'
+      },
+      {
+        name: '$vpf custom field of view',
+        code: '$vpf = 90; cube(5);'
+      },
+      {
+        name: '$preview default behavior',
+        code: 'if ($preview) { cube(5); } else { sphere(5); }'
+      },
+      {
+        name: '$preview override',
+        code: '$preview = false; if ($preview) { cube(5); } else { sphere(5); }'
+      },
+      {
+        name: 'multiple viewport variables',
+        code: '$vpr = [30, 45, 0]; $vpt = [5, 10, 15]; rotate($vpr) translate($vpt) cube(5);'
       }
     ];
 
