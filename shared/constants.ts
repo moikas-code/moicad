@@ -5,7 +5,7 @@ export const SCAD_KEYWORDS = [
   'cube', 'sphere', 'cylinder', 'cone', 'polygon', 'polyhedron', 'circle', 'square',
   'translate', 'rotate', 'scale', 'mirror', 'multmatrix', 'color',
   'union', 'difference', 'intersection', 'hull', 'minkowski',
-  'linear_extrude', 'rotate_extrude',
+  'linear_extrude', 'rotate_extrude', 'projection', 'offset', 'resize',
   'for', 'let', 'function', 'module', 'include', 'use', 'import',
   'if', 'else', 'echo',
   'true', 'false', 'undef',
@@ -23,7 +23,7 @@ export const BOOLEAN_OPS = ['union', 'difference', 'intersection', 'hull', 'mink
 // Transformation operations
 export const TRANSFORMS = [
   'translate', 'rotate', 'scale', 'mirror', 'multmatrix', 'color',
-  'linear_extrude', 'rotate_extrude',
+  'linear_extrude', 'rotate_extrude', 'projection', 'offset', 'resize',
 ] as const;
 
 // Mathematical functions
@@ -41,6 +41,7 @@ export const DEFAULT_PARAMS = {
   cone: { h: 10, r: 5, d: undefined, $fn: 20 },
   circle: { r: 5, d: undefined, $fn: 20 },
   square: { size: 10 },
+  text: { text: "", size: 10, spacing: 1 },
 } as const;
 
 // API endpoints

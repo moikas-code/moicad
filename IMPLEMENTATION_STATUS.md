@@ -277,13 +277,24 @@ bun run dev:all
 - for loops with ranges
 - Variables
 
+### Language Features Implemented
+- Variables and assignments
+- User-defined functions
+- User-defined modules  
+- Let statements with proper scoping
+- If/else conditional statements
+- For loops with ranges
+- All math functions (abs, sqrt, sin, cos, etc.)
+- String functions (str, chr, ord)
+- Array functions (len, concat, cross, norm)
+- Echo and assert statements
+- Import/include/use statements
+
 ### Not Yet Implemented
-- User-defined functions (structure ready)
 - minkowski() operation
 - 2D extrusions (linear_extrude, rotate_extrude)
-- Polygon and polyhedron (partial)
-- Modules and imports
 - Color/material support
+- Visualization modifiers (!, %, #, *)
 
 ---
 

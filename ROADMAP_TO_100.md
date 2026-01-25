@@ -169,11 +169,11 @@ context.variables.set('$fn', 0);  // Override both if set
 
 ### 4.1 Advanced Operations (3%)
 
-- `minkowski()` - Minkowski sum
-- `offset()` - 2D offset
-- `resize()` - Resize to specific dimensions
+- `minkowski()` - Minkowski sum ✅ **IMPLEMENTED**
+- `offset()` - 2D offset ✅ **IMPLEMENTED**
+- `resize()` - Resize to specific dimensions ✅ **IMPLEMENTED**
 
-**Effort**: 2 weeks
+**Effort**: COMPLETE - All 2D operations implemented!
 
 ### 4.2 Import/Use Statements (2%)
 

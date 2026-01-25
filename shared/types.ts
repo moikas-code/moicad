@@ -26,14 +26,14 @@ export type ScadNode =
 
 export interface PrimitiveNode {
   type: 'primitive';
-  op: 'cube' | 'sphere' | 'cylinder' | 'cone' | 'circle' | 'square' | 'polygon' | 'polyhedron';
+  op: 'cube' | 'sphere' | 'cylinder' | 'cone' | 'circle' | 'square' | 'polygon' | 'polyhedron' | 'text';
   params: Record<string, any>;
   line?: number;
 }
 
 export interface TransformNode {
   type: 'transform';
-  op: 'translate' | 'rotate' | 'scale' | 'mirror' | 'multmatrix' | 'color' | 'linear_extrude' | 'rotate_extrude';
+  op: 'translate' | 'rotate' | 'scale' | 'mirror' | 'multmatrix' | 'color' | 'linear_extrude' | 'rotate_extrude' | 'projection' | 'offset' | 'resize';
   params: Record<string, any>;
   children: ScadNode[];
   line?: number;
@@ -116,7 +116,8 @@ export interface ForLoopNode {
 
 export interface ChildrenNode {
   type: 'children';
-  children: ScadNode[];
+  args?: ScadNode[];  // Function arguments (e.g., children(index) -> args=[index])
+  children?: ScadNode[];  // Legacy field for backward compatibility
   line?: number;
 }
 

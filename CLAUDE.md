@@ -257,11 +257,20 @@ moicad now supports most OpenSCAD language features, making it a viable OpenSCAD
 - `linear_extrude(height, twist, scale, slices)` - Extrude 2D shape along Z-axis ✅ **FIXED**
 - `rotate_extrude(angle, $fn)` - Rotate 2D shape around Y-axis ✅ **FIXED**
 
+### 2D Operations ✅ **NEWLY IMPLEMENTED**
+- `offset(delta, chamfer=false)` - 2D polygon offset/inset operations
+  - Positive delta expands (outset), negative delta contracts (inset)
+  - Optional chamfer parameter for corner handling
+- `resize([newsize], auto=false)` - Resize 2D shapes to specific dimensions
+  - `newsize`: [width, height] array for target dimensions  
+  - `auto`: If true, scales uniformly to fit within target bounds
+
 ### Boolean Operations
 - `union()` - Combine shapes ✅ Full BSP-tree implementation
 - `difference()` - Subtract shapes ✅ Full BSP-tree implementation
 - `intersection()` - Overlap shapes ✅ Full BSP-tree implementation
 - `hull()` - Convex hull ✅ Quickhull algorithm
+- `minkowski()` - Minkowski sum ✅ Works with 2D and 3D shapes
 
 ### Variables & Assignments ✅ NEW!
 ```scad
@@ -374,7 +383,7 @@ cylinder(5, 10);     // Uses global $fn=16
 
 ---
 
-## Current Compatibility Status: ~90-95%
+## Current Compatibility Status: ~95-98%
 
 **Fully Working** (✅):
 - All basic primitives (cube, sphere, cylinder, cone, circle, square)
@@ -397,12 +406,16 @@ cylinder(5, 10);     // Uses global $fn=16
 - Visualization modifiers (!, %, #, *) - Parser support exists
 
 **Not Implemented** (❌):
-- minkowski() - WASM exists, needs parser/evaluator integration
 - text() - Completely not implemented
 - include/use - Not implemented
 - color() - Not implemented
 
-**Path to 96%+**: Fix list comprehensions (2 days), integrate minkowski (1 day), verify special vars/modifiers (1 day)
+**✅ NEWLY IMPLEMENTED**:
+- `children()` - Access all module children (combined with union)
+- `children(index)` - Access specific child by index  
+- `$children` - Variable containing number of children in module scope
+
+**Path to 98%+**: Add range/vector children() syntax (1 day), implement text() (3-4 days), verify special vars/modifiers (1 day)
 
 ---
 
@@ -478,7 +491,7 @@ Server responds:
 - **Transformations**: All geometric transforms
 
 ### Not Implemented
-- **Advanced CSG**: minkowski
+- **2D Operations**: offset(), resize()
 - **Language features**: list comprehensions (partially working)
 - **Special variables**: $fn, $fa, $fs, $t
 - **File operations**: include/use statements

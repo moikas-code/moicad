@@ -34,6 +34,9 @@ interface WasmModule {
   rotate_extrude: (mesh: any, angle: number, segments: number) => any;
   project_orthographic: (mesh: any, convexity: boolean) => any;
   project_slice: (mesh: any, scale: number[], convexity: boolean) => any;
+  offset: (mesh: any, delta: number, chamfer: boolean) => any;
+  resize: (mesh: any, newsize: number[], auto: boolean) => any;
+  parse_color_string: (color_str: string) => Float32Array;
 }
 
 let wasmModule: WasmModule | null = null;
@@ -72,31 +75,6 @@ class PrimitiveCache {
     return null;
   }
 
-async function evaluateProjection(node: any, context: EvaluationContext): Promise<any> {
-  if (!wasmModule) throw new Error('WASM module not initialized');
-
-  // Parse projection parameters
-  const params = evaluateParameters(node.params, context);
-  
-  // Check which projection type
-  const cut = params.cut ?? true;
-  const scale = params.scale ?? [1, 1, 1];
-  const convexity = params.convexity ?? false;
-  
-  // Get child geometry
-  const childGeom = await evaluateNode(node.children[0], context);
-  if (!childGeom) {
-    context.errors.push({ message: 'Projection requires child geometry' });
-    return null;
-  }
-
-  if (cut) {
-    return wasmModule.project_slice(childGeom, scale, convexity);
-  } else {
-    return wasmModule.project_orthographic(childGeom, convexity);
-  }
-}
-
   set(type: string, params: any, geometry: any): void {
     const key = this.getKey(type, params);
     
@@ -128,11 +106,37 @@ async function evaluateProjection(node: any, context: EvaluationContext): Promis
 // Global primitive cache instance
 const primitiveCache = new PrimitiveCache();
 
+async function evaluateProjection(node: any, context: EvaluationContext): Promise<any> {
+  if (!wasmModule) throw new Error('WASM module not initialized');
+
+  // Parse projection parameters
+  const params = evaluateParameters(node.params, context);
+  
+  // Check which projection type
+  const cut = params.cut ?? true;
+  const scale = params.scale ?? [1, 1, 1];
+  const convexity = params.convexity ?? false;
+  
+  // Get child geometry
+  const childGeom = await evaluateNode(node.children[0], context);
+  if (!childGeom) {
+    context.errors.push({ message: 'Projection requires child geometry' });
+    return null;
+  }
+
+  if (cut) {
+    return wasmModule.project_slice(childGeom, scale, convexity);
+  } else {
+    return wasmModule.project_orthographic(childGeom, convexity);
+  }
+}
+
 interface EvaluationContext {
   variables: Map<string, any>;
   functions: Map<string, any>;
   modules: Map<string, any>;
   errors: EvaluationError[];
+  children?: ScadNode[];
 }
 
 /**
@@ -314,14 +318,10 @@ async function evaluateNode(node: ScadNode, context: EvaluationContext): Promise
       return evaluateImport(node as any, context);
 
     case 'children':
-      // Children nodes are handled in parent context
-      return null;
+      return await evaluateChildren(node as any, context);
 
     case 'let':
       return evaluateLet(node as any, context);
-
-    case 'projection':
-      return evaluateProjection(node as any, context);
 
     case 'modifier':
       return evaluateModifier(node as any, context);
@@ -449,7 +449,7 @@ function handleColor(geometry: any, params: any, context: EvaluationContext): an
   // Extract color parameters - can be:
   // 1. Single vector [r, g, b] or [r, g, b, a]
   // 2. Named parameters: c=[r,g,b], or separate r,g,b,a
-  // 3. String color name (not implemented yet)
+  // 3. String color name (CSS names, hex colors)
   
   let colorInfo: { r: number; g: number; b: number; a?: number } | null = null;
 
@@ -474,9 +474,28 @@ function handleColor(geometry: any, params: any, context: EvaluationContext): an
       a: Math.max(0, Math.min(1, params.a ?? 1.0))
     };
   }
+  
+  // Handle string color names and hex colors
+  else if (typeof params._positional === 'string') {
+    const colorString = params._positional;
+    if (wasmModule) {
+      const parsedColor = wasmModule.parse_color_string(colorString);
+      if (parsedColor && parsedColor.length >= 3) {
+        colorInfo = {
+          r: parsedColor[0] || 0,
+          g: parsedColor[1] || 0,
+          b: parsedColor[2] || 0,
+          a: parsedColor.length >= 4 ? (parsedColor[3] || 1.0) : 1.0
+        };
+      } else {
+        context.errors.push({ message: `Invalid color string: "${colorString}". Use CSS color names (red, steelblue) or hex colors (#FF0000, #F00, #FF000080)` });
+        return geometry;
+      }
+    }
+  }
 
   if (!colorInfo) {
-    context.errors.push({ message: 'Invalid color parameters - expected vector [r,g,b] or [r,g,b,a] or separate r,g,b,a components' });
+    context.errors.push({ message: 'Invalid color parameters - expected vector [r,g,b] or [r,g,b,a] or separate r,g,b,a components, or CSS color name/hex string' });
     return geometry;
   }
 
@@ -598,6 +617,23 @@ async function evaluateTransform(node: any, context: EvaluationContext): Promise
 
     case 'color':
       return handleColor(geometry, params, context);
+
+    case 'projection':
+      return evaluateProjection({ ...node, children: [geometry] }, context);
+
+    case 'offset':
+      const delta = params.delta ?? params.r ?? params.d ?? 1;
+      const chamfer = params.chamfer ?? false;
+      return wasmModule.offset(geometry, delta, chamfer);
+
+    case 'resize':
+      const newsize = params.newsize ?? params.size ?? [10, 10];
+      const auto = params.auto ?? false;
+      if (Array.isArray(newsize) && newsize.length === 2) {
+        return wasmModule.resize(geometry, newsize, auto);
+      }
+      context.errors.push({ message: 'resize requires [width, height] array' });
+      return geometry;
 
     default:
       context.errors.push({ message: `Unknown transform: ${node.op}` });
@@ -738,6 +774,61 @@ async function evaluateAssert(node: any, context: EvaluationContext): Promise<an
   }
   return null; // Assert doesn't produce geometry
 }
+
+async function evaluateChildren(node: any, context: EvaluationContext): Promise<any> {
+  if (!wasmModule) throw new Error('WASM module not initialized');
+
+  // Check if we have children available
+  if (!context.children || context.children.length === 0) {
+    context.errors.push({ message: 'children() called outside of module context or no children available' });
+    return null;
+  }
+
+  // Handle backward compatibility with old parser structure
+  const args = node.args || [];
+
+  // Handle different children() syntax patterns
+  if (args.length === 0) {
+    // children() - return all children combined with union
+    let result = null;
+    for (const child of context.children) {
+      const childGeom = await evaluateNode(child, context);
+      if (childGeom) {
+        if (!result) {
+          result = childGeom;
+        } else {
+          result = wasmModule.union(result, childGeom);
+        }
+      }
+    }
+    return result;
+  } else if (args.length === 1) {
+    // children(argument) - handle indexing
+    const arg = args[0];
+    
+    // Evaluate the argument expression
+    const evaluatedArg = evaluateExpression(arg, context);
+    
+    if (typeof evaluatedArg === 'number') {
+      const index = Math.floor(evaluatedArg);
+      if (index >= 0 && index < context.children.length && context.children[index]) {
+        return await evaluateNode(context.children[index], context);
+      } else {
+        context.errors.push({ message: `children() index ${index} out of range (0-${context.children.length - 1})` });
+        return null;
+      }
+    } else {
+      context.errors.push({ message: 'children() argument must evaluate to a number' });
+      return null;
+    }
+  }
+
+  // Fallback - return null for unsupported syntax for now
+  context.errors.push({ message: 'Unsupported children() syntax. Only children() and children(index) are currently supported.' });
+  return null;
+}
+
+
 
 async function evaluateLet(node: any, context: EvaluationContext): Promise<any> {
   if (!wasmModule) throw new Error('WASM module not initialized');
@@ -912,6 +1003,7 @@ async function evaluateModuleCall(node: any, context: EvaluationContext): Promis
     functions: context.functions,
     modules: context.modules,
     errors: context.errors,
+    children: node.children || [],
   };
 
   // Bind parameters
@@ -931,6 +1023,9 @@ async function evaluateModuleCall(node: any, context: EvaluationContext): Promis
       moduleContext.variables.set(key, value);
     }
   }
+
+  // Set $children variable for access to children count
+  moduleContext.variables.set('$children', (node.children || []).length);
 
   // Evaluate module body
   const geometries: any[] = [];
@@ -1152,6 +1247,16 @@ function evaluateFunctionCall(call: any, context: EvaluationContext): any {
       case 'ord': {
         const str = String(evaluateExpression(call.args[0], context));
         return str.length > 0 ? str.charCodeAt(0) : 0;
+      }
+
+      case 'children': {
+        // children() as function call - delegate to evaluateChildren
+        const childrenNode = {
+          type: 'children',
+          args: call.args || [],
+          line: call.line
+        };
+        return evaluateChildren(childrenNode, context);
       }
 
       default:

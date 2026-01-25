@@ -12,6 +12,44 @@ impl Vec2 {
     pub fn new(x: f32, y: f32) -> Self {
         Vec2 { x, y }
     }
+
+    pub fn add(&self, other: Vec2) -> Vec2 {
+        Vec2 {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
+    }
+
+    pub fn subtract(&self, other: Vec2) -> Vec2 {
+        Vec2 {
+            x: self.x - other.x,
+            y: self.y - other.y,
+        }
+    }
+
+    pub fn scale(&self, factor: f32) -> Vec2 {
+        Vec2 {
+            x: self.x * factor,
+            y: self.y * factor,
+        }
+    }
+
+    pub fn dot(&self, other: Vec2) -> f32 {
+        self.x * other.x + self.y * other.y
+    }
+
+    pub fn length(&self) -> f32 {
+        (self.x * self.x + self.y * self.y).sqrt()
+    }
+
+    pub fn normalize(&self) -> Vec2 {
+        let len = self.length();
+        if len > 0.0 {
+            self.scale(1.0 / len)
+        } else {
+            Vec2::new(0.0, 0.0)
+        }
+    }
 }
 
 /// 3D Vector
@@ -181,8 +219,44 @@ impl Mat4 {
                     sum += self.m[i * 4 + k] * other.m[k * 4 + j];
                 }
                 result[i * 4 + j] = sum;
-            }
+    }
+}
+
+// Operator overloading for Vec2
+use std::ops::{Add, Sub, Mul, Div};
+
+impl Add for Vec2 {
+    type Output = Vec2;
+
+    fn add(self, other: Vec2) -> Vec2 {
+        Vec2 {
+            x: self.x + other.x,
+            y: self.y + other.y,
         }
+    }
+}
+
+impl Sub for Vec2 {
+    type Output = Vec2;
+
+    fn sub(self, other: Vec2) -> Vec2 {
+        Vec2 {
+            x: self.x - other.x,
+            y: self.y - other.y,
+        }
+    }
+}
+
+impl Mul<f32> for Vec2 {
+    type Output = Vec2;
+
+    fn mul(self, scalar: f32) -> Vec2 {
+        Vec2 {
+            x: self.x * scalar,
+            y: self.y * scalar,
+        }
+    }
+}
         Mat4 { m: result }
     }
 

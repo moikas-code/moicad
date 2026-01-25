@@ -85,7 +85,9 @@ moicad is now a **production-ready OpenSCAD replacement** with comprehensive lan
 ### 💡 Not Implemented
 - 💡 `include` / `use` statements (2-3 days if needed)
 - 💡 `color()` and material properties (lower priority)
-- 💡 `children()` indexing
+
+### Recently Completed ✅
+- ✅ **children() functionality**: Basic indexing and $children variable - Full module operator support
 
 ### Recently Completed ✅
 - ✅ **Extrusion operations**: `linear_extrude()`, `rotate_extrude()` - Fully functional with twist, scale, slices (parser fixed)

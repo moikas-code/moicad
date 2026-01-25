@@ -1,9 +1,11 @@
 mod bsp;
 mod csg;
+mod color_utils;
 mod extrude;
 mod geometry;
 mod hull;
 mod math;
+mod ops_2d;
 mod primitives;
 mod text;
 
@@ -281,4 +283,33 @@ pub fn create_text(text: String, size: f32) -> WasmMesh {
 #[wasm_bindgen]
 pub fn create_text_3d(text: String, size: f32, depth: f32) -> WasmMesh {
     create_wasm_mesh(text::create_text_3d(&text, size, depth))
+}
+
+// 2D operations
+#[wasm_bindgen]
+pub fn offset(mesh: &WasmMesh, delta: f32, chamfer: bool) -> WasmMesh {
+    create_wasm_mesh_with_color(
+        ops_2d::offset_polygon(&mesh.mesh.vertices, delta, chamfer),
+        mesh.color,
+    )
+}
+
+#[wasm_bindgen]
+pub fn resize(mesh: &WasmMesh, new_size: Vec<f32>, auto: bool) -> WasmMesh {
+    if new_size.len() != 2 {
+        panic!("Resize requires exactly 2 dimensions: [width, height]");
+    }
+    create_wasm_mesh_with_color(
+        ops_2d::resize_2d(&mesh.mesh.vertices, [new_size[0], new_size[1]], auto),
+        mesh.color,
+    )
+}
+
+// Color parsing utilities
+#[wasm_bindgen]
+pub fn parse_color_string(color_str: String) -> Vec<f32> {
+    match color_utils::parse_color_string(&color_str) {
+        Some([r, g, b, a]) => vec![r, g, b, a],
+        None => vec![],
+    }
 }

@@ -21,8 +21,8 @@ class Tokenizer {
     'cube', 'sphere', 'cylinder', 'cone', 'circle', 'square', 'polygon', 'text',
     'translate', 'rotate', 'scale', 'mirror', 'multmatrix', 'color',
     'union', 'difference', 'intersection', 'hull', 'minkowski',
-    'linear_extrude', 'rotate_extrude', 'projection',
-    'for', 'let', 'function', 'module', 'children',
+    'linear_extrude', 'rotate_extrude', 'projection', 'offset', 'resize',
+    'for', 'let', 'function', 'module',
     'if', 'else', 'echo', 'import', 'include', 'use',
   ]);
 
@@ -496,7 +496,9 @@ class Parser {
       return this.parseForLoop();
     }
 
-    // Check for children
+
+
+    // Check for children - special handling before module call
     if (token.value === 'children') {
       return this.parseChildren();
     }
@@ -530,7 +532,7 @@ class Parser {
     const params = this.parseParameters();
 
     let children: ScadNode[] = [];
-      if (this.current().value === '{') {
+    if (this.current().value === '{') {
       // Block with braces
       this.advance(); // {
       children = this.parseBlock();
@@ -541,7 +543,6 @@ class Parser {
       if (child) {
         children = [child];
       }
-    }
     }
 
     return {
@@ -644,25 +645,7 @@ class Parser {
     };
   }
 
-  private parseChildren(): ScadNode {
-    this.expect('children');
-    const line = this.current().line;
 
-    let children: ScadNode[] = [];
-    if (this.current().value === '(') {
-      this.advance();
-      if (this.current().value !== ')') {
-        children = this.parseBlock();
-      }
-      this.expect(')');
-    }
-
-    return {
-      type: 'children',
-      children,
-      line,
-    };
-  }
 
   private parseParameters(): Record<string, any> {
     const params: Record<string, any> = {};
@@ -891,6 +874,41 @@ class Parser {
       name,
       params,
       expression,
+      line,
+    };
+  }
+
+  private parseChildren(): ScadNode {
+    this.expect('children');
+    const line = this.current().line;
+
+    let args: any[] = [];
+    if (this.current().value === '(') {
+      this.advance();
+      if (this.current().value !== ')') {
+        // Simple argument parsing for children() - avoid full expression parsing
+        if (this.current().type === 'identifier' || this.current().type === 'number') {
+          args.push(this.advance().value);
+        } else {
+          // Fallback to simple expression for other cases
+          args.push(this.parsePrimary());
+        }
+        
+        while (this.current().value === ',') {
+          this.advance();
+          if (this.current().type === 'identifier' || this.current().type === 'number') {
+            args.push(this.advance().value);
+          } else {
+            args.push(this.parsePrimary());
+          }
+        }
+      }
+      this.expect(')');
+    }
+
+    return {
+      type: 'children',
+      args,
       line,
     };
   }
@@ -1223,75 +1241,6 @@ class Parser {
       if (child) {
         children = [child];
       }
-    }
-
-    return {
-      type: 'transform',
-      op: 'projection',
-      params,
-      children,
-      line,
-    };
-  }
-      }
-      
-      // Handle positional parameters (first non-named value)
-      else if (this.current().value !== ')' && this.current().type !== 'eof') {
-        params._positional = this.parseExpression();
-      }
-      
-      this.expect(')');
-    }
-    
-    // Consume the closing parenthesis - projection syntax already had it
-    
-    let children: ScadNode[] = [];
-    
-    // Handle optional block with braces
-    if (this.current().value === '{') {
-      this.advance(); // {
-      children = this.parseBlock();
-      this.expect('}');
-    } else if (this.current().type !== 'eof' && this.current().value !== ';') {
-      // Single statement child (OpenSCAD syntax: projection(...) sphere(10);)
-      const child = this.parseStatement();
-      if (child) {
-        children = [child];
-      }
-    }
-
-    return {
-      type: 'transform',
-      op: 'projection',
-      params,
-      children,
-      line,
-    };
-  }
-      }
-      
-      // Handle positional parameters (first non-named value)
-      else if (this.current().value !== ')' && this.current().value !== 'eof') {
-        params._positional = this.parseExpression();
-      }
-      
-      this.expect(')');
-    }
-    
-    let children: ScadNode[] = [];
-    
-    // Handle optional block with braces
-    if (this.current().value === '{') {
-      this.advance(); // {
-      children = this.parseBlock();
-      this.expect('}');
-    } else if (this.current().type !== 'eof' && this.current().value !== ';') {
-      // Single statement child (OpenSCAD syntax: projection(...) sphere(10);)
-      const child = this.parseStatement();
-      if (child) {
-        children = [child];
-      }
-    }
     }
 
     return {
