@@ -348,6 +348,15 @@ cube(result);
 - `chr(code)` - Convert Unicode code to character
 - `ord(char)` - Convert character to Unicode code
 
+### Color/Material ✅ **ENHANCED**
+- `color()` - Enhanced with multiple format support
+  - CSS named colors: `color("red")`, `color("steelblue")`
+  - Hex colors: `color("#FF0000")`, `color("#F00")`, `color("#FF000080")`
+  - Vector colors: `color([1,0,0])` - Still supported
+  - Case insensitive: `color("RED")`, `color("SteelBlue")`
+  - 140+ CSS color names supported
+  - All hex formats (#RGB, #RRGGBB, #RRGGBBAA)
+
 ### Debug Utilities ✅ NEW!
 - `echo(...)` - Print values to console for debugging
 - `assert(condition, message)` - Runtime assertions with error reporting
@@ -379,7 +388,7 @@ cylinder(5, 10);     // Uses global $fn=16
 ### Not Yet Implemented ❌
 - Visualization Modifiers: `!`, `#`, `*`, `%` - Parser support exists, evaluator partially implemented
 - File imports: `include`, `use` - Not implemented  
-- Color/material: `color()` - Not implemented
+- Color/material: `color()` - Enhanced with CSS names and hex colors ✅ **IMPROVED**
 
 ---
 
@@ -408,7 +417,6 @@ cylinder(5, 10);     // Uses global $fn=16
 **Not Implemented** (❌):
 - text() - Completely not implemented
 - include/use - Not implemented
-- color() - Not implemented
 
 **✅ NEWLY IMPLEMENTED**:
 - `children()` - Access all module children (combined with union)
