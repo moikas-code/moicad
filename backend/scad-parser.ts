@@ -1190,7 +1190,6 @@ class Parser {
   private isTransform(word: string): boolean {
     return [
       'translate', 'rotate', 'scale', 'mirror', 'multmatrix', 'color',
-      'minkowski',
     ].includes(word);
   }
 

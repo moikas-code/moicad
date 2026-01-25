@@ -16,6 +16,7 @@ interface WasmModule {
   union: (a: any, b: any) => any;
   difference: (a: any, b: any) => any;
   intersection: (a: any, b: any) => any;
+  minkowski: (a: any, b: any) => any;
   hull: (mesh: any) => any;
   hull_two: (a: any, b: any) => any;
   translate: (mesh: any, x: number, y: number, z: number) => any;
@@ -389,6 +390,54 @@ function evaluatePrimitive(node: any, context: EvaluationContext): any {
   return geometry;
 }
 
+function handleColor(geometry: any, params: any, context: EvaluationContext): any {
+  if (!geometry) {
+    context.errors.push({ message: 'No geometry to color' });
+    return null;
+  }
+
+  // Extract color parameters - can be:
+  // 1. Single vector [r, g, b] or [r, g, b, a]
+  // 2. Named parameters: c=[r,g,b], or separate r,g,b,a
+  // 3. String color name (not implemented yet)
+  
+  let colorInfo: { r: number; g: number; b: number; a?: number } | null = null;
+
+  // Handle vector color (most common: color([1,0,0]) or color([1,0,0,0.5]))
+  const colorVector = params.c ?? params._positional;
+  if (Array.isArray(colorVector)) {
+    if (colorVector.length >= 3) {
+      colorInfo = {
+        r: Math.max(0, Math.min(1, colorVector[0])),
+        g: Math.max(0, Math.min(1, colorVector[1])),
+        b: Math.max(0, Math.min(1, colorVector[2])),
+        a: colorVector.length >= 4 ? Math.max(0, Math.min(1, colorVector[3])) : 1.0
+      };
+    }
+  } 
+  // Handle separate color components
+  else if (params.r !== undefined || params.g !== undefined || params.b !== undefined) {
+    colorInfo = {
+      r: Math.max(0, Math.min(1, params.r ?? 0)),
+      g: Math.max(0, Math.min(1, params.g ?? 0)),
+      b: Math.max(0, Math.min(1, params.b ?? 0)),
+      a: Math.max(0, Math.min(1, params.a ?? 1.0))
+    };
+  }
+
+  if (!colorInfo) {
+    context.errors.push({ message: 'Invalid color parameters - expected vector [r,g,b] or [r,g,b,a] or separate r,g,b,a components' });
+    return geometry;
+  }
+
+  // Store color information on the geometry object
+  if (typeof geometry === 'object' && geometry !== null) {
+    (geometry as any)._color = colorInfo;
+  }
+
+  return geometry;
+}
+
 async function evaluateTransform(node: any, context: EvaluationContext): Promise<any> {
   if (!wasmModule) throw new Error('WASM module not initialized');
 
@@ -469,6 +518,9 @@ async function evaluateTransform(node: any, context: EvaluationContext): Promise
       context.errors.push({ message: 'multmatrix requires 16 elements' });
       return geometry;
 
+    case 'color':
+      return handleColor(geometry, params, context);
+
     default:
       context.errors.push({ message: `Unknown transform: ${node.op}` });
       return geometry;
@@ -502,6 +554,9 @@ async function evaluateBooleanOp(node: any, context: EvaluationContext): Promise
     const next = await evaluateNode(node.children[i], context);
     if (!next) continue;
 
+    // Preserve color from the first child (main geometry) in boolean operations
+    const colorInfo = (result as any)._color;
+
     switch (node.op) {
       case 'union':
         result = wasmModule.union(result, next);
@@ -512,6 +567,14 @@ async function evaluateBooleanOp(node: any, context: EvaluationContext): Promise
       case 'intersection':
         result = wasmModule.intersection(result, next);
         break;
+      case 'minkowski':
+        result = wasmModule.minkowski(result, next);
+        break;
+    }
+
+    // Restore color information after boolean operation
+    if (colorInfo && typeof result === 'object' && result !== null) {
+      (result as any)._color = colorInfo;
     }
   }
 
@@ -1029,6 +1092,11 @@ class GeometryConverter {
       geometry.modifier = { type: wasmGeom._modifier as '!' | '#' | '%' | '*' };
     }
 
+    // Add color information if present
+    if (wasmGeom._color) {
+      geometry.color = wasmGeom._color;
+    }
+
     return geometry;
   }
 
@@ -1082,6 +1150,11 @@ class GeometryConverter {
     // Add modifier information if present
     if (wasmGeom._modifier) {
       geometry.modifier = { type: wasmGeom._modifier as '!' | '#' | '%' | '*' };
+    }
+
+    // Add color information if present
+    if (wasmGeom._color) {
+      geometry.color = wasmGeom._color;
     }
 
     return geometry;
