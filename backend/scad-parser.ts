@@ -738,17 +738,31 @@ class Parser {
   }
 
   private parseListComprehension(expression: any): any {
-    this.expect('for');
-    this.expect('(');
+    const comprehensions: Array<{ variable: string; range: [number, number] | [number, number, number] }> = [];
     
-    // Parse variable assignment
-    const variable = this.expect('identifier').value;
-    this.expect('=');
-    const range = this.parseRange();
+    // Parse one or more for clauses
+    while (true) {
+      this.expect('for');
+      this.expect('(');
+      
+      // Parse variable assignment
+      const variable = this.expect('identifier').value;
+      this.expect('=');
+      const range = this.parseRange();
+      
+      this.expect(')');
+      
+      comprehensions.push({ variable, range });
+      
+      // Check if there's another for clause (multiple fors)
+      if (this.current().value === 'for') {
+        continue; // Parse next for clause
+      } else {
+        break; // No more for clauses
+      }
+    }
     
-    this.expect(')');
-    
-    // Parse condition (optional)
+    // Parse condition (optional) - comes after all for clauses
     let condition: any;
     if (this.current().value === 'if') {
       this.advance();
@@ -757,24 +771,50 @@ class Parser {
       this.expect(')');
     }
     
-    // Parse the expression
-    console.log('About to parse expression, current token:', this.current());
+    // Parse the expression that comes last
     const expr = this.parseExpression();
-    console.log('Expression parsed:', expr);
     
-    console.log('About to expect ], current token:', this.current());
     this.expect(']');
-    console.log('Finished list comprehension');
     
     return {
       type: 'list_comprehension',
       expression: expr,
-      comprehensions: [{ variable, range }],
+      comprehensions,
       condition,
     };
   }
 
   private parseRange(): [number, number] | [number, number, number] {
+    const token = this.current();
+    
+    // Handle range array syntax: [start:end] or [start:step:end]
+    if (token.value === '[') {
+      this.advance(); // [
+      const start = this.parseValue();
+      
+      this.expect(':');
+      let step: number | undefined;
+      let end: number;
+
+      if (this.current().type === 'number') {
+        const next = this.parseValue();
+        if (this.current().value === ':') {
+          step = next;
+          this.advance();
+          end = this.parseValue();
+        } else {
+          end = next;
+        }
+      } else {
+        end = this.parseValue();
+      }
+
+      this.expect(']');
+      
+      return step !== undefined ? [start, step, end] : [start, end];
+    }
+    
+    // Parse individual values: start : step? : end
     const start = this.parseValue();
     let step: number | undefined;
     let end: number;
