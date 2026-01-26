@@ -12,14 +12,29 @@ export interface SceneConfig {
   container: HTMLElement;
   width: number;
   height: number;
+  printerSize?: {
+    width: number;  // X axis
+    depth: number;  // Y axis  
+    height: number; // Z axis
+    name?: string;
+  };
 }
 
 export class SceneManager {
   private scene: THREE.Scene;
-  private camera: THREE.PerspectiveCamera | THREE.OrthographicCamera;
+  private camera: THREE.PerspectiveCamera;
   private renderer: THREE.WebGLRenderer;
   private controls: OrbitControls;
+  private gridHelper: THREE.GridHelper;
+  private axisHelper: THREE.AxesHelper;
+  private edgesHelper: THREE.LineSegments | null = null;
   private mesh: THREE.Mesh | null = null;
+  private scaleMarkers: THREE.Group | null = null;
+  private geometry: Geometry | null = null;
+  private printerSize = { width: 150, depth: 150, height: 150 };
+  private lastGeometryBounds: { min: [number, number, number]; max: [number, number, number] } | null = null;
+  
+  // Multi-object highlighting support
   private geometryObjects: Map<string, THREE.Mesh> = new Map();
   private highlightedObjects: Set<string> = new Set();
   private selectedObjects: Set<string> = new Set();
@@ -34,17 +49,41 @@ export class SceneManager {
   private isPerspective = true;
   private onHoverCallback?: (objectId: string | null) => void;
   private onSelectCallback?: (objectIds: string[]) => void;
+  private lastGeometryBounds: { min: [number, number, number]; max: [number, number, number] } | null = null;
+  private printerSize: {
+    width: number;
+    depth: number;
+    height: number;
+    name?: string;
+  };
 
   constructor(config: SceneConfig) {
-    // Scene setup - Blender dark theme
-    this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x303030);
-    this.scene.fog = new THREE.Fog(0x303030, 1000, 3000);
+    // Default to BambuLab P2S if no printer size provided
+    const printerSize = config.printerSize || {
+      width: 256,   // X axis
+      depth: 256,   // Y axis
+      height: 300,  // Z axis
+      name: 'BambuLab P2S'
+    };
 
-    // Camera setup
-    this.camera = new THREE.PerspectiveCamera(75, config.width / config.height, 0.1, 3000);
-    this.camera.position.set(50, 50, 50);
-    this.camera.lookAt(0, 0, 0);
+    // Store printer size for reference
+    this.printerSize = printerSize;
+
+    // Scene setup - OpenSCAD black theme
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color(0x000000); // Pure black like OpenSCAD
+    // No fog for cleaner CAD visualization
+
+    // Camera setup - position to view entire build volume
+    // OpenSCAD uses origin at corner (0,0,0), so center view at build volume center
+    const centerX = printerSize.width / 2;
+    const centerY = printerSize.height / 2;
+    const centerZ = printerSize.depth / 2;
+    const maxDimension = Math.max(printerSize.width, printerSize.depth, printerSize.height);
+    const cameraDistance = maxDimension * 1.5; // 1.5x the max dimension for good view
+    this.camera = new THREE.PerspectiveCamera(75, config.width / config.height, 0.1, cameraDistance * 3);
+    this.camera.position.set(centerX + cameraDistance * 0.7, centerY + cameraDistance * 0.7, centerZ + cameraDistance);
+    this.camera.lookAt(centerX, centerY, centerZ);
 
     // Renderer setup
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -62,8 +101,9 @@ export class SceneManager {
     // Lighting
     this.setupLighting();
 
-    // Controls
+    // Controls - set target to build volume center
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+    this.controls.target.set(centerX, centerY, centerZ);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.05;
     this.controls.autoRotate = false;
@@ -72,21 +112,69 @@ export class SceneManager {
     // Mouse event listeners for interactive highlighting
     this.setupMouseEvents();
 
-    // Grid helper - Blender style
-    this.gridHelper = new THREE.GridHelper(200, 20, 0x434343, 0x282828);
+    // Grid helper - OpenSCAD style with white/gray lines
+    this.gridHelper = new THREE.GridHelper(
+      Math.max(printerSize.width, printerSize.depth),
+      20,
+      0xFFFFFF, // White center lines (OpenSCAD style)
+      0x444444  // Dark gray grid lines
+    );
     this.gridHelper.name = 'grid';
+    this.gridHelper.position.set(printerSize.width / 2, 0, printerSize.depth / 2);
     this.scene.add(this.gridHelper);
 
-    // Axis helper
-    this.axisHelper = new THREE.AxesHelper(100);
+    // Axis helper - OpenSCAD style with longer, brighter axes
+    this.axisHelper = new THREE.AxesHelper(Math.max(printerSize.width, printerSize.depth, printerSize.height) * 0.6);
     this.axisHelper.name = 'axes';
+    this.axisHelper.position.set(printerSize.width / 2, 0, printerSize.depth / 2);
     this.scene.add(this.axisHelper);
+
+    // Add OpenSCAD-style scale markers
+    this.addScaleMarkers(printerSize);
+
+    // No build volume box in OpenSCAD style
+    // this.addBuildVolumeBox(printerSize);
 
     // Start animation loop
     this.animate();
 
     // Handle window resize
     window.addEventListener('resize', () => this.onWindowResize(config));
+  }
+
+  /**
+   * Add OpenSCAD-style scale markers on axes
+   */
+  private addScaleMarkers(size: { width: number; depth: number; height: number }): void {
+    // Enable scale markers by default in OpenSCAD style
+    this.toggleScaleMarkers(true);
+  }
+
+  /**
+   * Add build volume visualization box
+   */
+  private addBuildVolumeBox(size: { width: number; depth: number; height: number; name?: string }): void {
+    // Create wireframe box for build volume
+    const boxGeometry = new THREE.BoxGeometry(size.width, size.height, size.depth);
+    const edges = new THREE.EdgesGeometry(boxGeometry);
+    const lineMaterial = new THREE.LineBasicMaterial({ 
+      color: 0x00ff00, 
+      linewidth: 2,
+      transparent: true,
+      opacity: 0.3
+    });
+    const buildVolumeBox = new THREE.LineSegments(edges, lineMaterial);
+    
+    // Position box so bottom is at Z=0 and corner is at origin
+    buildVolumeBox.position.set(size.width / 2, size.height / 2, size.depth / 2);
+    buildVolumeBox.name = 'buildVolume';
+    this.scene.add(buildVolumeBox);
+
+    // Add text label for printer name (if provided)
+    if (size.name) {
+      // Store printer name for display in UI
+      (this.scene as any).printerName = size.name;
+    }
   }
 
   /**
@@ -145,6 +233,10 @@ export class SceneManager {
     this.mesh = new THREE.Mesh(bufferGeometry, material);
     this.mesh.castShadow = true;
     this.mesh.receiveShadow = true;
+    
+    // Offset geometry so origin (0,0,0) is at center of build plate (X/Y center, Z=0 at bottom)
+    this.mesh.position.set(this.printerSize.width / 2, 0, this.printerSize.depth / 2);
+    
     this.scene.add(this.mesh);
 
     // Handle highlighting for individual objects if available
@@ -153,7 +245,9 @@ export class SceneManager {
     }
 
     // Fit view to geometry
-    this.fitViewToGeometry(geometry.bounds);
+    if (geometry.bounds) {
+      this.fitViewToGeometry(geometry.bounds);
+    }
   }
 
   /**
@@ -181,6 +275,9 @@ export class SceneManager {
       mesh.userData.lineNumber = obj.highlight?.line;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
+      
+      // Offset geometry so origin (0,0,0) is at center of build plate
+      mesh.position.set(this.printerSize.width / 2, 0, this.printerSize.depth / 2);
 
       this.geometryObjects.set(objectId, mesh);
       this.scene.add(mesh);
@@ -427,8 +524,19 @@ export class SceneManager {
    * Fit camera view to geometry bounds
    */
   public fitViewToGeometry(bounds: { min: [number, number, number]; max: [number, number, number] }): void {
-    const min = new THREE.Vector3(...bounds.min);
-    const max = new THREE.Vector3(...bounds.max);
+    if (!bounds || !bounds.min || !bounds.max) {
+      return; // Early return if bounds are invalid
+    }
+    
+    // Store bounds for resetView()
+    this.lastGeometryBounds = bounds;
+    
+    // Bounds from backend are in original coordinate system
+    // We offset geometry by (printerSize.width/2, 0, printerSize.depth/2) to center it
+    const offset = new THREE.Vector3(this.printerSize.width / 2, 0, this.printerSize.depth / 2);
+    
+    const min = new THREE.Vector3(...bounds.min).add(offset);
+    const max = new THREE.Vector3(...bounds.max).add(offset);
     const center = new THREE.Vector3().addVectors(min, max).multiplyScalar(0.5);
     const size = new THREE.Vector3().subVectors(max, min).length();
 
@@ -445,13 +553,22 @@ export class SceneManager {
   }
 
   /**
-   * Reset camera view
+   * Reset camera view to fit current geometry, or default position if no geometry
    */
   public resetView(): void {
-    this.camera.position.set(50, 50, 50);
-    this.camera.lookAt(0, 0, 0);
-    this.controls.target.set(0, 0, 0);
-    this.controls.update();
+    if (this.lastGeometryBounds) {
+      // Reset to fit the current geometry
+      this.fitViewToGeometry(this.lastGeometryBounds);
+    } else {
+      // Default view if no geometry loaded
+      const center = new THREE.Vector3(this.printerSize.width / 2, 0, this.printerSize.depth / 2);
+      const distance = Math.max(this.printerSize.width, this.printerSize.depth) * 1.5;
+      const direction = new THREE.Vector3(1, 1, 1).normalize();
+      this.camera.position.copy(center.clone().add(direction.clone().multiplyScalar(distance)));
+      this.camera.lookAt(center);
+      this.controls.target.copy(center);
+      this.controls.update();
+    }
   }
 
   /**
@@ -768,6 +885,69 @@ export class SceneManager {
     const width = container.clientWidth;
     const height = container.clientHeight;
     this.resize(width, height);
+  }
+
+  /**
+   * Update printer build volume size
+   */
+  public updatePrinterSize(size: { width: number; depth: number; height: number; name?: string }): void {
+    this.printerSize = size;
+
+    // Remove old build volume
+    const oldBuildVolume = this.scene.getObjectByName('buildVolume');
+    if (oldBuildVolume) {
+      this.scene.remove(oldBuildVolume);
+    }
+
+    // Remove old grid
+    if (this.gridHelper) {
+      this.scene.remove(this.gridHelper);
+    }
+
+    // Add new grid
+    this.gridHelper = new THREE.GridHelper(
+      Math.max(size.width, size.depth),
+      20,
+      0x434343,
+      0x282828
+    );
+    this.gridHelper.name = 'grid';
+    this.gridHelper.position.set(size.width / 2, 0, size.depth / 2);
+    this.scene.add(this.gridHelper);
+
+    // Update axis helper position
+    if (this.axisHelper) {
+      this.axisHelper.position.set(size.width / 2, 0, size.depth / 2);
+    }
+
+    // Add new build volume
+    this.addBuildVolumeBox(size);
+    
+    // Update existing geometry positions to new center
+    if (this.mesh) {
+      this.mesh.position.set(size.width / 2, 0, size.depth / 2);
+    }
+    this.geometryObjects.forEach(mesh => {
+      mesh.position.set(size.width / 2, 0, size.depth / 2);
+    });
+
+    // Update camera to fit new build volume
+    const centerX = size.width / 2;
+    const centerY = size.height / 2;
+    const centerZ = size.depth / 2;
+    const maxDimension = Math.max(size.width, size.depth, size.height);
+    const cameraDistance = maxDimension * 1.5;
+    this.camera.position.set(centerX + cameraDistance * 0.7, centerY + cameraDistance * 0.7, centerZ + cameraDistance);
+    this.camera.lookAt(centerX, centerY, centerZ);
+    this.controls.target.set(centerX, centerY, centerZ);
+    this.controls.update();
+  }
+
+  /**
+   * Get current printer size
+   */
+  public getPrinterSize(): { width: number; depth: number; height: number; name?: string } {
+    return { ...this.printerSize };
   }
 
   /**

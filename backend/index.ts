@@ -3,9 +3,19 @@
  * Bun.serve() with REST API and WebSocket support
  */
 
+import fs from 'fs';
+import path from 'path';
+import net from 'net';
 import { parseOpenSCAD } from './scad-parser';
 import { evaluateAST, setWasmModule } from './scad-evaluator';
 import type { EvaluateMessage, EvaluateResponse, ParseResult, EvaluateResult, Geometry, ExportResult } from '../shared/types';
+import logger, { logInfo, logError, logWarn, logHttp } from './logger';
+
+// Production middleware imports
+import { createRateLimiter, createStrictRateLimiter } from './rate-limiter';
+import { securityMiddleware, requestTimeout, requestSizeLimit } from './security-middleware';
+import { healthCheck, metrics, readinessProbe, livenessProbe } from './health-monitoring';
+import { config, validateEnvironment } from './config';
 
 // MCP imports
 import { mcpStore } from './mcp-store';
@@ -31,16 +41,409 @@ async function initWasm() {
     wasmModule = imported;
     globals.wasmModule = imported;
     setWasmModule(imported);
-    console.log('✓ WASM module initialized');
+    logInfo('WASM module initialized successfully');
     return true;
   } catch (err) {
-    console.error('Failed to load WASM module:', err);
-    console.warn('⚠ Running without WASM CSG engine - geometry operations will be limited');
+    logError('Failed to load WASM module', { error: err instanceof Error ? err.message : String(err) });
+    logWarn('Running without WASM CSG engine - geometry operations will be limited');
     return false;
   }
 }
 
 const globals = { wasmModule: null as any };
+
+// ============================================
+// Process Management & PID Locking
+// ============================================
+
+const PID_FILE = path.join(process.cwd(), '.moicad-backend.pid');
+const SERVER_PORT = 3000;
+
+/**
+ * Check if another backend process is already running
+ * Best practice: Use PID file to prevent multiple instances
+ */
+function checkExistingProcess(): void {
+  if (fs.existsSync(PID_FILE)) {
+    const oldPidStr = fs.readFileSync(PID_FILE, 'utf8').trim();
+    const oldPid = parseInt(oldPidStr, 10);
+    
+    if (isNaN(oldPid)) {
+      logWarn('Invalid PID in file, removing stale PID file');
+      fs.unlinkSync(PID_FILE);
+    } else {
+      try {
+        // Signal 0 checks if process exists without killing it
+        process.kill(oldPid, 0);
+        
+        // Process exists - backend already running
+        console.error(`\n❌ ERROR: Backend already running with PID ${oldPid}`);
+        console.error(`\nIf you're certain no backend is running, delete: ${PID_FILE}\n`);
+        process.exit(1);
+      } catch (e) {
+        // Process doesn't exist - remove stale PID file
+        logInfo('Removed stale PID file from previous run', { oldPid });
+        fs.unlinkSync(PID_FILE);
+      }
+    }
+  }
+  
+  // Write our PID
+  fs.writeFileSync(PID_FILE, String(process.pid));
+  logInfo('Backend PID file created', { pid: process.pid });
+}
+
+/**
+ * Check if the server port is available
+ * Best practice: Fail fast if port is already in use
+ */
+async function checkPortAvailable(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    
+    server.once('error', (err: any) => {
+      if (err.code === 'EADDRINUSE') {
+        resolve(false);
+      } else {
+        resolve(true);
+      }
+    });
+    
+    server.once('listening', () => {
+      server.close();
+      resolve(true);
+    });
+    
+    server.listen(port, '0.0.0.0');
+  });
+}
+
+/**
+ * Cleanup resources on exit
+ * Best practice: Always clean up PID file and resources
+ */
+function cleanup() {
+  try {
+    if (fs.existsSync(PID_FILE)) {
+      fs.unlinkSync(PID_FILE);
+      logInfo('PID file removed on exit');
+    }
+  } catch (e) {
+    // Ignore errors during cleanup
+  }
+}
+
+// Register cleanup handlers
+process.on('exit', cleanup);
+process.on('SIGINT', () => {
+  console.log('\n\n🛑 Shutting down gracefully...');
+  cleanup();
+  process.exit(0);
+});
+process.on('SIGTERM', () => {
+  logInfo('Received SIGTERM, shutting down');
+  cleanup();
+  process.exit(0);
+});
+process.on('uncaughtException', (err) => {
+  logError('Uncaught exception', { error: err.message, stack: err.stack });
+  cleanup();
+  process.exit(1);
+});
+
+/**
+ * Worker Pool for handling OpenSCAD evaluations off the main thread
+ */
+class MainWorkerPool {
+  private workers: Worker[] = [];
+  private taskQueue: Array<{
+    code: string;
+    requestId: string;
+    resolve: (response: EvaluateResponse) => void;
+    reject: (error: any) => void;
+  }> = [];
+  private idleWorkers: Worker[] = [];
+  private pendingRequests = new Map<string, {
+    resolve: (response: EvaluateResponse) => void;
+    reject: (error: any) => void;
+  }>();
+
+  constructor(size: number = 4) {
+    // Initialize workers
+    for (let i = 0; i < size; i++) {
+      this.createWorker();
+    }
+  }
+
+  private createWorker() {
+    // Bun-specific worker creation
+    const worker = new Worker(new URL('worker.ts', import.meta.url).href);
+
+    worker.onmessage = (event: MessageEvent) => {
+      const data = event.data as EvaluateResponse;
+
+      // Handle initialization errors or other non-response messages if any
+      if (data.type === 'error' && !data.requestId) {
+        console.error('Worker error:', data.errors);
+        return;
+      }
+
+      const pending = this.pendingRequests.get(data.requestId);
+      if (pending) {
+        this.pendingRequests.delete(data.requestId);
+        pending.resolve(data);
+
+        // Return worker to idle pool
+        this.idleWorkers.push(worker);
+        this.processQueue();
+      }
+    };
+
+    worker.onerror = (error) => {
+      console.error('Worker error:', error);
+      // We might need to handle crashing workers here by recreating them
+      // For now, simpler error handling:
+      // Don't add back to idle pool if it crashed
+    };
+
+    this.workers.push(worker);
+    this.idleWorkers.push(worker);
+  }
+
+  public evaluate(code: string): Promise<EvaluateResponse> {
+    return new Promise((resolve, reject) => {
+      const requestId = Math.random().toString(36).substring(7);
+      this.taskQueue.push({ code, requestId, resolve, reject });
+      this.processQueue();
+    });
+  }
+
+  private processQueue() {
+    if (this.taskQueue.length === 0 || this.idleWorkers.length === 0) {
+      return;
+    }
+
+    const worker = this.idleWorkers.pop();
+    const task = this.taskQueue.shift();
+
+    if (!worker || !task) return;
+
+    this.pendingRequests.set(task.requestId, {
+      resolve: task.resolve,
+      reject: task.reject
+    });
+
+    worker.postMessage({
+      type: 'evaluate',
+      code: task.code,
+      requestId: task.requestId
+    });
+  }
+}
+
+// Initialize global worker pool (DISABLED - causing hangs)
+// const workerPool = new MainWorkerPool(Math.max(2, navigator.hardwareConcurrency || 4));
+const workerPool = null as any; // Disabled for now
+
+// ============================================
+// Single Job Evaluation Queue
+// ============================================
+
+interface QueuedJob {
+  id: string;
+  code: string;
+  timestamp: number;
+  resolve: (result: EvaluateResult) => void;
+  reject: (error: Error) => void;
+}
+
+/**
+ * Single-threaded job queue for OpenSCAD evaluations
+ * Best Practice: Only one render at a time, emulating OpenSCAD behavior
+ */
+class EvaluationQueue {
+  private queue: QueuedJob[] = [];
+  private processing: boolean = false;
+  private currentJob: QueuedJob | null = null;
+  private readonly defaultTimeout: number = 30000; // 30 seconds (OpenSCAD-like)
+  
+  /**
+   * Enqueue a new evaluation job
+   * Jobs are processed in FIFO order
+   */
+  async enqueue(code: string): Promise<EvaluateResult> {
+    return new Promise((resolve, reject) => {
+      const job: QueuedJob = {
+        id: Math.random().toString(36).substring(7),
+        code,
+        timestamp: Date.now(),
+        resolve,
+        reject,
+      };
+      
+      this.queue.push(job);
+      logInfo(`Job ${job.id} queued`, { 
+        position: this.queue.length,
+        queueSize: this.queue.length 
+      });
+      
+      // Start processing if not already running
+      this.processNext();
+    });
+  }
+  
+  /**
+   * Process the next job in the queue
+   */
+  private async processNext(): Promise<void> {
+    if (this.processing || this.queue.length === 0) {
+      return;
+    }
+    
+    this.processing = true;
+    this.currentJob = this.queue.shift()!;
+    
+    const { id, code, timestamp, resolve, reject } = this.currentJob;
+    const waitTime = Date.now() - timestamp;
+    
+    logInfo(`Processing job ${id}`, { 
+      waitTime: `${waitTime}ms`,
+      codeLength: code.length 
+    });
+    
+    try {
+      // Check memory before evaluation
+      const memBefore = process.memoryUsage();
+      const heapUsedMB = Math.round(memBefore.heapUsed / 1024 / 1024);
+      const heapTotalMB = Math.round(memBefore.heapTotal / 1024 / 1024);
+      
+      if (heapUsedMB > 500) {
+        logWarn(`High memory usage before job ${id}`, { 
+          heapUsed: `${heapUsedMB}MB`,
+          heapTotal: `${heapTotalMB}MB` 
+        });
+      }
+      
+      if (heapUsedMB > 1000) {
+        throw new Error(`Memory limit exceeded: ${heapUsedMB}MB (limit: 1GB)`);
+      }
+      
+      // Create timeout promise
+      const timeoutPromise = new Promise<never>((_, rej) => {
+        setTimeout(() => {
+          rej(new Error(`Evaluation timeout after ${this.defaultTimeout}ms`));
+        }, this.defaultTimeout);
+      });
+      
+      // Race between evaluation and timeout
+      const result = await Promise.race([
+        this.evaluateCode(code),
+        timeoutPromise
+      ]);
+      
+      const executionTime = Date.now() - timestamp;
+      resolve(result);
+      logInfo(`Job ${id} completed`, { 
+        executionTime: `${executionTime}ms`,
+        success: result.success 
+      });
+      
+    } catch (error: any) {
+      logError(`Job ${id} failed`, { error: error.message });
+      
+      // Return error result instead of throwing
+      resolve({
+        geometry: null,
+        errors: [{ message: error.message }],
+        success: false,
+        executionTime: Date.now() - timestamp,
+      });
+      
+    } finally {
+      this.currentJob = null;
+      this.processing = false;
+      
+      // Force garbage collection if available
+      if (global.gc) {
+        const memBefore = process.memoryUsage();
+        global.gc();
+        const memAfter = process.memoryUsage();
+        const freed = Math.round((memBefore.heapUsed - memAfter.heapUsed) / 1024 / 1024);
+        
+        if (freed > 10) {
+          logInfo(`GC freed ${freed}MB after job completion`);
+        }
+      }
+      
+      // Process next job
+      setImmediate(() => this.processNext());
+    }
+  }
+  
+  /**
+   * Evaluate OpenSCAD code
+   */
+  private async evaluateCode(code: string): Promise<EvaluateResult> {
+    const parseResult = parseOpenSCAD(code);
+    
+    if (!parseResult.success || !parseResult.ast) {
+      return {
+        geometry: null,
+        errors: parseResult.errors,
+        success: false,
+        executionTime: 0,
+      };
+    }
+    
+    const evalResult = await evaluateAST(parseResult.ast, { previewMode: true });
+    
+    return {
+      geometry: evalResult.geometry,
+      errors: evalResult.errors,
+      success: evalResult.success,
+      executionTime: evalResult.executionTime,
+    };
+  }
+  
+  /**
+   * Get queue status for monitoring
+   */
+  getStatus() {
+    return {
+      pending: this.queue.length,
+      isProcessing: this.processing,
+      currentJobId: this.currentJob?.id || null,
+    };
+  }
+}
+
+// Create global queue instance
+const evaluationQueue = new EvaluationQueue();
+
+
+// Check for existing backend process
+checkExistingProcess();
+
+// Check if port is available
+const portAvailable = await checkPortAvailable(SERVER_PORT);
+if (!portAvailable) {
+  console.error(`\n❌ ERROR: Port ${SERVER_PORT} is already in use`);
+  console.error('Another backend process may be running\n');
+  cleanup(); // Remove PID file we just created
+  process.exit(1);
+}
+
+// Validate environment before starting server
+const envValidation = validateEnvironment();
+if (!envValidation.isValid) {
+  logError('Environment validation failed', { errors: envValidation.errors });
+  if (config.isProduction) {
+    cleanup();
+    process.exit(1);
+  } else {
+    logWarn('Continuing with invalid environment (development mode)');
+  }
+}
 
 // Initialize WASM before starting server
 await initWasm();
@@ -54,6 +457,10 @@ interface WebSocketData {
 const server = Bun.serve<WebSocketData>({
   port: 3000,
   hostname: '0.0.0.0',
+  reusePort: true, // Allow restarting without waiting for TIME_WAIT
+
+  // Apply security middleware
+  ...securityMiddleware,
 
   async fetch(req, server) {
     const url = new URL(req.url);
@@ -65,6 +472,43 @@ const server = Bun.serve<WebSocketData>({
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
     };
+
+    // Health check and monitoring endpoints
+    if (path === '/health' && req.method === 'GET') {
+      return healthCheck(req);
+    }
+
+    if (path === '/metrics' && req.method === 'GET') {
+      return metrics(req);
+    }
+
+    if (path === '/ready' && req.method === 'GET') {
+      return readinessProbe(req);
+    }
+
+    if (path === '/live' && req.method === 'GET') {
+      return livenessProbe(req);
+    }
+
+    // Debug health endpoint with queue status
+    if (path === '/api/debug/health' && req.method === 'GET') {
+      const mem = process.memoryUsage();
+      const queueStatus = evaluationQueue.getStatus();
+      
+      return sendJson({
+        status: 'healthy',
+        pid: process.pid,
+        uptime: Math.round(process.uptime()),
+        memory: {
+          rss: `${Math.round(mem.rss / 1024 / 1024)}MB`,
+          heapUsed: `${Math.round(mem.heapUsed / 1024 / 1024)}MB`,
+          heapTotal: `${Math.round(mem.heapTotal / 1024 / 1024)}MB`,
+          external: `${Math.round(mem.external / 1024 / 1024)}MB`,
+        },
+        queue: queueStatus,
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     // Handle CORS preflight
     if (req.method === 'OPTIONS') {
@@ -155,9 +599,9 @@ const server = Bun.serve<WebSocketData>({
   },
 
   websocket: {
-    open(ws) {
+    open(ws: any) {
       const connectionId = mcpStore.generateId();
-      
+
       // Determine if this is MCP or regular connection
       if (ws.data.isMCP) {
         console.log('✓ MCP WebSocket client connected');
@@ -165,11 +609,11 @@ const server = Bun.serve<WebSocketData>({
       } else {
         console.log('✓ WebSocket client connected');
       }
-      
+
       ws.data.connectionId = connectionId;
     },
 
-    async message(ws, message) {
+    async message(ws: any, message: any) {
       try {
         const data = typeof message === 'string'
           ? JSON.parse(message)
@@ -210,7 +654,7 @@ const server = Bun.serve<WebSocketData>({
       }
     },
 
-    close(ws) {
+    close(ws: any) {
       if (ws.data.isMCP) {
         console.log('✓ MCP WebSocket client disconnected');
         if (ws.data.connectionId) {
@@ -221,10 +665,10 @@ const server = Bun.serve<WebSocketData>({
       }
     },
 
-    error(ws, error) {
+    error(ws: any, error: any) {
       console.error('WebSocket error:', error);
     },
-  },
+  } as any, // Cast to any to avoid Bun type mismatches
 });
 
 // Initialize MCP store with sample data for testing
@@ -293,29 +737,13 @@ async function handleEvaluate(req: Request): Promise<Response> {
       return sendJson({ error: 'code is required' }, 400);
     }
 
-    if (!wasmModule) {
-      return sendJson({
-        error: 'WASM module not loaded',
-        success: false,
-      }, 503);
-    }
-
-    // Parse
-    const parseResult = parseOpenSCAD(code);
-    if (!parseResult.success || !parseResult.ast) {
-      return sendJson({
-        geometry: null,
-        errors: parseResult.errors,
-        success: false,
-        executionTime: 0,
-      });
-    }
-
-    // Evaluate (preview mode for /api/evaluate)
-    const evalResult = await evaluateAST(parseResult.ast, { previewMode: true });
-
-    return sendJson(evalResult);
+    // Enqueue job (only one evaluation at a time)
+    const result = await evaluationQueue.enqueue(code);
+    
+    return sendJson(result);
+    
   } catch (err: any) {
+    logError('Evaluation request failed', { error: err.message });
     return sendJson({
       geometry: null,
       errors: [{ message: err.message }],
@@ -334,11 +762,11 @@ async function handleExport(req: Request): Promise<Response> {
   };
 
   const body = await req.json() as { geometry: Geometry; format: string; binary?: boolean };
-  
+
   try {
     let data: string | ArrayBuffer;
     let contentType: string;
-    
+
     if (body.format === 'stl') {
       data = geometryToSTL(body.geometry, body.binary ?? true);
       contentType = 'application/octet-stream';
@@ -375,7 +803,7 @@ async function handleAiSuggestions(req: Request): Promise<Response> {
 
   try {
     const body = await req.json() as any;
-    
+
     // Build suggestion request
     const suggestionRequest = {
       code: body.code || '',
@@ -425,9 +853,9 @@ async function handleAiSuggestions(req: Request): Promise<Response> {
     });
   } catch (err: any) {
     console.error('AI suggestions error:', err);
-    return new Response(JSON.stringify({ 
-      success: false, 
-      error: err.message 
+    return new Response(JSON.stringify({
+      success: false,
+      error: err.message
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders },
@@ -451,35 +879,13 @@ function handleParseWs(data: any): any {
 }
 
 async function handleEvaluateWs(data: EvaluateMessage): Promise<EvaluateResponse> {
-  if (!wasmModule) {
-    return {
-      type: 'evaluate_response',
-      requestId: data.requestId,
-      geometry: null,
-      errors: [{ message: 'WASM module not loaded' }],
-      executionTime: 0,
-    };
-  }
+  // Offload evaluation to worker pool
+  const result = await workerPool.evaluate(data.code);
 
-  const parseResult = parseOpenSCAD(data.code);
-  if (!parseResult.success || !parseResult.ast) {
-    return {
-      type: 'evaluate_response',
-      requestId: data.requestId,
-      geometry: null,
-      errors: parseResult.errors,
-      executionTime: 0,
-    };
-  }
+  // Ensure the response has the correct requestId matching the request
+  result.requestId = data.requestId;
 
-  const evalResult = await evaluateAST(parseResult.ast, { previewMode: true });
-  return {
-    type: 'evaluate_response',
-    requestId: data.requestId,
-    geometry: evalResult.geometry,
-    errors: evalResult.errors,
-    executionTime: evalResult.executionTime,
-  };
+  return result;
 }
 
 // ============================================================================

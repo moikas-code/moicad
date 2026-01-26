@@ -2,12 +2,14 @@ mod bsp;
 mod color_utils;
 mod csg;
 mod extrude;
+mod font_cache;
 mod geometry;
 mod hull;
 mod math;
 mod ops_2d;
 mod primitives;
 mod surface;
+mod tessellation;
 mod text;
 
 use geometry::Mesh;
@@ -119,6 +121,16 @@ pub fn create_cube(size: f32) -> WasmMesh {
 }
 
 #[wasm_bindgen]
+pub fn create_cube_vec(size: &[f32]) -> WasmMesh {
+    let size_vec = if size.len() >= 3 {
+        Vec3::new(size[0], size[1], size[2])
+    } else {
+        Vec3::new(10.0, 10.0, 10.0) // Fallback
+    };
+    create_wasm_mesh(primitives::cube_vec(size_vec))
+}
+
+#[wasm_bindgen]
 pub fn create_sphere(radius: f32, detail: u32) -> WasmMesh {
     create_wasm_mesh(primitives::sphere(radius, detail))
 }
@@ -127,11 +139,11 @@ pub fn create_sphere(radius: f32, detail: u32) -> WasmMesh {
 // Surface generator
 #[wasm_bindgen]
 pub fn create_surface(
-    width: usize,
-    depth: usize,
-    data: &[f32],
-    center: bool,
-    invert: bool,
+    _width: usize,
+    _depth: usize,
+    _data: &[f32],
+    _center: bool,
+    _invert: bool,
 ) -> WasmMesh {
     // Simple test: return a basic square
     let vertices = vec![
@@ -255,7 +267,7 @@ pub fn hull_multiple(mesh_pointers: &[usize]) -> WasmMesh {
     // to WasmMesh objects.
     let meshes: Vec<&Mesh> = mesh_pointers
         .iter()
-        .map(|ptr| unsafe { &(*(ptr as *const WasmMesh)).mesh })
+        .map(|ptr| unsafe { &(*(*ptr as *const WasmMesh)).mesh })
         .collect();
 
     let result_mesh = hull::hull_meshes(&meshes);
@@ -473,6 +485,34 @@ pub fn create_text(text: String, size: f32) -> WasmMesh {
 #[wasm_bindgen]
 pub fn create_text_3d(text: String, size: f32, depth: f32) -> WasmMesh {
     create_wasm_mesh(text::create_text_3d(&text, size, depth))
+}
+
+// Text primitive with alignment, font, and direction support
+#[wasm_bindgen]
+pub fn create_text_aligned(
+    text: String,
+    size: f32,
+    halign: String,
+    valign: String,
+    spacing: f32,
+    font: String,
+    direction: String,
+) -> WasmMesh {
+    create_wasm_mesh(text::create_text_aligned(&text, size, &halign, &valign, spacing, &font, &direction))
+}
+
+#[wasm_bindgen]
+pub fn create_text_3d_aligned(
+    text: String,
+    size: f32,
+    depth: f32,
+    halign: String,
+    valign: String,
+    spacing: f32,
+    font: String,
+    direction: String,
+) -> WasmMesh {
+    create_wasm_mesh(text::create_text_3d_aligned(&text, size, depth, &halign, &valign, spacing, &font, &direction))
 }
 
 // 2D operations

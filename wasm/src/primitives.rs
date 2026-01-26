@@ -32,6 +32,43 @@ pub fn cube(size: f32) -> Mesh {
     Mesh::new(vertices, indices)
 }
 
+/// Generate a cube with vector dimensions centered at origin
+pub fn cube_vec(size: Vec3) -> Mesh {
+    let half_x = size.x / 2.0;
+    let half_y = size.y / 2.0;
+    let half_z = size.z / 2.0;
+
+    let vertices = vec![
+        // Front face
+        Vec3::new(-half_x, -half_y, half_z),
+        Vec3::new(half_x, -half_y, half_z),
+        Vec3::new(half_x, half_y, half_z),
+        Vec3::new(-half_x, half_y, half_z),
+        // Back face
+        Vec3::new(-half_x, -half_y, -half_z),
+        Vec3::new(-half_x, half_y, -half_z),
+        Vec3::new(half_x, half_y, -half_z),
+        Vec3::new(half_x, -half_y, -half_z),
+    ];
+
+    let indices = vec![
+        // Front face
+        0, 1, 2, 0, 2, 3,
+        // Back face
+        4, 5, 6, 4, 6, 7,
+        // Top face
+        3, 2, 6, 3, 6, 5,
+        // Bottom face
+        4, 0, 1, 4, 1, 7,
+        // Right face
+        1, 7, 6, 1, 6, 2,
+        // Left face
+        4, 5, 3, 4, 3, 0,
+    ];
+
+    Mesh::new(vertices, indices)
+}
+
 /// Generate a sphere with given radius
 pub fn sphere(radius: f32, detail: u32) -> Mesh {
     let mut vertices = Vec::new();
@@ -313,7 +350,7 @@ fn ear_clipping_triangulation(points: &[Vec2]) -> Vec<u32> {
         let next = indices[(i + 1) % indices.len()];
 
         // Check if any other vertex is inside this triangle
-        for (j, &vertex_idx) in indices.iter().enumerate() {
+        for (_j, &vertex_idx) in indices.iter().enumerate() {
             if vertex_idx == prev || vertex_idx == curr || vertex_idx == next {
                 continue;
             }

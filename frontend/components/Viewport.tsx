@@ -5,12 +5,14 @@ import { SceneManager } from '@/lib/three-utils';
 import { GeometryResponse } from '@/lib/api-client';
 import StatsOverlay from './StatsOverlay';
 import { ViewportControlsProvider, useViewportControls } from './ViewportControlsContext';
+import { PrinterPreset } from '@/lib/printer-presets';
 
 interface ViewportProps {
   geometry: GeometryResponse | null;
+  printerSize?: PrinterPreset;
 }
 
-function ViewportInner({ geometry }: ViewportProps) {
+function ViewportInner({ geometry, printerSize }: ViewportProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<SceneManager | null>(null);
   const { setSceneManager } = useViewportControls();
@@ -25,6 +27,12 @@ function ViewportInner({ geometry }: ViewportProps) {
       container: containerRef.current,
       width: containerRef.current.clientWidth,
       height: containerRef.current.clientHeight,
+      printerSize: printerSize ? {
+        width: printerSize.width,
+        depth: printerSize.depth,
+        height: printerSize.height,
+        name: `${printerSize.manufacturer} ${printerSize.name}`
+      } : undefined
     };
 
     sceneRef.current = new SceneManager(config);
@@ -38,12 +46,24 @@ function ViewportInner({ geometry }: ViewportProps) {
         setSceneManager(null);
       }
     };
-  }, [setSceneManager]);
+  }, [setSceneManager, printerSize]);
+
+  // Update printer size when it changes
+  useEffect(() => {
+    if (sceneRef.current && printerSize) {
+      sceneRef.current.updatePrinterSize({
+        width: printerSize.width,
+        depth: printerSize.depth,
+        height: printerSize.height,
+        name: `${printerSize.manufacturer} ${printerSize.name}`
+      });
+    }
+  }, [printerSize]);
 
   // Update geometry when it changes
   useEffect(() => {
     try {
-      if (geometry && sceneRef.current && geometry.vertices && geometry.indices) {
+      if (geometry && sceneRef.current && geometry.vertices && geometry.indices && geometry.bounds) {
         sceneRef.current.renderGeometry(geometry);
         
         // Setup highlighting callbacks

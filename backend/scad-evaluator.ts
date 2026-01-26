@@ -28,6 +28,8 @@ interface WasmModule {
   ) => any;
   create_text: (text: string, size: number) => any;
   create_text_3d: (text: string, size: number, depth: number) => any;
+  create_text_aligned?: (text: string, size: number, halign: string, valign: string, spacing: number, font: string, direction: string) => any;
+  create_text_3d_aligned?: (text: string, size: number, depth: number, halign: string, valign: string, spacing: number, font: string, direction: string) => any;
   union: (a: any, b: any) => any;
   difference: (a: any, b: any) => any;
   intersection: (a: any, b: any) => any;
@@ -133,6 +135,35 @@ class PrimitiveCache {
 // Global primitive cache instance
 const primitiveCache = new PrimitiveCache();
 
+/**
+ * Calculate fragment count for circular primitives according to OpenSCAD spec
+ * @param radius - Radius of the primitive
+ * @param fn - Fragment number override ($fn)
+ * @param fs - Fragment size in mm ($fs)
+ * @param fa - Fragment angle in degrees ($fa)
+ * @returns Number of fragments to use
+ */
+function getFragments(radius: number, fn: number, fs: number, fa: number): number {
+  // If $fn is explicitly set and > 0, use it directly
+  if (fn > 0) {
+    return Math.max(3, Math.floor(fn));
+  }
+
+  // Otherwise calculate based on $fa and $fs
+  // Minimum fragments based on angle: 360 / $fa
+  const minFragmentsAngle = Math.ceil(360 / fa);
+
+  // Minimum fragments based on size: circumference / $fs
+  const circumference = 2 * Math.PI * Math.abs(radius);
+  const minFragmentsSize = Math.ceil(circumference / fs);
+
+  // Use the larger of the two (finer resolution)
+  const fragments = Math.max(minFragmentsAngle, minFragmentsSize);
+
+  // OpenSCAD has a minimum of 5 fragments for circles
+  return Math.max(5, fragments);
+}
+
 async function evaluateProjection(
   node: any,
   context: EvaluationContext,
@@ -154,10 +185,15 @@ async function evaluateProjection(
     return null;
   }
 
-  if (cut) {
-    return wasmModule!.project_slice(childGeom, scale, convexity);
+  if (wasmModule.project_slice && wasmModule.project_orthographic) {
+    if (cut) {
+      return wasmModule.project_slice(childGeom, scale, convexity);
+    } else {
+      return wasmModule.project_orthographic(childGeom, convexity);
+    }
   } else {
-    return wasmModule!.project_orthographic(childGeom, convexity);
+    context.errors.push({ message: "Projection functions not available" });
+    return null;
   }
 }
 
@@ -167,7 +203,8 @@ interface EvaluationContext {
   modules: Map<string, any>;
   errors: EvaluationError[];
   children?: ScadNode[];
-  includedFiles?: Set<string>; // Track included files for circular dependency detection
+  includedFiles?: Set<string>;
+  evaluationDepth?: number; // Track recursion depth to prevent stack overflow
 }
 
 /**
@@ -189,7 +226,6 @@ export async function evaluateAST(
       ["$vpr", [0, 0, 0]], // Viewport rotation [x, y, z] in degrees
       ["$vpt", [0, 0, 0]], // Viewport translation [x, y, z]
       ["$vpd", 100], // Viewport camera distance
-      ["$vpf", 45], // Viewport field of view in degrees
       ["$vpf", 45], // Viewport field of view in degrees
       ["$preview", options?.previewMode ?? true], // Preview mode flag (auto-detected with manual override)
       ["$version", [2021, 1, 0]], // OpenSCAD version
@@ -315,6 +351,12 @@ export async function evaluateAST(
     // Convert WASM geometry to JSON
     const geometry = convertWasmGeometry(finalGeometry);
 
+    // Memory management: Clear primitive cache if it's getting large
+    const cacheStats = primitiveCache.getStats();
+    if (cacheStats.size > 50) { // Clear if > 50% full
+      primitiveCache.clear();
+    }
+
     return {
       geometry,
       errors: context.errors,
@@ -322,6 +364,9 @@ export async function evaluateAST(
       executionTime: performance.now() - startTime,
     };
   } catch (err: any) {
+    // Clear cache on error too
+    primitiveCache.clear();
+    
     return {
       geometry: null,
       errors: [{ message: err.message, stack: err.stack }],
@@ -411,6 +456,8 @@ function evaluatePrimitive(node: any, context: EvaluationContext): any {
       let cube_size: number | number[] = params._positional ?? params.size ?? 10;
       const cube_center = params.center ?? false;
 
+      console.log(`Cube params:`, JSON.stringify(params), `center:`, cube_center);
+
       if (Array.isArray(cube_size)) {
         geometry = wasmModule.create_cube_vec(new Float32Array(cube_size));
       } else {
@@ -420,7 +467,7 @@ function evaluatePrimitive(node: any, context: EvaluationContext): any {
       // Handle center=false - translate by half size
       if (!cube_center) {
         if (Array.isArray(cube_size)) {
-          geometry = wasmModule!.translate(geometry, cube_size[0] / 2, cube_size[1] / 2, cube_size[2] / 2);
+          geometry = wasmModule!.translate(geometry, (cube_size[0] ?? 0) / 2, (cube_size[1] ?? 0) / 2, (cube_size[2] ?? 0) / 2);
         } else {
           const half = cube_size / 2;
           geometry = wasmModule!.translate(geometry, half, half, half);
@@ -437,7 +484,10 @@ function evaluatePrimitive(node: any, context: EvaluationContext): any {
         (params.d ? params.d / 2 : undefined) ??
         (params.diameter ? params.diameter / 2 : undefined) ??
         10;
-      const sphere_detail = params.$fn ?? params.detail ?? 20;
+      const sphere_fn = params.$fn ?? context.variables.get("$fn") ?? 0;
+      const sphere_fs = params.$fs ?? context.variables.get("$fs") ?? 2;
+      const sphere_fa = params.$fa ?? context.variables.get("$fa") ?? 12;
+      const sphere_detail = getFragments(sphere_r, sphere_fn, sphere_fs, sphere_fa);
       geometry = wasmModule.create_sphere(sphere_r, sphere_detail);
       break;
 
@@ -446,20 +496,49 @@ function evaluatePrimitive(node: any, context: EvaluationContext): any {
       const cyl_h = Array.isArray(params._positional)
         ? params._positional[0]
         : (params._positional ?? params.h ?? params.height ?? 10);
-      const cyl_r =
-        Array.isArray(params._positional) && params._positional[1]
-          ? params._positional[1]
-          : (params.r ?? params.radius ?? 5);
-      const cyl_r1 = params.r1 ?? cyl_r;
-      const cyl_r2 = params.r2 ?? cyl_r;
+
+      // Handle radius parameters with diameter support
+      let cyl_r1, cyl_r2;
+
+      if (params.r !== undefined || params.radius !== undefined) {
+        // Single radius for cylinder
+        const single_r = params.r ?? params.radius ?? 5;
+        cyl_r1 = single_r;
+        cyl_r2 = single_r;
+      } else if (params.r1 !== undefined || params.r2 !== undefined) {
+        // Separate radii for cone/frustum
+        cyl_r1 = params.r1 ?? 5;
+        cyl_r2 = params.r2 ?? 5;
+      } else if (params.d !== undefined) {
+        // Single diameter
+        const single_r = params.d / 2;
+        cyl_r1 = single_r;
+        cyl_r2 = single_r;
+      } else if (params.d1 !== undefined || params.d2 !== undefined) {
+        // Separate diameters
+        cyl_r1 = (params.d1 !== undefined) ? params.d1 / 2 : 5;
+        cyl_r2 = (params.d2 !== undefined) ? params.d2 / 2 : 5;
+      } else if (Array.isArray(params._positional) && params._positional[1]) {
+        // Positional r1, r2
+        cyl_r1 = params._positional[1];
+        cyl_r2 = params._positional[2] ?? params._positional[1];
+      } else {
+        // Default radius
+        cyl_r1 = 5;
+        cyl_r2 = 5;
+      }
+
       const cyl_center = params.center ?? false;
-      const cyl_detail = params.$fn ?? params.detail ?? 20;
+      const cyl_fn = params.$fn ?? context.variables.get("$fn") ?? 0;
+      const cyl_fs = params.$fs ?? context.variables.get("$fs") ?? 2;
+      const cyl_fa = params.$fa ?? context.variables.get("$fa") ?? 12;
       const cyl_r_avg = (cyl_r1 + cyl_r2) / 2;
+      const cyl_detail = getFragments(cyl_r_avg, cyl_fn, cyl_fs, cyl_fa);
       geometry = wasmModule.create_cylinder(cyl_r_avg, cyl_h, cyl_detail);
-      
+
       // Handle center=false - translate up by half height
       if (!cyl_center) {
-        geometry = wasmModule!.translate(geometry, 0, 0, cyl_h/2);
+        geometry = wasmModule!.translate(geometry, 0, 0, cyl_h / 2);
       }
       break;
 
@@ -569,13 +648,24 @@ function evaluatePrimitive(node: any, context: EvaluationContext): any {
         (params.d ? params.d / 2 : undefined) ??
         (params.diameter ? params.diameter / 2 : undefined) ??
         5;
-      const circ_detail = params.$fn ?? params.detail ?? 20;
+      const circ_fn = params.$fn ?? context.variables.get("$fn") ?? 0;
+      const circ_fs = params.$fs ?? context.variables.get("$fs") ?? 2;
+      const circ_fa = params.$fa ?? context.variables.get("$fa") ?? 12;
+      const circ_detail = getFragments(circ_r, circ_fn, circ_fs, circ_fa);
       geometry = wasmModule.create_circle(circ_r, circ_detail);
       break;
 
     case "square":
-      const sq_size = params._positional ?? params.size ?? 10;
+      let sq_size = params._positional ?? params.size ?? 10;
+      const sq_center = params.center ?? false;
       geometry = wasmModule.create_square(sq_size);
+
+      // Handle center parameter - if center=false, translate to place corner at origin
+      // Assuming create_square creates a centered square (like cube does)
+      if (!sq_center) {
+        const half_size = Array.isArray(sq_size) ? sq_size[0] / 2 : sq_size / 2;
+        geometry = wasmModule!.translate(geometry, half_size, half_size, 0);
+      }
       break;
 
     case "polygon":
@@ -607,16 +697,55 @@ function evaluatePrimitive(node: any, context: EvaluationContext): any {
       const text_content = params.text ?? params.t ?? params._positional ?? "";
       const text_size = params.size ?? params.s ?? 10;
       const text_depth = params.h ?? params.depth ?? 0; // Default 2D text
-      const spacing = params.spacing ?? 1;
 
-      if (text_depth > 0) {
-        geometry = wasmModule.create_text_3d(
-          text_content,
-          text_size,
-          text_depth,
-        );
+      // Extract alignment and font parameters
+      const text_halign = params.halign ?? "left"; // "left", "center", "right"
+      const text_valign = params.valign ?? "baseline"; // "top", "center", "baseline", "bottom"
+      const text_font = params.font ?? "Liberation Sans"; // Font name (not yet used)
+      const text_spacing = params.spacing ?? 1; // Character spacing multiplier
+      const text_direction = params.direction ?? "ltr"; // "ltr", "rtl", "ttb", "btt" (not yet used)
+      const text_language = params.language ?? "en"; // (not yet used)
+      const text_script = params.script ?? "latin"; // (not yet used)
+
+      // Use aligned text functions if available and parameters are non-default
+      const useAligned = wasmModule.create_text_aligned &&
+        (text_halign !== "left" || text_valign !== "baseline" || text_spacing !== 1 ||
+          text_font !== "Liberation Sans" || text_direction !== "ltr");
+
+      if (useAligned) {
+        if (text_depth > 0) {
+          geometry = wasmModule.create_text_3d_aligned!(
+            text_content,
+            text_size,
+            text_depth,
+            text_halign,
+            text_valign,
+            text_spacing,
+            text_font,
+            text_direction,
+          );
+        } else {
+          geometry = wasmModule.create_text_aligned!(
+            text_content,
+            text_size,
+            text_halign,
+            text_valign,
+            text_spacing,
+            text_font,
+            text_direction,
+          );
+        }
       } else {
-        geometry = wasmModule.create_text(text_content, text_size);
+        // Fallback to basic text (backward compatibility)
+        if (text_depth > 0) {
+          geometry = wasmModule.create_text_3d(
+            text_content,
+            text_size,
+            text_depth,
+          );
+        } else {
+          geometry = wasmModule.create_text(text_content, text_size);
+        }
       }
       break;
 
@@ -1439,63 +1568,81 @@ function evaluateExpression(expr: any, context: EvaluationContext): any {
     return null;
   }
 
-  // Check memoization cache first
-  const cachedResult = expressionMemoizer.get(expr, context);
-  if (cachedResult !== null) {
-    return cachedResult;
+  // Safety: Check recursion depth to prevent stack overflow
+  const depth = (context.evaluationDepth || 0) + 1;
+  const MAX_DEPTH = 100; // OpenSCAD-style limit
+  
+  if (depth > MAX_DEPTH) {
+    context.errors.push({ 
+      message: `Expression evaluation too deep (limit: ${MAX_DEPTH}). Possible infinite recursion.` 
+    });
+    return null;
   }
+  
+  // Create child context with incremented depth
+  const childContext = { ...context, evaluationDepth: depth };
 
   let result: any;
 
-  // Handle expression nodes
-  if (typeof expr === "object" && expr.type) {
-    switch (expr.type) {
-      case "expression":
-        result = evaluateBinaryExpression(expr, context);
-        break;
+  try {
+    // Handle expression nodes
+    if (typeof expr === "object" && expr.type) {
+      switch (expr.type) {
+        case "expression":
+          result = evaluateBinaryExpression(expr, childContext);
+          break;
 
-      case "ternary":
-        const condition = evaluateExpression(expr.condition, context);
-        result = Boolean(condition)
-          ? evaluateExpression(expr.thenExpr, context)
-          : evaluateExpression(expr.elseExpr, context);
-        break;
+        case "ternary":
+          const condition = evaluateExpression(expr.condition, childContext);
+          result = Boolean(condition)
+            ? evaluateExpression(expr.thenExpr, childContext)
+            : evaluateExpression(expr.elseExpr, childContext);
+          break;
 
-      case "function_call":
-        result = evaluateFunctionCall(expr, context);
-        break;
+        case "function_call":
+          result = evaluateFunctionCall(expr, childContext);
+          break;
 
-      case "variable":
-        result = context.variables.get(expr.name);
-        break;
+        case "variable":
+          result = context.variables.get(expr.name);
+          if (result === undefined) {
+            // Variable not found - return undefined (OpenSCAD behavior)
+            result = undefined;
+          }
+          break;
 
-      case "list_comprehension":
-        result = evaluateListComprehensionExpression(expr, context);
-        break;
+        case "list_comprehension":
+          result = evaluateListComprehensionExpression(expr, childContext);
+          break;
 
-      default:
-        result = expr;
-        break;
+        default:
+          result = expr;
+          break;
+      }
+    } else if (
+      typeof expr === "number" ||
+      typeof expr === "boolean" ||
+      typeof expr === "string"
+    ) {
+      // Handle primitive values
+      result = expr;
+    } else if (Array.isArray(expr)) {
+      // Handle arrays - recursively evaluate each element
+      result = expr.map((e) => evaluateExpression(e, childContext));
+    } else if (typeof expr === "string" && context.variables.has(expr)) {
+      // Handle variable references (legacy parser format)
+      result = context.variables.get(expr);
+    } else {
+      result = expr;
     }
-  } else if (
-    typeof expr === "number" ||
-    typeof expr === "boolean" ||
-    typeof expr === "string"
-  ) {
-    // Handle primitive values
-    result = expr;
-  } else if (Array.isArray(expr)) {
-    // Handle arrays
-    result = expr.map((e) => evaluateExpression(e, context));
-  } else if (typeof expr === "string" && context.variables.has(expr)) {
-    // Handle variable references
-    result = context.variables.get(expr);
-  } else {
-    result = expr;
+  } catch (error: any) {
+    // Safety: Catch any unexpected errors during evaluation
+    context.errors.push({ 
+      message: `Error evaluating expression: ${error.message}` 
+    });
+    return null;
   }
 
-  // Cache the result for future use
-  expressionMemoizer.set(expr, context, result);
   return result;
 }
 
@@ -1782,7 +1929,15 @@ function evaluateParameters(
   const result: Record<string, any> = {};
 
   for (const [key, value] of Object.entries(params)) {
-    result[key] = evaluateValue(value, context);
+    try {
+      result[key] = evaluateValue(value, context);
+    } catch (error: any) {
+      // Safety: Catch parameter evaluation errors
+      context.errors.push({ 
+        message: `Error evaluating parameter '${key}': ${error.message}` 
+      });
+      result[key] = null;
+    }
   }
 
   return result;

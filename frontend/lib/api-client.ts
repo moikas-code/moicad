@@ -80,19 +80,30 @@ export async function parseCode(code: string): Promise<ParseResult> {
     return data;
   } catch (error) {
     console.error('Parse error:', error);
+    const message = error instanceof Error && error.message.includes('Failed to fetch')
+      ? `Could not connect to backend at ${API_BASE}. Is the server running?`
+      : `Failed to connect to parser: ${error instanceof Error ? error.message : 'Unknown error'}`;
+
     return {
       ast: null,
-      errors: [{ message: `Failed to connect to parser: ${error instanceof Error ? error.message : 'Unknown error'}` }],
+      errors: [{ message }],
       success: false,
     };
   }
 }
 
 /**
- * Evaluate OpenSCAD code to geometry
+ * Evaluate OpenSCAD code to geometry with progress tracking
  */
-export async function evaluateCode(code: string): Promise<EvaluateResult> {
+export async function evaluateCode(
+  code: string, 
+  onProgress?: (progress: { stage: string; percentage?: number; time?: number }) => void
+): Promise<EvaluateResult> {
+  const startTime = Date.now();
+  
   try {
+    onProgress?.({ stage: 'Connecting to server...', percentage: 10 });
+    
     const response = await fetch(`${API_BASE}/api/evaluate`, {
       method: 'POST',
       headers: {
@@ -101,21 +112,39 @@ export async function evaluateCode(code: string): Promise<EvaluateResult> {
       body: JSON.stringify({ code }),
     });
 
+    onProgress?.({ stage: 'Parsing code...', percentage: 30 });
+
     if (!response.ok) {
       throw new Error(`Evaluation failed: ${response.statusText}`);
     }
 
+    onProgress?.({ stage: 'Generating geometry...', percentage: 60 });
+
     const data = await response.json();
+    
+    onProgress?.({ stage: 'Finalizing...', percentage: 90, time: Date.now() - startTime });
+    
     return data;
   } catch (error) {
     console.error('Evaluation error:', error);
+    const message = error instanceof Error && error.message.includes('Failed to fetch')
+      ? `Could not connect to backend at ${API_BASE}. Is the server running?`
+      : `Failed to evaluate code: ${error instanceof Error ? error.message : 'Unknown error'}`;
+
     return {
       geometry: null,
-      errors: [{ message: `Failed to evaluate code: ${error instanceof Error ? error.message : 'Unknown error'}` }],
+      errors: [{ message }],
       success: false,
       executionTime: 0,
     };
   }
+}
+
+/**
+ * Evaluate OpenSCAD code to geometry (legacy version without progress)
+ */
+export async function evaluateCodeLegacy(code: string): Promise<EvaluateResult> {
+  return evaluateCode(code);
 }
 
 /**
@@ -146,6 +175,9 @@ export async function exportGeometry(
     return await response.blob();
   } catch (error) {
     console.error('Export error:', error);
+    if (error instanceof Error && error.message.includes('Failed to fetch')) {
+      throw new Error(`Could not connect to backend at ${API_BASE}. Is the server running?`);
+    }
     throw error;
   }
 }

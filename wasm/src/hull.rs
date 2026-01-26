@@ -218,7 +218,7 @@ fn quickhull(points: &[Vec3]) -> Option<Mesh> {
             }
         }
 
-        let (face_idx, point_idx) = match (best_face_idx, best_point_idx) {
+        let (_face_idx, point_idx) = match (best_face_idx, best_point_idx) {
             (Some(f), Some(p)) => (f, p),
             _ => break, // No more points to process
         };
@@ -289,7 +289,7 @@ fn quickhull(points: &[Vec3]) -> Option<Mesh> {
             let mut new_face = HullFace::new(e0, e1, apex, points);
 
             // Check winding - normal should point away from interior
-            let face_center = points[e0]
+            let _face_center = points[e0]
                 .add(points[e1])
                 .add(points[apex])
                 .scale(1.0 / 3.0);

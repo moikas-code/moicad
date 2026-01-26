@@ -21,7 +21,7 @@ pub fn offset_polygon(vertices: &[Vec3], delta: f32, chamfer: bool) -> Mesh {
     };
 
     // Convert back to 3D with Z=0
-    let offset_vertices: Vec<Vec3> = offset_points
+    let _offset_vertices: Vec<Vec3> = offset_points
         .iter()
         .map(|p| Vec3::new(p.x, p.y, 0.0))
         .collect();

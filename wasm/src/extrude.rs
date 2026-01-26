@@ -89,7 +89,7 @@ pub fn rotate_extrude(shape_2d: &Mesh, angle: f32, segments: u32) -> Mesh {
         let sin_angle = current_angle.sin();
 
         // Add vertices for this segment
-        let start_idx = rotated_vertices.len() as u32;
+        let _start_idx = rotated_vertices.len() as u32;
         for vertex in &shape_2d.vertices {
             let rotated_x = -vertex.x * sin_angle;
             let rotated_z = vertex.x * cos_angle;

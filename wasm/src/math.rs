@@ -223,7 +223,7 @@ impl Mat4 {
         }
 
         // Operator overloading for Vec2
-        use std::ops::{Add, Div, Mul, Sub};
+        use std::ops::{Add, Mul, Sub};
 
         impl Add for Vec2 {
             type Output = Vec2;

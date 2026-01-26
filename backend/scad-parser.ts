@@ -14,7 +14,7 @@ class Tokenizer {
     this.input = input;
   }
 
-  // Optimized character classification using lookup tables
+// Optimized character classification using lookup tables
   // Eliminates regex overhead for every character check
   private static readonly CHAR_TYPES = new Uint8Array(256);
   private static readonly KEYWORDS = new Set([
@@ -24,6 +24,7 @@ class Tokenizer {
     'linear_extrude', 'rotate_extrude', 'projection', 'offset', 'resize',
     'for', 'let', 'function', 'module',
     'if', 'else', 'echo', 'import', 'include', 'use',
+    // Note: true/false/undef are NOT keywords - they're literals handled in parseValue()
   ]);
 
   // Initialize character type lookup table (called once)
@@ -656,7 +657,16 @@ class Parser {
 
     this.advance(); // (
 
+    let iterations = 0;
+    const MAX_ITERATIONS = 1000;
+    
     while (this.current().value !== ')' && this.current().type !== 'eof') {
+      if (++iterations > MAX_ITERATIONS) {
+        break; // Prevent infinite loops
+      }
+      
+      const startPos = this.pos; // Track position to detect infinite loops
+      
       // Check if this is a named parameter (identifier = value)
       if (this.current().type === 'identifier' && this.peek().value === '=') {
         const name = this.advance().value;
@@ -669,9 +679,19 @@ class Parser {
         }
       } else {
         // Positional parameter - could be any expression
-        params['_positional'] = this.parseExpression();
+        const value = this.parseExpression();
+        params['_positional'] = value;
         if (this.current().value === ',') {
           this.advance();
+        }
+      }
+      
+      // Safety check: ensure we made progress
+      if (this.pos === startPos && this.current().value !== ')') {
+        // No progress made, advance to prevent infinite loop
+        this.advance();
+        if (this.current().value !== ',' && this.current().value !== ')') {
+          break; // Exit if we're stuck
         }
       }
     }
@@ -708,7 +728,13 @@ class Parser {
     }
 
     if (token.type === 'identifier') {
-      return this.advance().value;
+      const name = this.advance().value;
+      // Handle boolean literals
+      if (name === 'true') return true;
+      if (name === 'false') return false;
+      if (name === 'undef') return undefined;
+      // Return a variable node for proper evaluation
+      return { type: 'variable', name };
     }
 
     return null;

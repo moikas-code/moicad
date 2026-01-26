@@ -1,0 +1,30 @@
+Stub AI provider initialized with config: {}
+AI provider registered: Stub AI Provider (stub-provider)
+Default AI providers initialized
+✓ WASM module initialized
+Sample data initialized
+
+╔════════════════════════════════════════════════════════════╗
+║         🏗️  moicad CAD Engine Server                       ║
+║                                                            ║
+║  Server running at: http://localhost:3000                ║
+║  WebSocket:        ws://localhost:3000/ws               ║
+║  MCP WebSocket:     ws://localhost:3000/ws/mcp           ║
+║  Health check:     http://localhost:3000/health         ║
+║                                                            ║
+║  API Endpoints:                                           ║
+║    POST /api/parse     - Parse OpenSCAD code             ║
+║    POST /api/evaluate  - Parse and evaluate to geometry   ║
+║    POST /api/export    - Export geometry to STL/OBJ       ║
+║                                                            ║
+║  MCP Endpoints:                                          ║
+║    POST /api/mcp/auth/register    - User registration     ║
+║    POST /api/mcp/auth/login       - User login           ║
+║    GET  /api/mcp/auth/me         - Current user         ║
+║    GET  /api/mcp/projects        - List projects        ║
+║    POST /api/mcp/projects        - Create project       ║
+║    GET  /api/mcp/sessions       - List sessions        ║
+║    POST /api/mcp/sessions       - Create session        ║
+║    GET  /api/mcp/stats          - System statistics     ║
+╚════════════════════════════════════════════════════════════╝
+

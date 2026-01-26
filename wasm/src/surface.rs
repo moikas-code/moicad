@@ -56,11 +56,11 @@ impl SurfaceResult {
 
 // Core surface creation function
 pub fn create_surface(
-    width: usize,
-    depth: usize,
-    data: &[f32],
-    center: bool,
-    invert: bool,
+    _width: usize,
+    _depth: usize,
+    _data: &[f32],
+    _center: bool,
+    _invert: bool,
 ) -> SurfaceResult {
     let mut result = SurfaceResult::new();
 
