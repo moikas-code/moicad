@@ -24,6 +24,26 @@ export interface GeometryResponse {
     vertexCount: number;
     faceCount: number;
   };
+  color?: {
+    r: number;
+    g: number;
+    b: number;
+    a?: number;
+  };
+  modifier?: {
+    type: '!' | '%' | '#' | '*';
+    opacity?: number;
+    highlightColor?: string;
+  };
+  objects?: Array<{
+    geometry: any;
+    highlight?: {
+      objectId: string;
+      isSelected?: boolean;
+      isHovered?: boolean;
+      line?: number;
+    };
+  }>;
 }
 
 export interface EvaluateResult {

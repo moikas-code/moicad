@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { SceneManager } from '@/lib/three-utils';
 import { GeometryResponse } from '@/lib/api-client';
 import StatsOverlay from './StatsOverlay';
@@ -14,6 +14,8 @@ function ViewportInner({ geometry }: ViewportProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<SceneManager | null>(null);
   const { setSceneManager } = useViewportControls();
+  const [selectedObjects, setSelectedObjects] = useState<string[]>([]);
+  const [hoveredObject, setHoveredObject] = useState<string | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -43,6 +45,19 @@ function ViewportInner({ geometry }: ViewportProps) {
     try {
       if (geometry && sceneRef.current && geometry.vertices && geometry.indices) {
         sceneRef.current.renderGeometry(geometry);
+        
+        // Setup highlighting callbacks
+        sceneRef.current.setHoverCallback((objectId: string | null) => {
+          setHoveredObject(objectId);
+          // Handle hover - could highlight corresponding code in editor
+          console.log('Hovered object:', objectId);
+        });
+        
+        sceneRef.current.setSelectCallback((objectIds: string[]) => {
+          setSelectedObjects(objectIds);
+          // Handle selection - could select corresponding code in editor
+          console.log('Selected objects:', objectIds);
+        });
       }
     } catch (error) {
       console.error('Failed to render geometry:', error);
@@ -83,8 +98,36 @@ function ViewportInner({ geometry }: ViewportProps) {
       {/* Stats overlay */}
       <StatsOverlay geometry={geometry} />
       
+      {/* Highlighting status overlay */}
+      {(hoveredObject || selectedObjects.length > 0) && (
+        <div className="absolute top-4 left-4 bg-[#1D1D1D] border border-[#4772B3] rounded p-2 text-white text-sm z-10">
+          {hoveredObject && (
+            <div className="flex items-center gap-2 mb-1">
+              <span className="w-2 h-2 bg-yellow-400 rounded-full"></span>
+              <span>Hover: {hoveredObject}</span>
+            </div>
+          )}
+          {selectedObjects.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 bg-cyan-400 rounded-full"></span>
+              <span>Selected: {selectedObjects.length} object{selectedObjects.length !== 1 ? 's' : ''}</span>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Controls overlay */}
       <div className="absolute top-4 right-4 flex gap-2 z-10">
+        <button
+          onClick={() => {
+            sceneRef.current?.clearHighlighting();
+            setSelectedObjects([]);
+            setHoveredObject(null);
+          }}
+          className="px-3 py-1 bg-[#4772B3] hover:bg-[#5882C3] text-white text-sm rounded transition-colors"
+        >
+          Clear Selection
+        </button>
         <button
           onClick={() => sceneRef.current?.resetView()}
           className="px-3 py-1 bg-[#4772B3] hover:bg-[#5882C3] text-white text-sm rounded transition-colors"

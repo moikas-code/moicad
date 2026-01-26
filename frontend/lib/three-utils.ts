@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GeometryResponse } from './api-client';
+import { Geometry, GeometryObject, HighlightInfo } from '../../shared/types';
 
 export interface SceneConfig {
   container: HTMLElement;
@@ -19,6 +20,11 @@ export class SceneManager {
   private renderer: THREE.WebGLRenderer;
   private controls: OrbitControls;
   private mesh: THREE.Mesh | null = null;
+  private geometryObjects: Map<string, THREE.Mesh> = new Map();
+  private highlightedObjects: Set<string> = new Set();
+  private selectedObjects: Set<string> = new Set();
+  private raycaster: THREE.Raycaster = new THREE.Raycaster();
+  private mouse: THREE.Vector2 = new THREE.Vector2();
   private animationId: number | null = null;
   private gridHelper!: THREE.GridHelper;
   private axisHelper!: THREE.AxesHelper;
@@ -26,6 +32,8 @@ export class SceneManager {
   private scaleMarkersGroup: THREE.Group | null = null;
   private crosshairGroup: THREE.Group | null = null;
   private isPerspective = true;
+  private onHoverCallback?: (objectId: string | null) => void;
+  private onSelectCallback?: (objectIds: string[]) => void;
 
   constructor(config: SceneConfig) {
     // Scene setup - Blender dark theme
@@ -60,6 +68,9 @@ export class SceneManager {
     this.controls.dampingFactor = 0.05;
     this.controls.autoRotate = false;
     this.controls.autoRotateSpeed = 2;
+
+    // Mouse event listeners for interactive highlighting
+    this.setupMouseEvents();
 
     // Grid helper - Blender style
     this.gridHelper = new THREE.GridHelper(200, 20, 0x434343, 0x282828);
@@ -136,8 +147,280 @@ export class SceneManager {
     this.mesh.receiveShadow = true;
     this.scene.add(this.mesh);
 
+    // Handle highlighting for individual objects if available
+    if (geometry.objects && geometry.objects.length > 0) {
+      this.renderGeometryObjects(geometry.objects);
+    }
+
     // Fit view to geometry
     this.fitViewToGeometry(geometry.bounds);
+  }
+
+  /**
+   * Render multiple geometry objects with individual highlighting support
+   */
+  private renderGeometryObjects(objects: GeometryObject[]): void {
+    // Clear existing geometry objects
+    this.clearGeometryObjects();
+
+    objects.forEach((obj, index) => {
+      const geometry = obj.geometry;
+      const objectId = obj.highlight?.objectId || `object_${index}`;
+
+      // Create mesh for this object
+      const bufferGeometry = new THREE.BufferGeometry();
+      bufferGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(geometry.vertices), 3));
+      bufferGeometry.setIndex(new THREE.BufferAttribute(new Uint32Array(geometry.indices), 1));
+      bufferGeometry.computeVertexNormals();
+
+      // Determine material based on modifier and highlighting state
+      const material = this.createObjectMaterial(geometry, obj);
+
+      const mesh = new THREE.Mesh(bufferGeometry, material);
+      mesh.userData.objectId = objectId;
+      mesh.userData.lineNumber = obj.highlight?.line;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+
+      this.geometryObjects.set(objectId, mesh);
+      this.scene.add(mesh);
+    });
+  }
+
+  /**
+   * Create material for geometry object based on modifier and highlighting state
+   */
+  private createObjectMaterial(geometry: Geometry, obj: GeometryObject): THREE.MeshStandardMaterial {
+    let color = 0x808080; // Default gray
+    let opacity = 1.0;
+    let transparent = false;
+
+    // Apply modifier colors
+    if (geometry.modifier) {
+      switch (geometry.modifier.type) {
+        case '#':
+          color = 0xff0000; // Red for debug
+          break;
+        case '%':
+          opacity = 0.5;
+          transparent = true;
+          break;
+        case '!':
+          color = 0x00ff00; // Green for root
+          break;
+      }
+    }
+
+    // Apply custom color if present
+    if (geometry.color) {
+      const c = geometry.color;
+      color = new THREE.Color(c.r, c.g, c.b).getHex();
+      if (c.a && c.a < 1.0) {
+        opacity = c.a;
+        transparent = true;
+      }
+    }
+
+    // Apply highlighting
+    if (obj.highlight?.isHovered) {
+      color = 0xffff00; // Yellow for hover
+    }
+    if (obj.highlight?.isSelected) {
+      color = 0x00ffff; // Cyan for selection
+    }
+
+    return new THREE.MeshStandardMaterial({
+      color,
+      metalness: 0.1,
+      roughness: 0.5,
+      flatShading: true,
+      side: THREE.DoubleSide,
+      transparent,
+      opacity,
+    });
+  }
+
+  /**
+   * Clear all geometry objects
+   */
+  private clearGeometryObjects(): void {
+    this.geometryObjects.forEach((mesh) => {
+      this.scene.remove(mesh);
+      mesh.geometry.dispose();
+      (mesh.material as THREE.Material).dispose();
+    });
+    this.geometryObjects.clear();
+    this.highlightedObjects.clear();
+    this.selectedObjects.clear();
+  }
+
+  /**
+   * Highlight object by ID
+   */
+  public highlightObject(objectId: string, highlight: boolean = true): void {
+    const mesh = this.geometryObjects.get(objectId);
+    if (!mesh) return;
+
+    if (highlight) {
+      this.highlightedObjects.add(objectId);
+    } else {
+      this.highlightedObjects.delete(objectId);
+    }
+
+    this.updateObjectMaterial(mesh);
+  }
+
+  /**
+   * Select object by ID
+   */
+  public selectObject(objectId: string, select: boolean = true): void {
+    const mesh = this.geometryObjects.get(objectId);
+    if (!mesh) return;
+
+    if (select) {
+      this.selectedObjects.add(objectId);
+    } else {
+      this.selectedObjects.delete(objectId);
+    }
+
+    this.updateObjectMaterial(mesh);
+  }
+
+  /**
+   * Update material for individual object
+   */
+  private updateObjectMaterial(mesh: THREE.Mesh): void {
+    const objectId = mesh.userData.objectId;
+    const isHighlighted = this.highlightedObjects.has(objectId);
+    const isSelected = this.selectedObjects.has(objectId);
+
+    // Update material emissive color for highlighting
+    const material = mesh.material as THREE.MeshStandardMaterial;
+    
+    if (isSelected) {
+      material.emissive = new THREE.Color(0x00ffff); // Cyan
+      material.emissiveIntensity = 0.3;
+    } else if (isHighlighted) {
+      material.emissive = new THREE.Color(0xffff00); // Yellow
+      material.emissiveIntensity = 0.2;
+    } else {
+      material.emissive = new THREE.Color(0x000000);
+      material.emissiveIntensity = 0;
+    }
+  }
+
+  /**
+   * Handle mouse move for hover highlighting
+   */
+  public onMouseMove(event: MouseEvent): void {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+    this.raycaster.setFromCamera(this.mouse, this.camera);
+    
+    // Get all geometry object meshes
+    const meshes = Array.from(this.geometryObjects.values());
+    const intersects = this.raycaster.intersectObjects(meshes);
+
+    // Clear previous hover
+    this.highlightedObjects.clear();
+
+    let hoveredObjectId: string | null = null;
+    if (intersects.length > 0) {
+      const intersection = intersects[0];
+      const mesh = intersection.object as THREE.Mesh;
+      const objectId = mesh.userData.objectId;
+      
+      if (objectId) {
+        this.highlightedObjects.add(objectId);
+        hoveredObjectId = objectId;
+      }
+    }
+
+    // Update all materials
+    meshes.forEach(mesh => this.updateObjectMaterial(mesh));
+
+    // Call hover callback
+    if (this.onHoverCallback) {
+      this.onHoverCallback(hoveredObjectId);
+    }
+  }
+
+  /**
+   * Handle mouse click for selection
+   */
+  public onMouseClick(event: MouseEvent): void {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+    this.raycaster.setFromCamera(this.mouse, this.camera);
+    
+    const meshes = Array.from(this.geometryObjects.values());
+    const intersects = this.raycaster.intersectObjects(meshes);
+
+    if (intersects.length > 0) {
+      const intersection = intersects[0];
+      const mesh = intersection.object as THREE.Mesh;
+      const objectId = mesh.userData.objectId;
+      
+      if (objectId) {
+        // Toggle selection
+        if (this.selectedObjects.has(objectId)) {
+          this.selectedObjects.delete(objectId);
+        } else {
+          this.selectedObjects.add(objectId);
+        }
+        
+        this.updateObjectMaterial(mesh);
+
+        // Call selection callback
+        if (this.onSelectCallback) {
+          this.onSelectCallback(Array.from(this.selectedObjects));
+        }
+      }
+    } else {
+      // Clear selection when clicking empty space
+      this.selectedObjects.clear();
+      meshes.forEach(mesh => this.updateObjectMaterial(mesh));
+      
+      if (this.onSelectCallback) {
+        this.onSelectCallback([]);
+      }
+    }
+  }
+
+  /**
+   * Set hover callback
+   */
+  public setHoverCallback(callback: (objectId: string | null) => void): void {
+    this.onHoverCallback = callback;
+  }
+
+  /**
+   * Set selection callback  
+   */
+  public setSelectCallback(callback: (objectIds: string[]) => void): void {
+    this.onSelectCallback = callback;
+  }
+
+  /**
+   * Get selected object IDs
+   */
+  public getSelectedObjects(): string[] {
+    return Array.from(this.selectedObjects);
+  }
+
+  /**
+   * Clear all highlighting and selection
+   */
+  public clearHighlighting(): void {
+    this.highlightedObjects.clear();
+    this.selectedObjects.clear();
+    
+    const meshes = Array.from(this.geometryObjects.values());
+    meshes.forEach(mesh => this.updateObjectMaterial(mesh));
   }
 
   /**
@@ -462,6 +745,19 @@ export class SceneManager {
     // Ensure canvas CSS matches (defensive sizing)
     this.renderer.domElement.style.width = '100%';
     this.renderer.domElement.style.height = '100%';
+  }
+
+  /**
+   * Setup mouse event listeners for interactive highlighting
+   */
+  private setupMouseEvents(): void {
+    this.renderer.domElement.addEventListener('mousemove', (event) => {
+      this.onMouseMove(event);
+    });
+
+    this.renderer.domElement.addEventListener('click', (event) => {
+      this.onMouseClick(event);
+    });
   }
 
   /**

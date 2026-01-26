@@ -194,6 +194,7 @@ export interface Geometry {
   };
   color?: ColorInfo;  // Optional color metadata
   modifier?: ModifierInfo; // Optional visualization modifier
+  objects?: GeometryObject[];  // Interactive geometry objects for highlighting
 }
 
 /**
@@ -201,7 +202,31 @@ export interface Geometry {
  */
 export interface ModifierInfo {
   type: '!' | '%' | '#' | '*';
-  // Additional metadata for the frontend could be added here
+  // Additional metadata for the frontend
+  opacity?: number;  // For % modifier (transparency)
+  highlightColor?: string;  // For # modifier (red highlight)
+}
+
+/**
+ * Interactive highlighting information
+ */
+export interface HighlightInfo {
+  objectId: string;  // Unique identifier for this geometry object
+  nodeId?: string;   // Reference to AST node
+  line?: number;     // Source code line number
+  isHovered?: boolean;  // Mouse hover state
+  isSelected?: boolean;  // Click selection state
+  highlightColor?: [number, number, number];  // RGB highlight color
+  originalColor?: ColorInfo;  // Backup of original color
+}
+
+/**
+ * Geometry object with interactive metadata
+ */
+export interface GeometryObject {
+  geometry: Geometry;
+  highlight?: HighlightInfo;
+  children?: GeometryObject[];  // For nested/boolean operations
 }
 
 /**
@@ -237,10 +262,27 @@ export interface EvaluationError {
 }
 
 /**
+ * Interactive selection and highlighting messages
+ */
+export interface HighlightMessage {
+  type: 'highlight' | 'select' | 'clear_highlight';
+  objectId?: string;
+  line?: number;
+  highlightColor?: [number, number, number];
+}
+
+/**
+ * Code-to-geometry mapping
+ */
+export interface CodeGeometryMap {
+  [line: number]: string[];  // line -> objectIds[]
+}
+
+/**
  * WebSocket message types
  */
 export interface WsMessage {
-  type: 'parse' | 'evaluate' | 'export' | 'error';
+  type: 'parse' | 'evaluate' | 'export' | 'error' | 'highlight' | 'select' | 'clear_highlight';
   payload: any;
 }
 

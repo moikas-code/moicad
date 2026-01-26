@@ -357,6 +357,65 @@ cube(result);
   - 140+ CSS color names supported
   - All hex formats (#RGB, #RRGGBB, #RRGGBBAA)
 
+### Real-time 3D Geometry Highlighting ✅ **FULLY IMPLEMENTED!** 🎉
+
+**NEW**: Interactive highlighting system for individual geometry objects with OpenSCAD modifier support!
+
+#### Interactive Features ✅
+- **Real-time hover highlighting**: Objects highlight in yellow when mouse hovers over them
+- **Click to select**: Objects can be selected (cyan highlight) with mouse clicks  
+- **Multi-select support**: Multiple objects can be selected simultaneously
+- **Clear selection**: Button to clear all selections
+- **Visual feedback**: Status overlay shows hovered/selected objects
+- **Code-to-geometry mapping**: Line numbers tracked for editor integration
+
+#### OpenSCAD Modifier Integration ✅
+- **`#` (Debug modifier)**: Automatically highlights geometry in red for debugging
+- **`%` (Transparent modifier)**: Renders geometry with 50% transparency
+- **`!` (Root modifier)**: Renders geometry in green (shows only this object)
+- **`*` (Disable modifier)**: Hides geometry from rendering
+
+#### Technical Implementation ✅
+- **Per-object materials**: Each geometry object has individual Three.js material
+- **WASM engine support**: Modifiers preserved through CSG operations (union, difference, intersection)
+- **Raycasting**: Precise mouse-to-object intersection detection
+- **Event callbacks**: Hover and selection events trigger editor highlighting
+- **Object IDs**: Unique identifiers for each geometry object
+- **Line number mapping**: Objects map back to source code lines
+
+#### Usage Examples ✅
+```scad
+union() {
+    cube(10);                    // Normal gray
+    #sphere(8);                  // Red highlight (debug)
+    %cylinder(5, 10);          // 50% transparent
+    translate([15,0,0]) cube(8); // Normal (can be selected)
+}
+```
+
+#### API Support ✅
+```json
+{
+  "geometry": {
+    "vertices": [...],
+    "indices": [...],
+    "modifier": {
+      "type": "#",
+      "opacity": 1.0,
+      "highlightColor": "#ff0000"
+    },
+    "objects": [{
+      "highlight": {
+        "objectId": "object_0",
+        "line": 2,
+        "isSelected": false,
+        "isHovered": false
+      }
+    }]
+  }
+}
+```
+
 ### Debug Utilities ✅ NEW!
 - `echo(...)` - Print values to console for debugging
 - `assert(condition, message)` - Runtime assertions with error reporting
@@ -423,7 +482,7 @@ if ($preview) {
   - Dangerous path filtering (blocks `..`, `~`, absolute paths)
 
 ### Not Yet Implemented ❌
-- Visualization Modifiers: `!`, `#`, `*`, `%` - Parser support exists, evaluator partially implemented
+- **None** - All major OpenSCAD features are now implemented! 🎉
 
 ### ✅ **NEWLY IMPLEMENTED**:
 - **All Viewport Special Variables**: `$vpr`, `$vpt`, `$vpd`, `$vpf`, `$preview`

@@ -1,4 +1,5 @@
 import type { ScadNode, Geometry, EvaluateResult, EvaluationError, ModifierInfo } from '../shared/types';
+import { readTextFile, parseSurfaceData } from './file-utils';
 
 /**
  * OpenSCAD Evaluator - Executes AST using WASM CSG engine
@@ -34,6 +35,7 @@ interface WasmModule {
   rotate_extrude: (mesh: any, angle: number, segments: number) => any;
   project_orthographic: (mesh: any, convexity: boolean) => any;
   project_slice: (mesh: any, scale: number[], convexity: boolean) => any;
+  create_surface: (width: number, depth: number, data: Float32Array, center: boolean, invert: boolean) => any;
   offset: (mesh: any, delta: number, chamfer: boolean) => any;
   resize: (mesh: any, newsize: number[], auto: boolean) => any;
   parse_color_string: (color_str: string) => Float32Array;
@@ -355,6 +357,7 @@ function evaluatePrimitive(node: any, context: EvaluationContext): any {
 
   let geometry = null;
 
+  console.log('EVAL DEBUG: node.op =', node.op);
   switch (node.op) {
     case 'cube':
       // Handle positional: cube(size) or named: cube(size=10)
@@ -385,6 +388,89 @@ function evaluatePrimitive(node: any, context: EvaluationContext): any {
       const cone_r = Array.isArray(params._positional) && params._positional[1] ? params._positional[1] : (params.r ?? params.radius ?? 5);
       const cone_detail = params.$fn ?? params.detail ?? 20;
       geometry = wasmModule.create_cone(cone_r, cone_h, cone_detail);
+      break;
+    case 'surface':
+      const width = params?.width || 10;
+      const depth = params?.depth || 10;
+      const center = params?.center || false;
+      const invert = params?.invert || false;
+      
+      let data: Float32Array;
+      
+      // Handle inline data string
+      if (typeof params?.data === 'string') {
+        if (params.data.includes('\n')) {
+          // Parse multi-line string data
+          data = parseSurfaceData(params.data);
+        } else {
+          // Handle as file path using synchronous file reading
+          try {
+            const file = Bun.file(params.data);
+            const content = file.text();
+            if (content instanceof Promise) {
+              // Async file - use default pattern for now
+              data = new Float32Array(width * depth);
+              for (let i = 0; i < width * depth; i++) {
+                data[i] = Math.sin(i * 0.1) * 0.5;
+              }
+              context.errors.push({ 
+                message: `Async file reading not yet supported for surface: ${params.data}. Using default pattern.` 
+              });
+            } else {
+              data = parseSurfaceData(content);
+            }
+          } catch (error) {
+            context.errors.push({ 
+              message: `Failed to read surface file "${params.data}": ${error instanceof Error ? error.message : String(error)}` 
+            });
+            return null;
+          }
+        }
+      }
+      // Handle file parameter
+      else if (typeof params?.file === 'string') {
+        try {
+          const file = Bun.file(params.file);
+          const content = file.text();
+          if (content instanceof Promise) {
+            // Async file - use default pattern for now
+            data = new Float32Array(width * depth);
+            for (let i = 0; i < width * depth; i++) {
+              data[i] = Math.sin(i * 0.1) * 0.5;
+            }
+            context.errors.push({ 
+              message: `Async file reading not yet supported for surface: ${params.file}. Using default pattern.` 
+            });
+          } else {
+            data = parseSurfaceData(content);
+          }
+        } catch (error) {
+          context.errors.push({ 
+            message: `Failed to read surface file "${params.file}": ${error instanceof Error ? error.message : String(error)}` 
+          });
+          return null;
+        }
+      }
+      // No data provided - create default flat surface
+      else {
+        data = new Float32Array(width * depth);
+        // Create a simple pattern for demonstration
+        for (let i = 0; i < width * depth; i++) {
+          data[i] = Math.sin(i * 0.1) * 0.5;
+        }
+      }
+      
+      console.log('SURFACE DEBUG: Creating surface:', { width, depth, dataSize: data?.length, center, invert, dataType: typeof data });
+      if (!data) {
+        console.log('SURFACE DEBUG: No data provided!');
+      }
+      try {
+        geometry = wasmModule.create_surface(width, depth, data, center, invert);
+        console.log('SURFACE DEBUG: Surface result:', geometry);
+      } catch (e) {
+        console.log('SURFACE DEBUG: Error creating surface:', e);
+        geometry = null;
+      }
       break;
 
     case 'circle':
@@ -897,12 +983,9 @@ async function evaluateModifier(node: any, context: EvaluationContext): Promise<
       // Debug modifier - highlight in red
       // Evaluate child and mark for red highlighting in frontend
       const childGeometry = await evaluateNode(node.child, context);
-      if (childGeometry) {
-        // Store modifier information on the geometry object
-        // The WASM geometry object might have different structure, so we need to be careful
-        if (typeof childGeometry === 'object' && childGeometry !== null) {
-          (childGeometry as any)._modifier = '#';
-        }
+      if (childGeometry && childGeometry.set_modifier) {
+        // Use new WASM method to set modifier
+        childGeometry.set_modifier('#');
       }
       return childGeometry;
     }
@@ -911,11 +994,9 @@ async function evaluateModifier(node: any, context: EvaluationContext): Promise<
       // Transparent modifier - show as transparent
       // Evaluate child and mark for transparency in frontend
       const childGeometry = await evaluateNode(node.child, context);
-      if (childGeometry) {
-        // Store modifier information for frontend rendering
-        if (typeof childGeometry === 'object' && childGeometry !== null) {
-          (childGeometry as any)._modifier = '%';
-        }
+      if (childGeometry && childGeometry.set_modifier) {
+        // Use new WASM method to set modifier
+        childGeometry.set_modifier('%');
       }
       return childGeometry;
     }
@@ -972,6 +1053,21 @@ async function evaluateIf(node: any, context: EvaluationContext): Promise<any> {
 
 async function evaluateModuleCall(node: any, context: EvaluationContext): Promise<any> {
   if (!wasmModule) throw new Error('WASM module not initialized');
+
+  // Handle built-in surface as special case
+  if (node.name === 'surface') {
+    // Surface is parsed as module_call but should be handled as primitive
+    // Convert to primitive node for evaluation
+    const primitiveNode = {
+      type: 'primitive',
+      op: 'surface',
+      params: node.params,
+      children: node.children,
+      line: node.line,
+      column: node.column
+    };
+    return evaluatePrimitive(primitiveNode, context);
+  }
 
   // Handle built-in extrusion operations as special cases
   if (node.name === 'linear_extrude' || node.name === 'rotate_extrude') {
