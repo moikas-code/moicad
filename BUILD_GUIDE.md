@@ -1,345 +1,433 @@
-# moicad Build & Development Guide
+# Build Guide - moicad
+
+Complete guide for building and running moicad CAD engine.
+
+## Prerequisites
+
+- **Bun** v1.0+ ([install](https://bun.sh))
+- **Node.js** v18+ (for frontend)
+- **Git** (for cloning)
+
+Optional:
+- **Rust** + **Cargo** (for Tauri desktop app)
 
 ## Quick Start
 
-### 1. Install Dependencies
 ```bash
-# Install JavaScript dependencies
-bun install
+# Clone repository
+git clone https://github.com/yourusername/moicad.git
+cd moicad
 
-# Install Rust (if not already installed)
+# Install dependencies
+bun install
+cd frontend && npm install && cd ..
+
+# Start development servers
+bun run dev:all
+
+# Backend: http://localhost:42069
+# Frontend: http://localhost:3002
+```
+
+## Development Mode
+
+### Backend Server (Bun)
+
+```bash
+# Start with hot reload
+bun run dev
+
+# Server runs at http://localhost:42069
+# Auto-reloads on file changes
+# Exposes garbage collection for memory management
+```
+
+**API Endpoints**:
+- POST `/api/parse` - Parse OpenSCAD code
+- POST `/api/evaluate` - Evaluate to 3D geometry
+- POST `/api/export` - Export STL/OBJ
+- WS `/ws` - Real-time WebSocket
+- WS `/ws/mcp` - MCP server for AI integration
+- GET `/health` - Health check
+
+### Frontend (Next.js)
+
+```bash
+# Start Next.js dev server
+bun run dev:frontend
+
+# Frontend runs at http://localhost:3002
+# Auto-reloads on file changes
+# Hot module replacement enabled
+```
+
+### Run Both Concurrently
+
+```bash
+# Starts backend + frontend together
+bun run dev:all
+```
+
+## Production Build
+
+### Build Frontend
+
+```bash
+# Build optimized frontend bundle
+bun run build
+
+# Output: frontend/.next/
+```
+
+### Start Production Server
+
+```bash
+# Start backend in production mode
+bun run start
+
+# Serves at http://localhost:42069
+# Frontend can be served via static file server or Vercel
+```
+
+## Testing
+
+### Quick Test
+
+```bash
+# Run smoke tests (~30 seconds)
+bun run test:quick
+```
+
+### Comprehensive Tests
+
+```bash
+# All test suites
+bun run test:all
+
+# Individual suites
+bun run test:unit          # Unit tests
+bun run test:integration   # API tests
+bun run test:performance   # Benchmarks
+bun run test:validation    # OpenSCAD compatibility
+```
+
+### Test Organization
+
+```
+tests/
+├── unit/               # Unit tests by feature
+│   ├── primitives/    # Cube, sphere, cylinder
+│   ├── transformations/ # Translate, rotate, scale
+│   ├── boolean-ops/   # Union, difference, intersection
+│   └── language/      # Variables, functions, modules
+├── integration/       # API endpoint tests
+├── performance/       # Benchmarks
+└── validation/        # OpenSCAD compatibility
+```
+
+## Tauri Desktop App (Optional)
+
+### Prerequisites
+
+```bash
+# Install Rust
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
-# Install wasm-pack (for building Rust → WASM)
-cargo install wasm-pack
+# Add targets (if cross-compiling)
+rustup target add aarch64-apple-darwin      # macOS ARM
+rustup target add x86_64-pc-windows-msvc    # Windows
+rustup target add x86_64-unknown-linux-gnu  # Linux
 ```
 
-### 2. Build WASM Module
+### Development
+
 ```bash
-cd wasm
-wasm-pack build --target web
-cd ..
+# Start Tauri dev mode (opens native window)
+bun run tauri:dev
 ```
 
-This generates `/wasm/pkg/` with TypeScript bindings and .wasm files.
+### Build Executables
 
-### 3. Start Backend Server
 ```bash
-bun --hot ./backend/index.ts
+# Build for current platform
+bun run tauri:build
+
+# Cross-platform builds
+bun run tauri:build:mac     # macOS (ARM/Intel)
+bun run tauri:build:win     # Windows
+bun run tauri:build:linux   # Linux
+
+# Output: src-tauri/target/release/
 ```
 
-Server starts on `http://localhost:42069`
+## MCP Server (AI Integration)
 
-### 4. Test API Endpoints
+### Setup for Claude Desktop
 
-**Parse endpoint:**
+1. **Start moicad backend**:
+```bash
+bun run dev
+```
+
+2. **Configure Claude Desktop** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+```json
+{
+  "mcpServers": {
+    "moicad": {
+      "command": "bun",
+      "args": ["run", "/absolute/path/to/moicad/backend/index.ts"],
+      "env": {
+        "MCP_ENABLED": "true"
+      }
+    }
+  }
+}
+```
+
+3. **Restart Claude Desktop**
+
+4. **Test MCP connection**:
+   - Ask Claude: "Can you evaluate this OpenSCAD code: cube(10);"
+   - Claude will use moicad MCP server to generate geometry
+
+### MCP Tools Available
+
+- `evaluate_scad`: Evaluate OpenSCAD code → geometry
+- `parse_scad`: Parse code → AST
+- `export_geometry`: Export to STL/OBJ
+- `list_examples`: Get example files
+- `get_documentation`: OpenSCAD docs
+
+## API Usage Examples
+
+### Parse OpenSCAD Code
+
 ```bash
 curl -X POST http://localhost:42069/api/parse \
-  -H "Content-Type: application/json" \
-  -d '{"code":"cube(10);"}'
-```
-
-**Evaluate endpoint:**
-```bash
-curl -X POST http://localhost:42069/api/evaluate \
   -H "Content-Type: application/json" \
   -d '{"code":"translate([5,0,0]) sphere(10);"}'
 ```
 
-**Health check:**
-```bash
-curl http://localhost:42069/health
-```
-
----
-
-## Architecture Overview
-
-### What's Built
-
-#### Backend (TypeScript/Bun)
-- ✅ **Parser** (`backend/scad-parser.ts`)
-  - Tokenizer for OpenSCAD syntax
-  - Recursive descent parser → AST
-  - Error reporting with line/column
-
-- ✅ **Evaluator** (`backend/scad-evaluator.ts`)
-  - Executes AST using WASM CSG engine
-  - Variable scoping
-  - Loop handling
-  - Error propagation
-
-- ✅ **Server** (`backend/index.ts`)
-  - REST API for parse/evaluate/export
-  - WebSocket for real-time updates
-  - STL/OBJ export
-  - Health check endpoint
-
-#### WASM CSG Engine (Rust)
-- ✅ **Math** (`wasm/src/math.rs`)
-  - 3D vectors with operations
-  - 4x4 transformation matrices
-
-- ✅ **Geometry** (`wasm/src/geometry.rs`)
-  - Mesh data structure
-  - Normal calculation
-  - Bounds computation
-  - JSON serialization
-
-- ✅ **Primitives** (`wasm/src/primitives.rs`)
-  - cube, sphere, cylinder, cone, circle, square
-
-- ✅ **CSG Operations** (`wasm/src/csg.rs`)
-  - union, difference, intersection
-  - translate, rotate, scale, mirror
-  - multmatrix
-
-#### Types & Constants
-- ✅ **Shared types** (`shared/types.ts`)
-- ✅ **Shared constants** (`shared/constants.ts`)
-
-### What's Not Built Yet
-
-- ❌ Frontend (Next.js + React)
-  - Code editor component
-  - 3D viewport (Three.js)
-  - Controls sidebar
-  - Real-time preview
-
-- ❌ MCP server for AI integration
-- ❌ Tauri desktop app
-- ❌ Advanced CSG (difference, intersection proper implementation)
-- ❌ 2D extrusions
-- ❌ User-defined functions
-
----
-
-## Development Workflow
-
-### Making Changes
-
-1. **Modify Rust code** in `wasm/src/`
-   ```bash
-   cd wasm
-   wasm-pack build --target web
-   ```
-
-2. **Modify TypeScript** in `backend/`
-   - Server auto-reloads with `bun --hot`
-
-3. **Test immediately**
-   ```bash
-   curl -X POST http://localhost:42069/api/evaluate \
-     -H "Content-Type: application/json" \
-     -d '{"code":"YOUR_CODE_HERE"}'
-   ```
-
----
-
-## Example OpenSCAD Code
-
-### Cube
-```
-cube(10);
-```
-
-### Translated Sphere
-```
-translate([10, 0, 0]) sphere(5);
-```
-
-### Rotated Cylinder
-```
-rotate(45, [0, 1, 0]) cylinder(5, 20);
-```
-
-### Union
-```
-union(
-  cube(10),
-  translate([8, 0, 0]) sphere(5)
-);
-```
-
-### For Loop
-```
-for (i = [0 : 5 : 50]) {
-  translate([i, 0, 0]) cube(5);
-}
-```
-
----
-
-## API Reference
-
-### POST /api/parse
-Parse OpenSCAD code to AST.
-
-**Request:**
+Response:
 ```json
 {
-  "code": "cube(10);"
-}
-```
-
-**Response:**
-```json
-{
-  "ast": [...],
+  "ast": [
+    {
+      "type": "transform",
+      "name": "translate",
+      "params": {"v": [5, 0, 0]},
+      "children": [...]
+    }
+  ],
   "errors": [],
   "success": true
 }
 ```
 
-### POST /api/evaluate
-Parse and evaluate to geometry.
+### Evaluate to Geometry
 
-**Request:**
-```json
-{
-  "code": "sphere(10);"
-}
+```bash
+curl -X POST http://localhost:42069/api/evaluate \
+  -H "Content-Type": application/json" \
+  -d '{"code":"cube(10);"}'
 ```
 
-**Response:**
+Response:
 ```json
 {
   "geometry": {
-    "vertices": [...],
-    "indices": [...],
-    "normals": [...],
-    "bounds": {...},
-    "stats": {...}
+    "vertices": [0, 0, 0, ...],
+    "indices": [0, 1, 2, ...],
+    "normals": [0, 0, 1, ...],
+    "bounds": {
+      "min": [0, 0, 0],
+      "max": [10, 10, 10]
+    },
+    "stats": {
+      "vertexCount": 8,
+      "faceCount": 12,
+      "volume": 1000
+    }
   },
   "errors": [],
   "success": true,
-  "executionTime": 45.2
+  "executionTime": 15.2
 }
 ```
 
-### POST /api/export
-Export geometry to file format.
+### Export STL
 
-**Request:**
-```json
-{
-  "geometry": {...},
-  "format": "stl"
-}
+```bash
+curl -X POST http://localhost:42069/api/export \
+  -H "Content-Type: application/json" \
+  -d '{
+    "geometry": {...},
+    "format": "stl"
+  }' \
+  --output model.stl
 ```
 
-**Response:** Binary STL file
+### WebSocket Real-Time Evaluation
 
-### WebSocket /ws
-Real-time code evaluation.
+```javascript
+const ws = new WebSocket('ws://localhost:42069/ws');
 
-**Message format:**
-```json
-{
-  "type": "evaluate",
-  "code": "cube(10);",
-  "requestId": "abc123"
-}
+ws.onopen = () => {
+  ws.send(JSON.stringify({
+    type: 'evaluate',
+    code: 'cube(10);',
+    requestId: 'test-1'
+  }));
+};
+
+ws.onmessage = (event) => {
+  const response = JSON.parse(event.data);
+  console.log('Geometry:', response.geometry);
+};
 ```
 
-**Response:**
-```json
-{
-  "type": "evaluate_response",
-  "requestId": "abc123",
-  "geometry": {...},
-  "errors": [],
-  "executionTime": 42.1
-}
-```
+## Environment Variables
 
----
+```bash
+# Backend Port (default: 42069)
+PORT=42069
+
+# Enable MCP server (default: false)
+MCP_ENABLED=true
+
+# Log level (default: info)
+LOG_LEVEL=debug
+
+# Frontend URL (for CORS)
+FRONTEND_URL=http://localhost:3002
+```
 
 ## Troubleshooting
 
-### WASM Module Not Loading
-```
-Error: Failed to load WASM module
-```
+### Backend won't start
 
-**Solution:** Rebuild WASM
 ```bash
-cd wasm && wasm-pack build --target web
+# Check if port is already in use
+lsof -i :42069
+
+# Kill existing process
+pkill -f "bun.*backend/index.ts"
+
+# Restart
+bun run dev
 ```
 
-### Port 3000 Already in Use
+### Frontend build fails
+
 ```bash
-# Change port in backend/index.ts
-# Or kill process on port 3000
-lsof -ti:42069 | xargs kill -9
+# Clear Next.js cache
+cd frontend
+rm -rf .next node_modules
+npm install
+npm run build
 ```
 
-### WASM Compilation Errors
+### Manifold-3d WASM errors
+
 ```bash
-# Update Rust
-rustup update
+# Check manifold-3d installation
+bun pm ls manifold-3d
 
-# Rebuild with verbose output
-cargo build --release
-wasm-pack build --target web
+# Reinstall if needed
+bun remove manifold-3d
+bun add manifold-3d@latest
 ```
 
----
+### Tests failing
+
+```bash
+# Run with verbose output
+bun test --verbose
+
+# Run specific test file
+bun test tests/unit/primitives/cube.test.ts
+```
+
+## Performance Optimization
+
+### Backend
+
+- **Garbage collection**: Enabled with `--expose-gc` flag
+- **Memory limits**: 1GB default, increase if needed
+- **Job queue**: Single-threaded for consistency
+- **Caching**: Primitive geometry cached
+
+### Frontend
+
+- **Code splitting**: Automatic via Next.js
+- **Three.js**: Uses BufferGeometry for efficiency
+- **WebSocket**: Batches updates to reduce overhead
+- **Monaco editor**: Lazy-loaded
+
+## Debugging
+
+### Backend Logs
+
+```bash
+# Check backend logs
+tail -f backend.log
+
+# Enable debug logging
+LOG_LEVEL=debug bun run dev
+```
+
+### Frontend Logs
+
+- Open browser console (F12)
+- Check Network tab for API calls
+- Check Console tab for errors
+
+### Three.js Rendering
+
+- Open browser console
+- Type: `sceneRef.current.mesh` to inspect geometry
+- Check vertex count, face count, bounds
+
+## Project Structure
+
+```
+moicad/
+├── backend/              # Bun server
+│   ├── index.ts         # Main entry point
+│   ├── scad-parser.ts   # OpenSCAD parser
+│   ├── scad-evaluator.ts # AST evaluator
+│   ├── manifold-*.ts    # Manifold-3d integration
+│   └── mcp-server.ts    # MCP server
+├── frontend/            # Next.js app
+│   ├── app/            # Next.js 16 app directory
+│   ├── components/     # React components
+│   ├── lib/            # Three.js, API client
+│   └── hooks/          # Custom hooks
+├── shared/             # Shared TypeScript types
+├── tests/              # Test suite
+├── src-tauri/          # Tauri desktop app (optional)
+├── package.json        # Root dependencies
+├── bun.lockb           # Bun lock file
+└── bunfig.toml         # Bun configuration
+```
 
 ## Next Steps
 
-To complete the MVP:
+- ✅ **Development ready** - Start coding!
+- ✅ **Tests passing** - 98-99% OpenSCAD compatible
+- ✅ **MCP integrated** - Claude Desktop can use moicad
+- 🚀 **Build Tauri app** - Native desktop executable
+- 🎨 **Custom features** - Extend OpenSCAD syntax
 
-1. **Setup Next.js frontend**
-   ```bash
-   cd frontend
-   npx create-next-app@latest . --typescript
-   ```
+## Resources
 
-2. **Create React components**
-   - Editor component (Monaco)
-   - Viewport component (Three.js)
-   - Sidebar component
-
-3. **Connect to backend**
-   - Fetch /api/evaluate
-   - WebSocket for live preview
-   - Export functionality
-
-4. **Add MCP server** for AI integration
-
-5. **Package with Tauri** for desktop
+- [Bun Documentation](https://bun.sh/docs)
+- [manifold-3d GitHub](https://github.com/elalish/manifold)
+- [Three.js Documentation](https://threejs.org/docs/)
+- [Tauri Documentation](https://tauri.app/v1/guides/)
+- [MCP Specification](https://modelcontextprotocol.io/)
+- [OpenSCAD Documentation](https://en.wikibooks.org/wiki/OpenSCAD_User_Manual)
 
 ---
 
-## Performance
-
-### Targets
-- Parse: < 50ms
-- Evaluate: < 100ms
-- WebSocket: < 50ms latency
-- Rendering: 60 FPS
-
-### Monitoring
-All API responses include `executionTime` in milliseconds.
-
----
-
-## Files Reference
-
-| File | Purpose |
-|------|---------|
-| `backend/index.ts` | Bun server, API routes |
-| `backend/scad-parser.ts` | OpenSCAD tokenizer & parser |
-| `backend/scad-evaluator.ts` | AST → geometry evaluator |
-| `wasm/src/lib.rs` | WASM module entry point |
-| `wasm/src/math.rs` | Vector & matrix operations |
-| `wasm/src/geometry.rs` | Mesh data structures |
-| `wasm/src/primitives.rs` | Primitive shape generators |
-| `wasm/src/csg.rs` | CSG operations |
-| `shared/types.ts` | TypeScript interfaces |
-| `shared/constants.ts` | Constants & configuration |
-
----
-
-**Ready to build!** 🚀
+**Happy Building! 🚀**

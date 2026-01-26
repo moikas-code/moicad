@@ -7,8 +7,7 @@
     "dev": "bun --hot --expose-gc ./backend/index.ts",
     "dev:frontend": "cd frontend && npm run dev -- -p 3002",
     "dev:all": "concurrently \"bun run dev\" \"bun run dev:frontend\"",
-    "build": "bun run build:wasm && bun run build:frontend",
-    "build:wasm": "cd wasm && wasm-pack build --target web",
+    "build": "bun run build:frontend",
     "build:frontend": "cd frontend && npm run build",
     "start": "bun --expose-gc ./backend/index.ts",
     "test": "bun test",
@@ -43,6 +42,7 @@
     "cors": "^2.8.6",
     "express-rate-limit": "^8.2.1",
     "helmet": "^8.1.0",
+    "manifold-3d": "^3.3.2",
     "monaco-editor": "^0.50.0",
     "next": "^16.1.4",
     "openscad-wasm": "^0.0.4",
@@ -66,5 +66,8 @@
   },
   "peerDependencies": {
     "typescript": "^5"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
   }
 }

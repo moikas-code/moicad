@@ -383,8 +383,8 @@ moicad/
 
 ## 📖 Key Design Decisions
 
-✅ **WASM for geometry**: Rust WASM for precise, robust CSG operations
-✅ **Hybrid architecture**: Three.js rendering + WASM computation
+✅ **Manifold-3D CSG**: Guaranteed manifold output, no BSP artifacts (migrated Jan 2026)
+✅ **Three.js rendering**: Clean rendering with manifold geometry (custom WebGL deprecated)
 ✅ **Custom parser**: Hand-written recursive descent parser for full control
 ✅ **Bun server**: Lightweight, native WebSocket, fast startup
 ✅ **Web-first**: MVP as web app, Tauri wrapping later

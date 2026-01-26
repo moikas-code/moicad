@@ -1,0 +1,11 @@
+{
+  "install": {
+    "exact": true,
+    "frozenLockfile": true
+  },
+  "test": {
+    "preload": ["./tests/setup.ts"]
+  },
+  "runtime": "bun",
+  "lockfile": "bun.lockb"
+}

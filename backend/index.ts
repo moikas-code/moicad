@@ -1,3 +1,4 @@
+#!/usr/bin/env bun
 /**
  * moicad Backend Server
  * Bun.serve() with REST API and WebSocket support
@@ -430,14 +431,14 @@ class EvaluationQueue {
       }
 
       // Evaluate the AST to generate geometry
-      const geometry = await evaluateAST(parseResult.ast);
+      const evalResult = await evaluateAST(parseResult.ast);
 
       const executionTime = performance.now() - startTime;
 
       return {
-        geometry,
-        errors: [],
-        success: true,
+        geometry: evalResult.geometry,
+        errors: evalResult.errors,
+        success: evalResult.success,
         executionTime,
       };
     } catch (error: any) {

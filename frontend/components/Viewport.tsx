@@ -9,10 +9,6 @@ import {
   useViewportControls,
 } from "./ViewportControlsContext";
 import { PrinterPreset } from "@/lib/printer-presets";
-import WebGLViewport from "./WebGLViewport";
-
-// Use custom WebGL renderer by default (fixes BSP rendering artifacts)
-const USE_CUSTOM_WEBGL = true;
 
 interface ViewportProps {
   geometry: GeometryResponse | null;
@@ -178,12 +174,7 @@ function ViewportInner({ geometry, printerSize }: ViewportProps) {
 }
 
 export default function Viewport({ geometry, printerSize }: ViewportProps) {
-  // Use custom WebGL renderer for BSP meshes (fixes rendering artifacts)
-  if (USE_CUSTOM_WEBGL) {
-    return <WebGLViewport geometry={geometry} />;
-  }
-
-  // Fallback to Three.js renderer
+  // Three.js renderer - works great with manifold-3d clean geometry
   return (
     <ViewportControlsProvider>
       <ViewportInner geometry={geometry} printerSize={printerSize} />

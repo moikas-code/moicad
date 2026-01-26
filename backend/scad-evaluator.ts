@@ -7,93 +7,54 @@ import type {
 } from "../shared/types";
 import { readTextFile, readTextFileSync, parseSurfaceData } from "./file-utils";
 import logger, { logWarn, logInfo, logDebug, logError } from "./logger";
-import * as ThreeBVHCSG from "./csg-three-bvh";
+
+// Import manifold-based evaluator (replaces WASM CSG engine)
+import {
+  ensureManifoldReady,
+  evalPrimitive,
+  evalTransform,
+  evalBoolean,
+  toGeometry,
+  calculateFragments,
+  getParam,
+  extractRadius,
+  extractSize,
+  createDefaultContext,
+  updateContext,
+  type EvalContext,
+  type EvalParams,
+} from "./manifold-evaluator";
+import type { ManifoldObject } from "./manifold-types";
+import * as CSG from "./manifold-csg";
+import * as Transforms from "./manifold-transforms";
+import * as Extrude from "./manifold-extrude";
+import { manifoldToGeometry, parseColor } from "./manifold-geometry";
+import * as Ops2D from "./manifold-2d";
+import * as Surface from "./manifold-surface";
 
 /**
- * OpenSCAD Evaluator - Executes AST using WASM CSG engine
+ * OpenSCAD Evaluator - Executes AST using Manifold CSG engine
+ *
+ * Migration from WASM BSP-tree to manifold-3d npm package.
+ * Benefits: Guaranteed manifold output, robust Boolean operations, better performance.
  */
 
-interface WasmModule {
-  create_cube: (size: number) => any;
-  create_cube_vec: (size: Float32Array) => any;
-  create_sphere: (radius: number, detail: number) => any;
-  create_cylinder: (radius: number, height: number, detail: number) => any;
-  // ... (lines omitted)
-  create_cone: (radius: number, height: number, detail: number) => any;
-  create_circle: (radius: number, detail: number) => any;
-  create_square: (size: number) => any;
-  polygon: (points: number[] | Float32Array) => any;
-  polyhedron: (
-    points: number[] | Float32Array,
-    faces: number[] | Uint32Array,
-  ) => any;
-  create_text: (text: string, size: number) => any;
-  create_text_3d: (text: string, size: number, depth: number) => any;
-  create_text_aligned?: (
-    text: string,
-    size: number,
-    halign: string,
-    valign: string,
-    spacing: number,
-    font: string,
-    direction: string,
-  ) => any;
-  create_text_3d_aligned?: (
-    text: string,
-    size: number,
-    depth: number,
-    halign: string,
-    valign: string,
-    spacing: number,
-    font: string,
-    direction: string,
-  ) => any;
-  union: (a: any, b: any) => any;
-  difference: (a: any, b: any) => any;
-  intersection: (a: any, b: any) => any;
-  minkowski: (a: any, b: any) => any;
-  hull: (mesh: any) => any;
-  hull_two: (a: any, b: any) => any;
-  hull_multiple: (mesh_pointers: number[]) => any;
-  translate: (mesh: any, x: number, y: number, z: number) => any;
-  rotate_x: (mesh: any, angle: number) => any;
-  rotate_y: (mesh: any, angle: number) => any;
-  rotate_z: (mesh: any, angle: number) => any;
-  scale: (mesh: any, sx: number, sy: number, sz: number) => any;
-  mirror_x: (mesh: any) => any;
-  mirror_y: (mesh: any) => any;
-  mirror_z: (mesh: any) => any;
-  multmatrix: (mesh: any, matrix: number[]) => any;
-  linear_extrude: (
-    mesh: any,
-    height: number,
-    twist: number,
-    scale: number,
-    slices: number,
-  ) => any;
-  rotate_extrude: (mesh: any, angle: number, segments: number) => any;
-  project_orthographic?: (mesh: any, convexity: boolean) => any;
-  project_slice?: (mesh: any, scale: number[], convexity: boolean) => any;
-  create_surface: (
-    width: number,
-    depth: number,
-    data: Float32Array,
-    center: boolean,
-    invert: boolean,
-  ) => any;
-  offset: (mesh: any, delta: number, chamfer: boolean) => any;
-  resize: (mesh: any, newsize: number[], auto: boolean) => any;
-  parse_color_string: (color_str: string) => Float32Array;
+let manifoldInitialized = false;
+
+export async function initManifoldEngine(): Promise<void> {
+  if (!manifoldInitialized) {
+    await ensureManifoldReady();
+    manifoldInitialized = true;
+  }
 }
 
-let wasmModule: WasmModule | null = null;
-
-export async function initWasm(module: any): Promise<void> {
-  wasmModule = module;
+// Legacy compatibility - no-op since we don't use WASM anymore
+export async function initWasm(_module: any): Promise<void> {
+  await initManifoldEngine();
 }
 
-export function setWasmModule(module: WasmModule): void {
-  wasmModule = module;
+export function setWasmModule(_module: any): void {
+  // No-op for backwards compatibility
 }
 
 /**
@@ -153,53 +114,21 @@ class PrimitiveCache {
 // Global primitive cache instance
 const primitiveCache = new PrimitiveCache();
 
-/**
- * Calculate fragment count for circular primitives according to OpenSCAD spec
- * @param radius - Radius of the primitive
- * @param fn - Fragment number override ($fn)
- * @param fs - Fragment size in mm ($fs)
- * @param fa - Fragment angle in degrees ($fa)
- * @returns Number of fragments to use
- */
-function getFragments(
-  radius: number,
-  fn: number,
-  fs: number,
-  fa: number,
-): number {
-  // If $fn is explicitly set and > 0, use it directly
-  if (fn > 0) {
-    return Math.max(3, Math.floor(fn));
-  }
-
-  // Otherwise calculate based on $fa and $fs
-  // Minimum fragments based on angle: 360 / $fa
-  const minFragmentsAngle = Math.ceil(360 / fa);
-
-  // Minimum fragments based on size: circumference / $fs
-  const circumference = 2 * Math.PI * Math.abs(radius);
-  const minFragmentsSize = Math.ceil(circumference / fs);
-
-  // Use the larger of the two (finer resolution)
-  const fragments = Math.max(minFragmentsAngle, minFragmentsSize);
-
-  // OpenSCAD has a minimum of 5 fragments for circles
-  return Math.max(5, fragments);
-}
+// Fragment calculation is imported from manifold-evaluator (calculateFragments)
+// This alias provides backward compatibility with existing code
+const getFragments = calculateFragments;
 
 async function evaluateProjection(
   node: any,
   context: EvaluationContext,
-): Promise<any> {
-  if (!wasmModule) throw new Error("WASM module not initialized");
-
+): Promise<ManifoldObject | null> {
   // Parse projection parameters
   const params = evaluateParameters(node.params, context);
 
   // Check which projection type
-  const cut = params.cut ?? true;
-  const scale = params.scale ?? [1, 1, 1];
-  const convexity = params.convexity ?? false;
+  // cut=true: slice at Z=0 plane (cross-section)
+  // cut=false: project entire object onto XY plane (shadow)
+  const cut = params.cut ?? false;
 
   // Get child geometry
   const childGeom = await evaluateNode(node.children[0], context);
@@ -208,15 +137,27 @@ async function evaluateProjection(
     return null;
   }
 
-  if (wasmModule.project_slice && wasmModule.project_orthographic) {
+  try {
+    // Use manifold's project() or slice() based on cut parameter
+    let crossSection;
     if (cut) {
-      return wasmModule.project_slice(childGeom, scale, convexity);
+      // Cut: slice at Z=0 to get cross-section
+      crossSection = Ops2D.slice3Dto2D(childGeom, 0);
     } else {
-      return wasmModule.project_orthographic(childGeom, convexity);
+      // Project: shadow projection onto XY plane
+      crossSection = Ops2D.project3Dto2D(childGeom);
     }
-  } else {
-    context.errors.push({ message: "Projection functions not available" });
-    return null;
+
+    // Extrude the 2D result to a thin 3D shape for display purposes
+    // (OpenSCAD projection() returns 2D, but we need 3D for our pipeline)
+    const extruded = Ops2D.linearExtrude2D(crossSection, 0.1);
+    return extruded;
+  } catch (error: any) {
+    context.errors.push({
+      message: `projection() failed: ${error.message}`,
+    });
+    // Fallback: return a thin slice of the original geometry
+    return childGeom;
   }
 }
 
@@ -261,12 +202,11 @@ export async function evaluateAST(
   };
 
   try {
-    if (!wasmModule) {
-      throw new Error("WASM module not initialized");
-    }
+    // Initialize manifold engine if not already done
+    await initManifoldEngine();
 
     // Single optimized pass: collect definitions and evaluate in one traversal
-    const geometries: any[] = [];
+    const geometries: ManifoldObject[] = [];
     const executableNodes: any[] = [];
 
     // Check for root modifiers (!) - if found, only evaluate those and ignore others
@@ -353,7 +293,7 @@ export async function evaluateAST(
 
     // Filter out null/undefined geometries
     const validGeometries = geometries.filter(
-      (g) => g !== null && g !== undefined,
+      (g): g is ManifoldObject => g !== null && g !== undefined,
     );
     if (validGeometries.length === 0) {
       return {
@@ -364,17 +304,16 @@ export async function evaluateAST(
       };
     }
 
-    let finalGeometry = validGeometries[0];
-    if (validGeometries.length > 1) {
-      for (let i = 1; i < validGeometries.length; i++) {
-        if (finalGeometry && validGeometries[i]) {
-          finalGeometry = wasmModule.union(finalGeometry, validGeometries[i]);
-        }
-      }
+    // Combine geometries using manifold union
+    let finalManifold: ManifoldObject;
+    if (validGeometries.length === 1) {
+      finalManifold = validGeometries[0];
+    } else {
+      finalManifold = CSG.unionMultiple(validGeometries);
     }
 
-    // Convert WASM geometry to JSON
-    const geometry = convertWasmGeometry(finalGeometry);
+    // Convert manifold geometry to JSON
+    const geometry = toGeometry(finalManifold);
 
     // Memory management: Clear primitive cache if it's getting large
     const cacheStats = primitiveCache.getStats();
@@ -405,9 +344,7 @@ export async function evaluateAST(
 async function evaluateNode(
   node: ScadNode,
   context: EvaluationContext,
-): Promise<any> {
-  if (!wasmModule) throw new Error("WASM module not initialized");
-
+): Promise<ManifoldObject | null> {
   switch (node.type) {
     case "primitive":
       return evaluatePrimitive(node as any, context);
@@ -462,9 +399,10 @@ async function evaluateNode(
   }
 }
 
-function evaluatePrimitive(node: any, context: EvaluationContext): any {
-  if (!wasmModule) throw new Error("WASM module not initialized");
-
+async function evaluatePrimitive(
+  node: any,
+  context: EvaluationContext,
+): Promise<ManifoldObject | null> {
   const params = evaluateParameters(node.params, context);
 
   // Check cache first
@@ -474,330 +412,117 @@ function evaluatePrimitive(node: any, context: EvaluationContext): any {
     return cachedGeometry;
   }
 
-  let geometry = null;
+  // Build manifold evaluation context from scad context
+  const evalCtx: EvalContext = {
+    variables: context.variables,
+    $fn: context.variables.get("$fn") ?? 0,
+    $fa: context.variables.get("$fa") ?? 12,
+    $fs: context.variables.get("$fs") ?? 2,
+  };
 
-  switch (node.op) {
-    case "cube":
-      // Handle array syntax cube([x, y, z]) or single size cube(size)
-      let cube_size: number | number[] =
-        params._positional ?? params.size ?? 10;
-      const cube_center = params.center ?? false;
+  let geometry: ManifoldObject | null = null;
 
-      console.log(
-        `Cube params:`,
-        JSON.stringify(params),
-        `center:`,
-        cube_center,
-      );
+  try {
+    // Use manifold-evaluator for supported primitives
+    switch (node.op) {
+      case "cube":
+      case "sphere":
+      case "cylinder":
+      case "cone":
+      case "circle":
+      case "square":
+      case "polygon":
+      case "polyhedron":
+        geometry = evalPrimitive(node.op, params, evalCtx);
+        break;
 
-      if (Array.isArray(cube_size)) {
-        geometry = wasmModule.create_cube_vec(new Float32Array(cube_size));
-      } else {
-        geometry = wasmModule.create_cube(cube_size);
-      }
+      case "surface": {
+        // Surface creates a 3D surface from a heightmap file or data
+        const file = params.file ?? params._positional;
+        const center = params.center ?? false;
+        const invert = params.invert ?? false;
+        const convexity = params.convexity ?? 1;
 
-      // Handle center=false - translate by half size
-      if (!cube_center) {
-        if (Array.isArray(cube_size)) {
-          geometry = wasmModule!.translate(
-            geometry,
-            (cube_size[0] ?? 0) / 2,
-            (cube_size[1] ?? 0) / 2,
-            (cube_size[2] ?? 0) / 2,
-          );
-        } else {
-          const half = cube_size / 2;
-          geometry = wasmModule!.translate(geometry, half, half, half);
-        }
-      }
-      break;
-
-    case "sphere":
-      // Handle positional: sphere(r) or named: sphere(r=5, $fn=20)
-      const sphere_r =
-        params._positional ??
-        params.r ??
-        params.radius ??
-        (params.d ? params.d / 2 : undefined) ??
-        (params.diameter ? params.diameter / 2 : undefined) ??
-        10;
-      const sphere_fn = params.$fn ?? context.variables.get("$fn") ?? 0;
-      const sphere_fs = params.$fs ?? context.variables.get("$fs") ?? 2;
-      const sphere_fa = params.$fa ?? context.variables.get("$fa") ?? 12;
-      const sphere_detail = getFragments(
-        sphere_r,
-        sphere_fn,
-        sphere_fs,
-        sphere_fa,
-      );
-      geometry = wasmModule.create_sphere(sphere_r, sphere_detail);
-      break;
-
-    case "cylinder":
-      // Handle positional: cylinder(h, r) or named params
-      const cyl_h = Array.isArray(params._positional)
-        ? params._positional[0]
-        : (params._positional ?? params.h ?? params.height ?? 10);
-
-      // Handle radius parameters with diameter support
-      let cyl_r1, cyl_r2;
-
-      if (params.r !== undefined || params.radius !== undefined) {
-        // Single radius for cylinder
-        const single_r = params.r ?? params.radius ?? 5;
-        cyl_r1 = single_r;
-        cyl_r2 = single_r;
-      } else if (params.r1 !== undefined || params.r2 !== undefined) {
-        // Separate radii for cone/frustum
-        cyl_r1 = params.r1 ?? 5;
-        cyl_r2 = params.r2 ?? 5;
-      } else if (params.d !== undefined) {
-        // Single diameter
-        const single_r = params.d / 2;
-        cyl_r1 = single_r;
-        cyl_r2 = single_r;
-      } else if (params.d1 !== undefined || params.d2 !== undefined) {
-        // Separate diameters
-        cyl_r1 = params.d1 !== undefined ? params.d1 / 2 : 5;
-        cyl_r2 = params.d2 !== undefined ? params.d2 / 2 : 5;
-      } else if (Array.isArray(params._positional) && params._positional[1]) {
-        // Positional r1, r2
-        cyl_r1 = params._positional[1];
-        cyl_r2 = params._positional[2] ?? params._positional[1];
-      } else {
-        // Default radius
-        cyl_r1 = 5;
-        cyl_r2 = 5;
-      }
-
-      const cyl_center = params.center ?? false;
-      const cyl_fn = params.$fn ?? context.variables.get("$fn") ?? 0;
-      const cyl_fs = params.$fs ?? context.variables.get("$fs") ?? 2;
-      const cyl_fa = params.$fa ?? context.variables.get("$fa") ?? 12;
-      const cyl_r_avg = (cyl_r1 + cyl_r2) / 2;
-      const cyl_detail = getFragments(cyl_r_avg, cyl_fn, cyl_fs, cyl_fa);
-      geometry = wasmModule.create_cylinder(cyl_r_avg, cyl_h, cyl_detail);
-
-      // Handle center=false - translate up by half height
-      if (!cyl_center) {
-        geometry = wasmModule!.translate(geometry, 0, 0, cyl_h / 2);
-      }
-      break;
-
-    case "cone":
-      const cone_h = Array.isArray(params._positional)
-        ? params._positional[0]
-        : (params._positional ?? params.h ?? params.height ?? 10);
-      const cone_r =
-        Array.isArray(params._positional) && params._positional[1]
-          ? params._positional[1]
-          : (params.r ?? params.radius ?? 5);
-      const cone_detail = params.$fn ?? params.detail ?? 20;
-      geometry = wasmModule.create_cone(cone_r, cone_h, cone_detail);
-      break;
-    case "surface":
-      const width = params?.width || 10;
-      const depth = params?.depth || 10;
-      const center = params?.center || false;
-      const invert = params?.invert || false;
-
-      let data: Float32Array;
-
-      // Handle inline data string
-      if (typeof params?.data === "string") {
-        if (params.data.includes("\n")) {
-          // Parse multi-line string data
-          data = parseSurfaceData(params.data);
-        } else {
-          // Handle as file path using hybrid reading
-          try {
-            const file = Bun.file(params.data);
-            const content = file.text();
-
-            if (content instanceof Promise) {
-              // Use synchronous fallback for Bun Promise behavior
-              const syncResult = readTextFileSync(params.data);
-              if (syncResult.success) {
-                data = parseSurfaceData(syncResult.content!);
-              } else {
-                data = new Float32Array(width * depth);
-                context.errors.push({
-                  message: `File reading error: ${syncResult.error}`,
-                });
-              }
-            } else {
-              data = parseSurfaceData(content);
-            }
-          } catch (error) {
-            context.errors.push({
-              message: `Failed to read surface file "${params.data}": ${error instanceof Error ? error.message : String(error)}`,
-            });
-            return null;
-          }
-        }
-      }
-      // Handle file parameter
-      else if (typeof params?.file === "string") {
-        try {
-          const file = Bun.file(params.file);
-          const content = file.text();
-
-          if (content instanceof Promise) {
-            // Use synchronous fallback for Bun Promise behavior
-            const syncResult = readTextFileSync(params.file);
-            if (syncResult.success) {
-              data = parseSurfaceData(syncResult.content!);
-            } else {
-              data = new Float32Array(width * depth);
-              context.errors.push({
-                message: `File reading error: ${syncResult.error}`,
-              });
-            }
-          } else {
-            data = parseSurfaceData(content);
-          }
-        } catch (error) {
+        if (!file) {
           context.errors.push({
-            message: `Failed to read surface file "${params.file}": ${error instanceof Error ? error.message : String(error)}`,
+            message: "surface() requires a file parameter",
           });
-          return null;
+          geometry = evalPrimitive("cube", { size: 10 }, evalCtx);
+          break;
         }
-      }
-      // No data provided - create default flat surface
-      else {
-        data = new Float32Array(width * depth);
-        // Create a simple pattern for demonstration
-        for (let i = 0; i < width * depth; i++) {
-          data[i] = Math.sin(i * 0.1) * 0.5;
-        }
-      }
 
-      const surfaceData = new Float32Array(width * depth);
-      geometry = wasmModule.create_surface(
-        width,
-        depth,
-        surfaceData,
-        center,
-        invert,
-      );
-      break;
-
-    case "circle":
-      const circ_r =
-        params._positional ??
-        params.r ??
-        params.radius ??
-        (params.d ? params.d / 2 : undefined) ??
-        (params.diameter ? params.diameter / 2 : undefined) ??
-        5;
-      const circ_fn = params.$fn ?? context.variables.get("$fn") ?? 0;
-      const circ_fs = params.$fs ?? context.variables.get("$fs") ?? 2;
-      const circ_fa = params.$fa ?? context.variables.get("$fa") ?? 12;
-      const circ_detail = getFragments(circ_r, circ_fn, circ_fs, circ_fa);
-      geometry = wasmModule.create_circle(circ_r, circ_detail);
-      break;
-
-    case "square":
-      let sq_size = params._positional ?? params.size ?? 10;
-      const sq_center = params.center ?? false;
-      geometry = wasmModule.create_square(sq_size);
-
-      // Handle center parameter - if center=false, translate to place corner at origin
-      // Assuming create_square creates a centered square (like cube does)
-      if (!sq_center) {
-        const half_size = Array.isArray(sq_size) ? sq_size[0] / 2 : sq_size / 2;
-        geometry = wasmModule!.translate(geometry, half_size, half_size, 0);
-      }
-      break;
-
-    case "polygon":
-      const polygon_pts = params._positional ?? params.points ?? [];
-      // Convert points array to flat array for WASM
-      let polygon_flat = [];
-      if (Array.isArray(polygon_pts[0])) {
-        polygon_flat = polygon_pts.flat();
-      } else {
-        polygon_flat = polygon_pts;
-      }
-      geometry = wasmModule.polygon(polygon_flat);
-      break;
-
-    case "polyhedron":
-      const poly_pts = params._positional ?? params.points ?? [];
-      const poly_faces = params.faces ?? [];
-      // Convert points array to flat array for WASM
-      let poly_flat = [];
-      if (Array.isArray(poly_pts[0])) {
-        poly_flat = poly_pts.flat();
-      } else {
-        poly_flat = poly_pts;
-      }
-      geometry = wasmModule.polyhedron(poly_flat, poly_faces);
-      break;
-
-    case "text":
-      const text_content = params.text ?? params.t ?? params._positional ?? "";
-      const text_size = params.size ?? params.s ?? 10;
-      const text_depth = params.h ?? params.depth ?? 0; // Default 2D text
-
-      // Extract alignment and font parameters
-      const text_halign = params.halign ?? "left"; // "left", "center", "right"
-      const text_valign = params.valign ?? "baseline"; // "top", "center", "baseline", "bottom"
-      const text_font = params.font ?? "Liberation Sans"; // Font name (not yet used)
-      const text_spacing = params.spacing ?? 1; // Character spacing multiplier
-      const text_direction = params.direction ?? "ltr"; // "ltr", "rtl", "ttb", "btt" (not yet used)
-      const text_language = params.language ?? "en"; // (not yet used)
-      const text_script = params.script ?? "latin"; // (not yet used)
-
-      // Use aligned text functions if available and parameters are non-default
-      const useAligned =
-        wasmModule.create_text_aligned &&
-        (text_halign !== "left" ||
-          text_valign !== "baseline" ||
-          text_spacing !== 1 ||
-          text_font !== "Liberation Sans" ||
-          text_direction !== "ltr");
-
-      if (useAligned) {
-        if (text_depth > 0) {
-          geometry = wasmModule.create_text_3d_aligned!(
-            text_content,
-            text_size,
-            text_depth,
-            text_halign,
-            text_valign,
-            text_spacing,
-            text_font,
-            text_direction,
+        try {
+          // Read the surface data file
+          const fileContent = await readTextFile(file);
+          const { data, width, depth } = Surface.parseSurfaceFile(
+            fileContent,
+            file.endsWith(".csv") ? "csv" : "space",
           );
-        } else {
-          geometry = wasmModule.create_text_aligned!(
-            text_content,
-            text_size,
-            text_halign,
-            text_valign,
-            text_spacing,
-            text_font,
-            text_direction,
-          );
-        }
-      } else {
-        // Fallback to basic text (backward compatibility)
-        if (text_depth > 0) {
-          geometry = wasmModule.create_text_3d(
-            text_content,
-            text_size,
-            text_depth,
-          );
-        } else {
-          geometry = wasmModule.create_text(text_content, text_size);
-        }
-      }
-      break;
 
-    default:
-      context.errors.push({ message: `Unknown primitive: ${node.op}` });
-      return null;
+          if (data.length === 0 || width === 0 || depth === 0) {
+            context.errors.push({
+              message: `surface(): Empty or invalid data file: ${file}`,
+            });
+            geometry = evalPrimitive("cube", { size: 10 }, evalCtx);
+            break;
+          }
+
+          geometry = Surface.createSurface(data, width, depth, {
+            center,
+            invert,
+            scaleX: 1,
+            scaleY: 1,
+            scaleZ: 1,
+          });
+        } catch (error: any) {
+          context.errors.push({
+            message: `surface() failed to load file "${file}": ${error.message}`,
+          });
+          geometry = evalPrimitive("cube", { size: 10 }, evalCtx);
+        }
+        break;
+      }
+
+      case "text": {
+        // Text creates 3D text geometry from a string
+        const text_content =
+          params.text ?? params.t ?? params._positional ?? "";
+        const text_size = params.size ?? params.s ?? 10;
+        const text_halign = params.halign ?? "left";
+        const text_valign = params.valign ?? "baseline";
+        const text_spacing = params.spacing ?? 1;
+        const text_direction = params.direction ?? "ltr";
+        const text_font = params.font ?? "Liberation Sans";
+
+        try {
+          const Text = await import("./manifold-text");
+          geometry = await Text.createText(text_content, {
+            size: text_size,
+            halign: text_halign,
+            valign: text_valign,
+            spacing: text_spacing,
+            direction: text_direction,
+            font: text_font,
+            $fn: evalCtx.$fn,
+          });
+        } catch (error: any) {
+          context.errors.push({
+            message: `text("${text_content}") failed: ${error.message}`,
+          });
+          geometry = evalPrimitive("cube", { size: text_size }, evalCtx);
+        }
+        break;
+      }
+
+      default:
+        context.errors.push({ message: `Unknown primitive: ${node.op}` });
+        return null;
+    }
+  } catch (error: any) {
+    context.errors.push({
+      message: `Error creating primitive ${node.op}: ${error.message}`,
+    });
+    return null;
   }
 
   // Cache the result for future use
@@ -809,13 +534,13 @@ function evaluatePrimitive(node: any, context: EvaluationContext): any {
 }
 
 function handleColor(
-  geometry: any,
+  geometry: ManifoldObject,
   params: any,
   context: EvaluationContext,
-): any {
+): ManifoldObject {
   if (!geometry) {
     context.errors.push({ message: "No geometry to color" });
-    return null;
+    return geometry;
   }
 
   // Extract color parameters - can be:
@@ -823,21 +548,20 @@ function handleColor(
   // 2. Named parameters: c=[r,g,b], or separate r,g,b,a
   // 3. String color name (CSS names, hex colors)
 
-  let colorInfo: { r: number; g: number; b: number; a?: number } | null = null;
+  let colorInfo: [number, number, number, number] | null = null;
 
   // Handle vector color (most common: color([1,0,0]) or color([1,0,0,0.5]))
   const colorVector = params.c ?? params._positional;
   if (Array.isArray(colorVector)) {
     if (colorVector.length >= 3) {
-      colorInfo = {
-        r: Math.max(0, Math.min(1, colorVector[0])),
-        g: Math.max(0, Math.min(1, colorVector[1])),
-        b: Math.max(0, Math.min(1, colorVector[2])),
-        a:
-          colorVector.length >= 4
-            ? Math.max(0, Math.min(1, colorVector[3]))
-            : 1.0,
-      };
+      colorInfo = [
+        Math.max(0, Math.min(1, colorVector[0])),
+        Math.max(0, Math.min(1, colorVector[1])),
+        Math.max(0, Math.min(1, colorVector[2])),
+        colorVector.length >= 4
+          ? Math.max(0, Math.min(1, colorVector[3]))
+          : 1.0,
+      ];
     }
   }
   // Handle separate color components
@@ -846,32 +570,24 @@ function handleColor(
     params.g !== undefined ||
     params.b !== undefined
   ) {
-    colorInfo = {
-      r: Math.max(0, Math.min(1, params.r ?? 0)),
-      g: Math.max(0, Math.min(1, params.g ?? 0)),
-      b: Math.max(0, Math.min(1, params.b ?? 0)),
-      a: Math.max(0, Math.min(1, params.a ?? 1.0)),
-    };
+    colorInfo = [
+      Math.max(0, Math.min(1, params.r ?? 0)),
+      Math.max(0, Math.min(1, params.g ?? 0)),
+      Math.max(0, Math.min(1, params.b ?? 0)),
+      Math.max(0, Math.min(1, params.a ?? 1.0)),
+    ];
   }
-
   // Handle string color names and hex colors
   else if (typeof params._positional === "string") {
     const colorString = params._positional;
-    if (wasmModule) {
-      const parsedColor = wasmModule.parse_color_string(colorString);
-      if (parsedColor && parsedColor.length >= 3) {
-        colorInfo = {
-          r: parsedColor[0] || 0,
-          g: parsedColor[1] || 0,
-          b: parsedColor[2] || 0,
-          a: parsedColor.length >= 4 ? parsedColor[3] || 1.0 : 1.0,
-        };
-      } else {
-        context.errors.push({
-          message: `Invalid color string: "${colorString}". Use CSS color names (red, steelblue) or hex colors (#FF0000, #F00, #FF000080)`,
-        });
-        return geometry;
-      }
+    const parsedColor = parseColor(colorString);
+    if (parsedColor) {
+      colorInfo = parsedColor;
+    } else {
+      context.errors.push({
+        message: `Invalid color string: "${colorString}". Use CSS color names (red, steelblue) or hex colors (#FF0000, #F00, #FF000080)`,
+      });
+      return geometry;
     }
   }
 
@@ -884,8 +600,14 @@ function handleColor(
   }
 
   // Store color information on the geometry object
+  // Note: Manifold objects are immutable, so we attach metadata differently
   if (typeof geometry === "object" && geometry !== null) {
-    (geometry as any)._color = colorInfo;
+    (geometry as any)._color = {
+      r: colorInfo[0],
+      g: colorInfo[1],
+      b: colorInfo[2],
+      a: colorInfo[3],
+    };
   }
 
   return geometry;
@@ -894,8 +616,11 @@ function handleColor(
 async function evaluateTransform(
   node: any,
   context: EvaluationContext,
-): Promise<any> {
-  if (!wasmModule) throw new Error("WASM module not initialized");
+): Promise<ManifoldObject | null> {
+  // Handle projection separately - it needs the child geometry directly
+  if (node.op === "projection") {
+    return evaluateProjection(node, context);
+  }
 
   // Handle extrusion operations separately - they only operate on first child
   if (node.op === "linear_extrude" || node.op === "rotate_extrude") {
@@ -913,36 +638,46 @@ async function evaluateTransform(
     }
 
     const params = evaluateParameters(node.params, context);
+    const fn = params.$fn ?? context.variables.get("$fn") ?? 0;
+    const fs = params.$fs ?? context.variables.get("$fs") ?? 2;
+    const fa = params.$fa ?? context.variables.get("$fa") ?? 12;
 
-    if (node.op === "linear_extrude") {
-      const height = params.h ?? params.height ?? 10;
-      const twist = params.twist ?? 0;
-      const scale_val = params.scale ?? 1;
-      const slices = params.slices ?? params.$fn ?? 20;
-      return wasmModule.linear_extrude(
-        childGeom,
-        height,
-        twist,
-        scale_val,
-        slices,
-      );
-    } else {
-      // rotate_extrude
-      const angle = params.angle ?? 360;
-      const segments = params.$fn ?? params.segments ?? 20;
-      return wasmModule.rotate_extrude(childGeom, angle, segments);
+    try {
+      if (node.op === "linear_extrude") {
+        const height = params.h ?? params.height ?? 10;
+        const twist = params.twist ?? 0;
+        const scale_val = params.scale ?? 1;
+        const slices = params.slices ?? fn ?? 20;
+        return Extrude.linearExtrude(
+          childGeom,
+          height,
+          twist,
+          scale_val,
+          slices,
+        );
+      } else {
+        // rotate_extrude
+        const angle = params.angle ?? 360;
+        const segments = params.$fn ?? params.segments ?? 20;
+        return Extrude.rotateExtrude(childGeom, angle, segments);
+      }
+    } catch (error: any) {
+      context.errors.push({
+        message: `${node.op} failed: ${error.message}`,
+      });
+      return null;
     }
   }
 
   // For regular transforms, evaluate and combine all children
-  let geometry = null;
+  let geometry: ManifoldObject | null = null;
   for (const child of node.children) {
     const childGeom = await evaluateNode(child, context);
     if (childGeom) {
       if (!geometry) {
         geometry = childGeom;
       } else {
-        geometry = wasmModule.union(geometry, childGeom);
+        geometry = CSG.union(geometry, childGeom);
       }
     }
   }
@@ -954,160 +689,224 @@ async function evaluateTransform(
 
   const params = evaluateParameters(node.params, context);
 
-  switch (node.op) {
-    case "translate":
-      // Handle both named params (v=[x,y,z]) and positional params ([x,y,z])
-      const translate_arr = params.v ?? params._positional ?? [0, 0, 0];
-      const tx = Array.isArray(translate_arr)
-        ? (translate_arr[0] ?? 0)
-        : (params.x ?? 0);
-      const ty = Array.isArray(translate_arr)
-        ? (translate_arr[1] ?? 0)
-        : (params.y ?? 0);
-      const tz = Array.isArray(translate_arr)
-        ? (translate_arr[2] ?? 0)
-        : (params.z ?? 0);
-      return wasmModule.translate(geometry, tx, ty, tz);
+  try {
+    switch (node.op) {
+      case "translate": {
+        const translate_arr = params.v ?? params._positional ?? [0, 0, 0];
+        const tx = Array.isArray(translate_arr)
+          ? (translate_arr[0] ?? 0)
+          : (params.x ?? 0);
+        const ty = Array.isArray(translate_arr)
+          ? (translate_arr[1] ?? 0)
+          : (params.y ?? 0);
+        const tz = Array.isArray(translate_arr)
+          ? (translate_arr[2] ?? 0)
+          : (params.z ?? 0);
+        return Transforms.translate(geometry, [tx, ty, tz]);
+      }
 
-    case "rotate":
-      const rot_a = params.a ?? params.angle ?? 0;
-      const rot_v = params.v ?? [0, 0, 1];
+      case "rotate": {
+        const rot_a = params.a ?? params.angle ?? params._positional ?? 0;
+        // Handle array rotation [x, y, z] or scalar rotation around v axis
+        if (Array.isArray(rot_a)) {
+          return Transforms.rotate(geometry, rot_a as [number, number, number]);
+        }
+        // Scalar rotation around axis v (default Z)
+        const rot_v = params.v ?? [0, 0, 1];
+        // For scalar rotation, apply to appropriate axis
+        if (rot_v[0] !== 0) return Transforms.rotate(geometry, [rot_a, 0, 0]);
+        if (rot_v[1] !== 0) return Transforms.rotate(geometry, [0, rot_a, 0]);
+        return Transforms.rotate(geometry, [0, 0, rot_a]);
+      }
 
-      // Handle single axis rotations for backward compatibility
-      if (Array.isArray(rot_v) && rot_v.length === 3) {
-        const [rx, ry, rz] = rot_v;
-        // Check if it's a single axis rotation
-        const axis_count =
-          (rx !== 0 ? 1 : 0) + (ry !== 0 ? 1 : 0) + (rz !== 0 ? 1 : 0);
-
-        if (axis_count === 1) {
-          // Single axis rotation
-          if (rx !== 0) return wasmModule.rotate_x(geometry, rot_a);
-          if (ry !== 0) return wasmModule.rotate_y(geometry, rot_a);
-          if (rz !== 0) return wasmModule.rotate_z(geometry, rot_a);
+      case "scale": {
+        const s = params.v ?? params._positional;
+        let sx: number, sy: number, sz: number;
+        if (Array.isArray(s)) {
+          sx = s[0] ?? 1;
+          sy = s[1] ?? 1;
+          sz = s[2] ?? 1;
+        } else if (typeof s === "number") {
+          sx = sy = sz = s;
         } else {
-          // For now, fall back to single axis rotations
-          if (rx !== 0) return wasmModule.rotate_x(geometry, rot_a);
-          if (ry !== 0) return wasmModule.rotate_y(geometry, rot_a);
-          if (rz !== 0) return wasmModule.rotate_z(geometry, rot_a);
+          sx = params.x ?? 1;
+          sy = params.y ?? 1;
+          sz = params.z ?? 1;
+        }
+        return Transforms.scale(geometry, [sx, sy, sz]);
+      }
+
+      case "mirror": {
+        const mirror_v = params.v ?? params._positional ?? [1, 0, 0];
+        return Transforms.mirror(
+          geometry,
+          mirror_v as [number, number, number],
+        );
+      }
+
+      case "multmatrix": {
+        const matrix = params.m ?? params._positional ?? [];
+        // Flatten nested array if needed
+        const flat = Array.isArray(matrix[0]) ? matrix.flat() : matrix;
+        if (flat.length >= 12) {
+          return Transforms.multmatrix(geometry, flat);
+        }
+        context.errors.push({
+          message:
+            "multmatrix requires at least 12 elements (4x3 or 4x4 matrix)",
+        });
+        return geometry;
+      }
+
+      case "color":
+        return handleColor(geometry, params, context);
+
+      // projection is handled at the start of evaluateTransform
+
+      case "offset": {
+        // Offset is primarily a 2D operation
+        // For 3D shapes, we project to 2D, apply offset, then extrude back
+        const delta = params.r ?? params.delta ?? params._positional ?? 0;
+        const chamfer = params.chamfer ?? false;
+        const joinType = chamfer ? "miter" : "round";
+        const $fn = params.$fn ?? context.variables.get("$fn") ?? 32;
+
+        try {
+          // Project 3D geometry to 2D cross-section
+          const crossSection = Ops2D.project3Dto2D(geometry);
+
+          // Apply offset to the 2D shape
+          const offsetResult = Ops2D.offset2D(
+            crossSection,
+            delta,
+            joinType as "round" | "miter" | "square",
+            2.0,
+            $fn,
+          );
+
+          // Extrude back to thin 3D shape for pipeline compatibility
+          // Use a thin extrusion (0.1) as a placeholder
+          // In real usage, linear_extrude would be applied after offset
+          const extruded = Ops2D.linearExtrude2D(offsetResult, 0.1);
+          return extruded;
+        } catch (error: any) {
+          context.errors.push({
+            message: `offset() failed: ${error.message}`,
+          });
+          return geometry;
         }
       }
 
-      // Default to Z-axis rotation
-      return wasmModule.rotate_z(geometry, rot_a);
-
-    case "scale":
-      const s = params.v;
-      const sx = s?.[0] ?? params.x ?? 1;
-      const sy = s?.[1] ?? params.y ?? 1;
-      const sz = s?.[2] ?? params.z ?? 1;
-      return wasmModule.scale(geometry, sx, sy, sz);
-
-    case "mirror":
-      const mirror_v = params.v ?? [1, 0, 0];
-      if (mirror_v[0] !== 0) return wasmModule.mirror_x(geometry);
-      if (mirror_v[1] !== 0) return wasmModule.mirror_y(geometry);
-      if (mirror_v[2] !== 0) return wasmModule.mirror_z(geometry);
-      return geometry;
-
-    case "multmatrix":
-      const matrix = params.m ?? [];
-      if (matrix.length === 16) {
-        return wasmModule.multmatrix(geometry, matrix);
+      case "resize": {
+        const newsize = params.newsize ??
+          params.size ??
+          params._positional ?? [1, 1, 1];
+        const auto = params.auto ?? false;
+        const sizeArr = Array.isArray(newsize)
+          ? newsize
+          : [newsize, newsize, newsize];
+        return Transforms.resize(
+          geometry,
+          sizeArr as [number, number, number],
+          auto,
+        );
       }
-      context.errors.push({ message: "multmatrix requires 16 elements" });
-      return geometry;
 
-    case "color":
-      return handleColor(geometry, params, context);
-
-    case "projection":
-      return evaluateProjection({ ...node, children: [geometry] }, context);
-
-    case "offset":
-      const delta = params.delta ?? params.r ?? params.d ?? 1;
-      const chamfer = params.chamfer ?? false;
-      return wasmModule.offset(geometry, delta, chamfer);
-
-    case "resize":
-      const newsize = params.newsize ?? params.size ?? [10, 10];
-      const auto = params.auto ?? false;
-      if (Array.isArray(newsize) && newsize.length === 2) {
-        return wasmModule.resize(geometry, newsize, auto);
-      }
-      context.errors.push({ message: "resize requires [width, height] array" });
-      return geometry;
-
-    default:
-      context.errors.push({ message: `Unknown transform: ${node.op}` });
-      return geometry;
+      default:
+        context.errors.push({ message: `Unknown transform: ${node.op}` });
+        return geometry;
+    }
+  } catch (error: any) {
+    context.errors.push({
+      message: `Transform ${node.op} failed: ${error.message}`,
+    });
+    return geometry;
   }
 }
 
 async function evaluateBooleanOp(
   node: any,
   context: EvaluationContext,
-): Promise<any> {
-  if (!wasmModule) throw new Error("WASM module not initialized");
-
+): Promise<ManifoldObject | null> {
   if (node.children.length === 0) {
     return null;
   }
 
-  // Special handling for hull - use optimized multi-child implementation
-  if (node.op === "hull") {
-    const child_geoms = [];
-    for (const child of node.children) {
-      const geom = await evaluateNode(child, context);
-      if (geom) {
-        child_geoms.push(geom);
-      }
+  // Evaluate all children first
+  const childGeoms: ManifoldObject[] = [];
+  for (const child of node.children) {
+    const geom = await evaluateNode(child, context);
+    if (geom) {
+      childGeoms.push(geom);
     }
-
-    if (child_geoms.length === 0) {
-      return null;
-    }
-    if (child_geoms.length === 1) {
-      return wasmModule.hull(child_geoms[0]);
-    }
-
-    // Use hull_progressive to safely combine multiple meshes
-    // (hull_multiple with raw pointers doesn't work from JavaScript)
-    let result = child_geoms[0];
-    for (let i = 1; i < child_geoms.length; i++) {
-      result = wasmModule.hull_progressive(result, child_geoms[i]);
-    }
-    return result;
   }
 
-  let result = await evaluateNode(node.children[0], context);
+  if (childGeoms.length === 0) {
+    return null;
+  }
 
-  for (let i = 1; i < node.children.length; i++) {
-    const next = await evaluateNode(node.children[i], context);
-    if (!next) continue;
+  // Preserve color from the first child (main geometry) in boolean operations
+  const colorInfo = (childGeoms[0] as any)._color;
 
-    // Preserve color from the first child (main geometry) in boolean operations
-    const colorInfo = (result as any)._color;
+  let result: ManifoldObject;
 
+  try {
     switch (node.op) {
       case "union":
-        result = wasmModule.union(result, next);
+        result = CSG.unionMultiple(childGeoms);
         break;
       case "difference":
-        result = wasmModule.difference(result, next);
+        if (childGeoms.length === 1) {
+          result = childGeoms[0];
+        } else {
+          result = CSG.differenceMultiple(childGeoms[0], childGeoms.slice(1));
+        }
         break;
       case "intersection":
-        result = wasmModule.intersection(result, next);
+        result = CSG.intersectionMultiple(childGeoms);
+        break;
+      case "hull":
+        result = CSG.hull(childGeoms);
         break;
       case "minkowski":
-        result = wasmModule.minkowski(result, next);
+        // Minkowski sum - requires at least 2 shapes
+        if (childGeoms.length < 2) {
+          context.errors.push({
+            message: "minkowski() requires at least 2 children",
+          });
+          result = childGeoms[0];
+        } else {
+          try {
+            // Use first two children for minkowski
+            result = CSG.minkowski(childGeoms[0], childGeoms[1]);
+            // If more children, add them (though unusual for minkowski)
+            for (let i = 2; i < childGeoms.length; i++) {
+              result = CSG.minkowski(result, childGeoms[i]);
+            }
+          } catch (error: any) {
+            context.errors.push({
+              message: `minkowski() failed: ${error.message}`,
+            });
+            result = childGeoms[0];
+          }
+        }
         break;
+      default:
+        context.errors.push({
+          message: `Unknown boolean operation: ${node.op}`,
+        });
+        result = childGeoms[0];
     }
+  } catch (error: any) {
+    context.errors.push({
+      message: `Boolean operation ${node.op} failed: ${error.message}`,
+    });
+    result = childGeoms[0];
+  }
 
-    // Restore color information after boolean operation
-    if (colorInfo && typeof result === "object" && result !== null) {
-      (result as any)._color = colorInfo;
-    }
+  // Restore color information after boolean operation
+  if (colorInfo && typeof result === "object" && result !== null) {
+    (result as any)._color = colorInfo;
   }
 
   return result;
@@ -1116,9 +915,7 @@ async function evaluateBooleanOp(
 async function evaluateForLoop(
   node: any,
   context: EvaluationContext,
-): Promise<any> {
-  if (!wasmModule) throw new Error("WASM module not initialized");
-
+): Promise<ManifoldObject | null> {
   const variable = node.variable;
   const range = node.range;
 
@@ -1135,7 +932,7 @@ async function evaluateForLoop(
     return null;
   }
 
-  const geometries: any[] = [];
+  const geometries: ManifoldObject[] = [];
 
   // Create loop range array
   const range_arr: number[] = [];
@@ -1166,20 +963,13 @@ async function evaluateForLoop(
     return null;
   }
 
-  let result = geometries[0];
-  for (let i = 1; i < geometries.length; i++) {
-    result = wasmModule.union(result, geometries[i]);
-  }
-
-  return result;
+  return CSG.unionMultiple(geometries);
 }
 
 async function evaluateIntersectionFor(
   node: any,
   context: EvaluationContext,
-): Promise<any> {
-  if (!wasmModule) throw new Error("WASM module not initialized");
-
+): Promise<ManifoldObject | null> {
   const variable = node.variable;
   const range = node.range;
 
@@ -1196,7 +986,7 @@ async function evaluateIntersectionFor(
     return null;
   }
 
-  const geometries: any[] = [];
+  const geometries: ManifoldObject[] = [];
 
   // Create loop range array
   const range_arr: number[] = [];
@@ -1227,12 +1017,7 @@ async function evaluateIntersectionFor(
     return null;
   }
 
-  let result = geometries[0];
-  for (let i = 1; i < geometries.length; i++) {
-    result = wasmModule.intersection(result, geometries[i]);
-  }
-
-  return result;
+  return CSG.intersectionMultiple(geometries);
 }
 
 async function evaluateEcho(
@@ -1273,9 +1058,7 @@ async function evaluateAssert(
 async function evaluateChildren(
   node: any,
   context: EvaluationContext,
-): Promise<any> {
-  if (!wasmModule) throw new Error("WASM module not initialized");
-
+): Promise<ManifoldObject | null> {
   // Check if we have children available
   if (!context.children || context.children.length === 0) {
     context.errors.push({
@@ -1291,18 +1074,15 @@ async function evaluateChildren(
   // Handle different children() syntax patterns
   if (args.length === 0) {
     // children() - return all children combined with union
-    let result = null;
+    const childGeoms: ManifoldObject[] = [];
     for (const child of context.children) {
       const childGeom = await evaluateNode(child, context);
       if (childGeom) {
-        if (!result) {
-          result = childGeom;
-        } else {
-          result = wasmModule.union(result, childGeom);
-        }
+        childGeoms.push(childGeom);
       }
     }
-    return result;
+    if (childGeoms.length === 0) return null;
+    return CSG.unionMultiple(childGeoms);
   } else if (args.length === 1) {
     // children(argument) - handle indexing
     const arg = args[0];
@@ -1343,9 +1123,7 @@ async function evaluateChildren(
 async function evaluateLet(
   node: any,
   context: EvaluationContext,
-): Promise<any> {
-  if (!wasmModule) throw new Error("WASM module not initialized");
-
+): Promise<ManifoldObject | null> {
   // Create new scope for let statement (inherits from parent context)
   const letContext: EvaluationContext = {
     variables: new Map(context.variables), // Copy existing variables
@@ -1363,7 +1141,7 @@ async function evaluateLet(
   }
 
   // Evaluate body statements within the let scope
-  const geometries: any[] = [];
+  const geometries: ManifoldObject[] = [];
   for (const bodyNode of node.body || []) {
     const geom = await evaluateNode(bodyNode, letContext);
     if (geom) {
@@ -1376,20 +1154,13 @@ async function evaluateLet(
     return null;
   }
 
-  let result = geometries[0];
-  for (let i = 1; i < geometries.length; i++) {
-    result = wasmModule.union(result, geometries[i]);
-  }
-
-  return result;
+  return CSG.unionMultiple(geometries);
 }
 
 async function evaluateModifier(
   node: any,
   context: EvaluationContext,
-): Promise<any> {
-  if (!wasmModule) throw new Error("WASM module not initialized");
-
+): Promise<ManifoldObject | null> {
   const modifier = node.modifier as "!" | "#" | "%" | "*";
 
   switch (modifier) {
@@ -1404,9 +1175,9 @@ async function evaluateModifier(
       // Debug modifier - highlight in red
       // Evaluate child and mark for red highlighting in frontend
       const childGeometry = await evaluateNode(node.child, context);
-      if (childGeometry && childGeometry.set_modifier) {
-        // Use new WASM method to set modifier
-        childGeometry.set_modifier("#");
+      if (childGeometry) {
+        // Store modifier metadata on the manifold object
+        (childGeometry as any)._modifier = "#";
       }
       return childGeometry;
     }
@@ -1415,9 +1186,9 @@ async function evaluateModifier(
       // Transparent modifier - show as transparent
       // Evaluate child and mark for transparency in frontend
       const childGeometry = await evaluateNode(node.child, context);
-      if (childGeometry && childGeometry.set_modifier) {
-        // Use new WASM method to set modifier
-        childGeometry.set_modifier("%");
+      if (childGeometry) {
+        // Store modifier metadata on the manifold object
+        (childGeometry as any)._modifier = "%";
       }
       return childGeometry;
     }
@@ -1443,9 +1214,10 @@ async function evaluateAssignment(
   return null; // Assignments don't produce geometry
 }
 
-async function evaluateIf(node: any, context: EvaluationContext): Promise<any> {
-  if (!wasmModule) throw new Error("WASM module not initialized");
-
+async function evaluateIf(
+  node: any,
+  context: EvaluationContext,
+): Promise<ManifoldObject | null> {
   const condition = evaluateExpression(node.condition, context);
 
   // Evaluate condition as boolean
@@ -1454,7 +1226,7 @@ async function evaluateIf(node: any, context: EvaluationContext): Promise<any> {
   const bodyToEvaluate = isTrue ? node.thenBody : node.elseBody || [];
 
   // Evaluate body and collect geometries
-  const geometries: any[] = [];
+  const geometries: ManifoldObject[] = [];
   for (const bodyNode of bodyToEvaluate) {
     const geom = await evaluateNode(bodyNode, context);
     if (geom) {
@@ -1467,20 +1239,13 @@ async function evaluateIf(node: any, context: EvaluationContext): Promise<any> {
     return null;
   }
 
-  let result = geometries[0];
-  for (let i = 1; i < geometries.length; i++) {
-    result = wasmModule.union(result, geometries[i]);
-  }
-
-  return result;
+  return CSG.unionMultiple(geometries);
 }
 
 async function evaluateModuleCall(
   node: any,
   context: EvaluationContext,
-): Promise<any> {
-  if (!wasmModule) throw new Error("WASM module not initialized");
-
+): Promise<ManifoldObject | null> {
   // Handle built-in surface as special case
   if (node.name === "surface") {
     // Surface is parsed as module_call but should be handled as primitive
@@ -1493,7 +1258,7 @@ async function evaluateModuleCall(
       line: node.line,
       column: node.column,
     };
-    return evaluatePrimitive(primitiveNode, context);
+    return await evaluatePrimitive(primitiveNode, context);
   }
 
   // Handle render() explicitly
@@ -1503,15 +1268,15 @@ async function evaluateModuleCall(
     if (!node.children || node.children.length === 0) return null;
 
     // Union all children like a regular group
-    let result = null;
+    const childGeoms: ManifoldObject[] = [];
     for (const child of node.children) {
       const childGeom = await evaluateNode(child, context);
       if (childGeom) {
-        if (!result) result = childGeom;
-        else result = wasmModule.union(result, childGeom);
+        childGeoms.push(childGeom);
       }
     }
-    return result;
+    if (childGeoms.length === 0) return null;
+    return CSG.unionMultiple(childGeoms);
   }
 
   // Handle built-in extrusion operations as special cases
@@ -1531,23 +1296,30 @@ async function evaluateModuleCall(
 
     const params = evaluateParameters(node.params, context);
 
-    if (node.name === "linear_extrude") {
-      const height = params.h ?? params.height ?? 10;
-      const twist = params.twist ?? 0;
-      const scale_val = params.scale ?? 1;
-      const slices = params.slices ?? params.$fn ?? 20;
-      return wasmModule.linear_extrude(
-        childGeom,
-        height,
-        twist,
-        scale_val,
-        slices,
-      );
-    } else {
-      // rotate_extrude
-      const angle = params.angle ?? 360;
-      const segments = params.$fn ?? params.segments ?? 20;
-      return wasmModule.rotate_extrude(childGeom, angle, segments);
+    try {
+      if (node.name === "linear_extrude") {
+        const height = params.h ?? params.height ?? 10;
+        const twist = params.twist ?? 0;
+        const scale_val = params.scale ?? 1;
+        const slices = params.slices ?? params.$fn ?? 20;
+        return Extrude.linearExtrude(
+          childGeom,
+          height,
+          twist,
+          scale_val,
+          slices,
+        );
+      } else {
+        // rotate_extrude
+        const angle = params.angle ?? 360;
+        const segments = params.$fn ?? params.segments ?? 20;
+        return Extrude.rotateExtrude(childGeom, angle, segments);
+      }
+    } catch (error: any) {
+      context.errors.push({
+        message: `${node.name} failed: ${error.message}`,
+      });
+      return null;
     }
   }
 
@@ -1589,7 +1361,7 @@ async function evaluateModuleCall(
   moduleContext.variables.set("$children", (node.children || []).length);
 
   // Evaluate module body
-  const geometries: any[] = [];
+  const geometries: ManifoldObject[] = [];
   for (const bodyNode of moduleDef.body) {
     const geom = await evaluateNode(bodyNode, moduleContext);
     if (geom) {
@@ -1602,12 +1374,7 @@ async function evaluateModuleCall(
     return null;
   }
 
-  let result = geometries[0];
-  for (let i = 1; i < geometries.length; i++) {
-    result = wasmModule.union(result, geometries[i]);
-  }
-
-  return result;
+  return CSG.unionMultiple(geometries);
 }
 
 function evaluateExpression(expr: any, context: EvaluationContext): any {
@@ -2676,11 +2443,8 @@ async function evaluateImport(
     }
 
     // Return combined geometry for include statements
-    if (importedGeometries.length > 0 && wasmModule) {
-      let combined = importedGeometries[0];
-      for (let i = 1; i < importedGeometries.length; i++) {
-        combined = wasmModule.union(combined, importedGeometries[i]);
-      }
+    if (importedGeometries.length > 0) {
+      const combined = CSG.unionMultiple(importedGeometries);
       // Remove from included files set when done
       context.includedFiles?.delete(normalizedFilename);
       return combined;
