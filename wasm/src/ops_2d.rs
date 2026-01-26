@@ -1,7 +1,7 @@
 // 2D geometry operations: offset, resize, etc.
 
-use crate::math::{Vec2, Vec3};
 use crate::geometry::Mesh;
+use crate::math::{Vec2, Vec3};
 
 /// Perform polygon offset/inset operation
 /// Positive delta expands (outset), negative delta contracts (inset)
@@ -12,9 +12,7 @@ pub fn offset_polygon(vertices: &[Vec3], delta: f32, chamfer: bool) -> Mesh {
     }
 
     // Extract 2D vertices (assuming all vertices have Z=0)
-    let points_2d: Vec<Vec2> = vertices.iter()
-        .map(|v| Vec2::new(v.x, v.y))
-        .collect();
+    let points_2d: Vec<Vec2> = vertices.iter().map(|v| Vec2::new(v.x, v.y)).collect();
 
     let offset_points = if delta >= 0.0 {
         offset_outset(&points_2d, delta, chamfer)
@@ -23,7 +21,8 @@ pub fn offset_polygon(vertices: &[Vec3], delta: f32, chamfer: bool) -> Mesh {
     };
 
     // Convert back to 3D with Z=0
-    let offset_vertices: Vec<Vec3> = offset_points.iter()
+    let offset_vertices: Vec<Vec3> = offset_points
+        .iter()
         .map(|p| Vec3::new(p.x, p.y, 0.0))
         .collect();
 
@@ -63,7 +62,7 @@ fn offset_outset(points: &[Vec2], delta: f32, chamfer: bool) -> Vec<Vec2> {
             // Add chamfer corners
             let corner1 = curr + normal1.scale(delta);
             let corner2 = curr + normal2.scale(delta);
-            
+
             result.push(corner1);
             result.push(offset_vertex);
             result.push(corner2);
@@ -103,13 +102,13 @@ fn offset_inset(points: &[Vec2], delta: f32, chamfer: bool) -> Vec<Vec2> {
 
         // Check if offset would cause self-intersection
         let offset_vertex = curr + avg_normal.scale(delta);
-        
+
         // Simple intersection check - if offset is too large, skip
         if is_valid_inset_point(&offset_vertex, points, delta) {
             if chamfer {
                 let corner1 = curr + normal1.scale(delta);
                 let corner2 = curr + normal2.scale(delta);
-                
+
                 if is_valid_inset_point(&corner1, points, delta) {
                     result.push(corner1);
                 }
@@ -149,10 +148,10 @@ fn is_valid_inset_point(point: &Vec2, original: &[Vec2], delta: f32) -> bool {
 fn point_to_line_distance(point: &Vec2, line_start: &Vec2, line_end: &Vec2) -> f32 {
     let line_vec = *line_end - *line_start;
     let point_vec = *point - *line_start;
-    
+
     let t = point_vec.dot(line_vec) / line_vec.dot(line_vec).max(1e-6);
     let t_clamped = t.clamp(0.0, 1.0);
-    
+
     let closest_point = *line_start + line_vec.scale(t_clamped);
     (*point - closest_point).length()
 }
@@ -197,17 +196,19 @@ pub fn resize_2d(vertices: &[Vec3], new_size: [f32; 2], auto: bool) -> Mesh {
     let center_x = (min_x + max_x) / 2.0;
     let center_y = (min_y + max_y) / 2.0;
 
-    let resized_vertices: Vec<Vec3> = vertices.iter()
+    let resized_vertices: Vec<Vec3> = vertices
+        .iter()
         .map(|v| {
             let x = center_x + (v.x - center_x) * scale_x;
             let y = center_y + (v.y - center_y) * scale_y;
-            Vec3::new(x, y, v.z)  // Preserve Z coordinate
+            Vec3::new(x, y, v.z) // Preserve Z coordinate
         })
         .collect();
 
     // Copy original triangulation if available
     // For now, create a simple triangulation
-    let points_2d: Vec<Vec2> = resized_vertices.iter()
+    let points_2d: Vec<Vec2> = resized_vertices
+        .iter()
         .map(|v| Vec2::new(v.x, v.y))
         .collect();
 

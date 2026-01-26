@@ -404,10 +404,26 @@ if ($preview) {
 }
 ```
 
+### File Imports ✅ **FULLY IMPLEMENTED**
+- `include "filename.scad"` - Include and execute content immediately
+- `use "filename.scad"` - Make modules available for use
+- `import "filename.scad"` - Make modules, functions, and variables available
+- `include <filename.scad>` - System bracket format support
+- **OpenSCAD-style library path resolution**:
+  - Current directory (`./`)
+  - Local libraries (`./lib/`, `./modules/`)
+  - Environment variable `OPENSCADPATH` support
+  - System paths: `/usr/share/openscad/libraries/`, `/usr/local/share/openscad/libraries/` (Unix)
+  - Windows system paths: `C:\Program Files\OpenSCAD\libraries\`
+- **Recursive includes** with circular dependency detection and prevention
+- **Security sandboxing**:
+  - Path traversal attack protection (blocks `../../../etc/passwd`)
+  - File extension filtering (only `.scad`, `.csg` allowed)
+  - File size limits (1MB max to prevent DoS attacks)
+  - Dangerous path filtering (blocks `..`, `~`, absolute paths)
+
 ### Not Yet Implemented ❌
 - Visualization Modifiers: `!`, `#`, `*`, `%` - Parser support exists, evaluator partially implemented
-- File imports: `include`, `use` - Not implemented  
-- Color/material: `color()` - Enhanced with CSS names and hex colors ✅ **IMPROVED**
 
 ### ✅ **NEWLY IMPLEMENTED**:
 - **All Viewport Special Variables**: `$vpr`, `$vpt`, `$vpd`, `$vpf`, `$preview`
@@ -415,34 +431,24 @@ if ($preview) {
   - Hybrid approach: auto-detect with manual override capability
   - Full integration with parser, evaluator, and constants
 
----
+- **Robust File Import System** (MAJOR UPGRADE):
+  - `include "filename.scad"` - Include and execute content immediately
+  - `use "filename.scad"` - Make modules available for use
+  - `import "filename.scad"` - Make modules, functions, and variables available
+  - `include <filename.scad>` - System bracket format support
+  - **OpenSCAD-style library path resolution**:
+    - Current directory (`./`)
+    - Local libraries (`./lib/`, `./modules/`)
+    - Environment variable `OPENSCADPATH` support
+    - System paths: `/usr/share/openscad/libraries/`, `/usr/local/share/openscad/libraries/` (Unix)
+    - Windows system paths: `C:\Program Files\OpenSCAD\libraries\`
+  - **Recursive includes** with circular dependency detection and prevention
+  - **Security sandboxing**:
+    - Path traversal attack protection (blocks `../../../etc/passwd`)
+    - File extension filtering (only `.scad`, `.csg` allowed)
+    - File size limits (1MB max to prevent DoS attacks)
+    - Dangerous path filtering (blocks `..`, `~`, absolute paths)
 
-## Current Compatibility Status: ~95-98%
-
-**Fully Working** (✅):
-- All basic primitives (cube, sphere, cylinder, cone, circle, square)
-- Custom shapes (polygon, polyhedron)
-- All transformations (translate, rotate, scale, mirror, multmatrix)
-- Extrusion operations (linear_extrude, rotate_extrude)
-- All CSG operations (union, difference, intersection, hull)
-- Complete language core (variables, functions, modules, if/else, for loops)
-- All math functions (including trig, exponential, logarithmic)
-- Vector/array functions (norm, cross, concat)
-- String functions (str, chr, ord)
-- Debug utilities (echo, assert)
-- Let statements ✅ **(Fully Implemented)**
-
-**Partially Working** (⚠️):
-- List comprehensions (98%+ OpenSCAD compatible! 🎉 - Full support for array expressions without hangs
-
-**Needs Testing** (❓):
-- Visualization modifiers (!, %, #, *) - Parser support exists
-
-**Not Implemented** (❌):
-- text() - Completely not implemented
-- include/use - Not implemented
-
-**✅ NEWLY IMPLEMENTED**:
 - `children()` - Access all module children (combined with union)
 - `children(index)` - Access specific child by index  
 - `$children` - Variable containing number of children in module scope

@@ -1,12 +1,13 @@
 mod bsp;
-mod csg;
 mod color_utils;
+mod csg;
 mod extrude;
 mod geometry;
 mod hull;
 mod math;
 mod ops_2d;
 mod primitives;
+mod surface;
 mod text;
 
 use geometry::Mesh;
@@ -73,6 +74,43 @@ pub fn create_cube(size: f32) -> WasmMesh {
 #[wasm_bindgen]
 pub fn create_sphere(radius: f32, detail: u32) -> WasmMesh {
     create_wasm_mesh(primitives::sphere(radius, detail))
+}
+
+// Surface generator
+// Surface generator
+#[wasm_bindgen]
+pub fn create_surface(
+    width: usize,
+    depth: usize,
+    data: &[f32],
+    center: bool,
+    invert: bool,
+) -> WasmMesh {
+    surface::create_surface(width, depth, data, center, invert)
+}
+
+#[wasm_bindgen]
+pub fn create_surface_from_string(
+    width: usize,
+    depth: usize,
+    data_str: &str,
+    center: bool,
+    invert: bool,
+) -> WasmMesh {
+    surface::create_surface_from_string(width, depth, data_str, center, invert)
+}
+
+#[wasm_bindgen]
+pub fn create_surface_from_string(
+    width: usize,
+    depth: usize,
+    data_str: &str,
+    center: bool,
+    invert: bool,
+) -> WasmMesh {
+    create_wasm_mesh(surface::create_surface_from_string(
+        width, depth, data_str, center, invert,
+    ))
 }
 
 #[wasm_bindgen]

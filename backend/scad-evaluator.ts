@@ -1895,7 +1895,7 @@ async function evaluateImport(node: any, context: EvaluationContext): Promise<an
       return combined;
     }
     
-    // Remove from included files set when done
+    // Remove from included files set when done (only if no geometry returned)
     context.includedFiles?.delete(normalizedFilename);
     return null;
   } catch (error: any) {

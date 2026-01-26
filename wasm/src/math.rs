@@ -219,44 +219,44 @@ impl Mat4 {
                     sum += self.m[i * 4 + k] * other.m[k * 4 + j];
                 }
                 result[i * 4 + j] = sum;
-    }
-}
-
-// Operator overloading for Vec2
-use std::ops::{Add, Sub, Mul, Div};
-
-impl Add for Vec2 {
-    type Output = Vec2;
-
-    fn add(self, other: Vec2) -> Vec2 {
-        Vec2 {
-            x: self.x + other.x,
-            y: self.y + other.y,
+            }
         }
-    }
-}
 
-impl Sub for Vec2 {
-    type Output = Vec2;
+        // Operator overloading for Vec2
+        use std::ops::{Add, Div, Mul, Sub};
 
-    fn sub(self, other: Vec2) -> Vec2 {
-        Vec2 {
-            x: self.x - other.x,
-            y: self.y - other.y,
+        impl Add for Vec2 {
+            type Output = Vec2;
+
+            fn add(self, other: Vec2) -> Vec2 {
+                Vec2 {
+                    x: self.x + other.x,
+                    y: self.y + other.y,
+                }
+            }
         }
-    }
-}
 
-impl Mul<f32> for Vec2 {
-    type Output = Vec2;
+        impl Sub for Vec2 {
+            type Output = Vec2;
 
-    fn mul(self, scalar: f32) -> Vec2 {
-        Vec2 {
-            x: self.x * scalar,
-            y: self.y * scalar,
+            fn sub(self, other: Vec2) -> Vec2 {
+                Vec2 {
+                    x: self.x - other.x,
+                    y: self.y - other.y,
+                }
+            }
         }
-    }
-}
+
+        impl Mul<f32> for Vec2 {
+            type Output = Vec2;
+
+            fn mul(self, scalar: f32) -> Vec2 {
+                Vec2 {
+                    x: self.x * scalar,
+                    y: self.y * scalar,
+                }
+            }
+        }
         Mat4 { m: result }
     }
 
