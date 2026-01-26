@@ -1,7 +1,6 @@
 /// Mesh and geometry data structures
 use crate::math::Vec3;
 use serde::{Deserialize, Serialize};
-use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Bounds {

@@ -41,7 +41,7 @@ export const DEFAULT_SPECIAL_VARIABLES = {
 
 // Primitive operators
 export const PRIMITIVES = [
-  'cube', 'sphere', 'cylinder', 'cone', 'polygon', 'polyhedron', 'text',
+  'cube', 'sphere', 'cylinder', 'cone', 'polygon', 'polyhedron', 'text', 'surface',
  ] as const;
 
 // Boolean operations

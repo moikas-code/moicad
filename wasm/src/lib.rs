@@ -11,6 +11,7 @@ mod surface;
 mod text;
 
 use geometry::Mesh;
+use math::Vec3;
 use wasm_bindgen::prelude::*;
 
 fn create_wasm_mesh(mesh: Mesh) -> WasmMesh {
@@ -132,17 +133,17 @@ pub fn create_surface(
     center: bool,
     invert: bool,
 ) -> WasmMesh {
-    let surface_result = surface::create_surface(width, depth, data, center, invert);
+    // Simple test: return a basic square
+    let vertices = vec![
+        Vec3::new(0.0, 0.0, 0.0), // (0,0)
+        Vec3::new(1.0, 0.0, 0.0), // (1,0)
+        Vec3::new(0.0, 1.0, 0.0), // (0,1)
+        Vec3::new(1.0, 1.0, 0.0), // (1,1)
+    ];
 
-    // Copy indices directly
-    let indices = surface_result.indices;
+    let indices = vec![0, 1, 2, 1, 3, 2];
 
-    // Vertices are already in Vec<Vec3> format
-    let vertices = surface_result.vertices;
-
-    // Create mesh with proper constructor
     let mesh = Mesh::new(vertices, indices);
-
     create_wasm_mesh(mesh)
 }
 
@@ -194,33 +195,58 @@ pub fn create_square(size: f32) -> WasmMesh {
 pub fn union(a: &WasmMesh, b: &WasmMesh) -> WasmMesh {
     let result_mesh = csg::union(&a.mesh, &b.mesh);
     // Preserve color and modifier from first mesh if available
-    create_wasm_mesh_with_modifier(result_mesh, a.color, a.modifier.clone(), a.object_id.clone())
+    create_wasm_mesh_with_modifier(
+        result_mesh,
+        a.color,
+        a.modifier.clone(),
+        a.object_id.clone(),
+    )
 }
 
 #[wasm_bindgen]
 pub fn difference(a: &WasmMesh, b: &WasmMesh) -> WasmMesh {
     let result_mesh = csg::difference(&a.mesh, &b.mesh);
     // Preserve color and modifier from first mesh if available
-    create_wasm_mesh_with_modifier(result_mesh, a.color, a.modifier.clone(), a.object_id.clone())
+    create_wasm_mesh_with_modifier(
+        result_mesh,
+        a.color,
+        a.modifier.clone(),
+        a.object_id.clone(),
+    )
 }
 
 #[wasm_bindgen]
 pub fn intersection(a: &WasmMesh, b: &WasmMesh) -> WasmMesh {
     let result_mesh = csg::intersection(&a.mesh, &b.mesh);
     // Preserve color and modifier from first mesh if available
-    create_wasm_mesh_with_modifier(result_mesh, a.color, a.modifier.clone(), a.object_id.clone())
+    create_wasm_mesh_with_modifier(
+        result_mesh,
+        a.color,
+        a.modifier.clone(),
+        a.object_id.clone(),
+    )
 }
 
 #[wasm_bindgen]
 pub fn hull(mesh: &WasmMesh) -> WasmMesh {
-    create_wasm_mesh_with_modifier(hull::compute_hull(&mesh.mesh), mesh.color, mesh.modifier.clone(), mesh.object_id.clone())
+    create_wasm_mesh_with_modifier(
+        hull::compute_hull(&mesh.mesh),
+        mesh.color,
+        mesh.modifier.clone(),
+        mesh.object_id.clone(),
+    )
 }
 
 #[wasm_bindgen]
 pub fn hull_two(a: &WasmMesh, b: &WasmMesh) -> WasmMesh {
     let result_mesh = hull::hull_meshes(&[&a.mesh, &b.mesh]);
     // Preserve color and modifier from first mesh if available
-    create_wasm_mesh_with_modifier(result_mesh, a.color, a.modifier.clone(), a.object_id.clone())
+    create_wasm_mesh_with_modifier(
+        result_mesh,
+        a.color,
+        a.modifier.clone(),
+        a.object_id.clone(),
+    )
 }
 
 // Color operations
@@ -234,42 +260,82 @@ pub fn set_color(mesh: &WasmMesh, r: f32, g: f32, b: f32, a: Option<f32>) -> Was
 // Transformations
 #[wasm_bindgen]
 pub fn translate(mesh: &WasmMesh, x: f32, y: f32, z: f32) -> WasmMesh {
-    create_wasm_mesh_with_modifier(csg::translate(&mesh.mesh, x, y, z), mesh.color, mesh.modifier.clone(), mesh.object_id.clone())
+    create_wasm_mesh_with_modifier(
+        csg::translate(&mesh.mesh, x, y, z),
+        mesh.color,
+        mesh.modifier.clone(),
+        mesh.object_id.clone(),
+    )
 }
 
 #[wasm_bindgen]
 pub fn rotate_x(mesh: &WasmMesh, angle: f32) -> WasmMesh {
-    create_wasm_mesh_with_modifier(csg::rotate_x(&mesh.mesh, angle), mesh.color, mesh.modifier.clone(), mesh.object_id.clone())
+    create_wasm_mesh_with_modifier(
+        csg::rotate_x(&mesh.mesh, angle),
+        mesh.color,
+        mesh.modifier.clone(),
+        mesh.object_id.clone(),
+    )
 }
 
 #[wasm_bindgen]
 pub fn rotate_y(mesh: &WasmMesh, angle: f32) -> WasmMesh {
-    create_wasm_mesh_with_modifier(csg::rotate_y(&mesh.mesh, angle), mesh.color, mesh.modifier.clone(), mesh.object_id.clone())
+    create_wasm_mesh_with_modifier(
+        csg::rotate_y(&mesh.mesh, angle),
+        mesh.color,
+        mesh.modifier.clone(),
+        mesh.object_id.clone(),
+    )
 }
 
 #[wasm_bindgen]
 pub fn rotate_z(mesh: &WasmMesh, angle: f32) -> WasmMesh {
-    create_wasm_mesh_with_modifier(csg::rotate_z(&mesh.mesh, angle), mesh.color, mesh.modifier.clone(), mesh.object_id.clone())
+    create_wasm_mesh_with_modifier(
+        csg::rotate_z(&mesh.mesh, angle),
+        mesh.color,
+        mesh.modifier.clone(),
+        mesh.object_id.clone(),
+    )
 }
 
 #[wasm_bindgen]
 pub fn scale(mesh: &WasmMesh, sx: f32, sy: f32, sz: f32) -> WasmMesh {
-    create_wasm_mesh_with_modifier(csg::scale(&mesh.mesh, sx, sy, sz), mesh.color, mesh.modifier.clone(), mesh.object_id.clone())
+    create_wasm_mesh_with_modifier(
+        csg::scale(&mesh.mesh, sx, sy, sz),
+        mesh.color,
+        mesh.modifier.clone(),
+        mesh.object_id.clone(),
+    )
 }
 
 #[wasm_bindgen]
 pub fn mirror_x(mesh: &WasmMesh) -> WasmMesh {
-    create_wasm_mesh_with_modifier(csg::mirror_x(&mesh.mesh), mesh.color, mesh.modifier.clone(), mesh.object_id.clone())
+    create_wasm_mesh_with_modifier(
+        csg::mirror_x(&mesh.mesh),
+        mesh.color,
+        mesh.modifier.clone(),
+        mesh.object_id.clone(),
+    )
 }
 
 #[wasm_bindgen]
 pub fn mirror_y(mesh: &WasmMesh) -> WasmMesh {
-    create_wasm_mesh_with_modifier(csg::mirror_y(&mesh.mesh), mesh.color, mesh.modifier.clone(), mesh.object_id.clone())
+    create_wasm_mesh_with_modifier(
+        csg::mirror_y(&mesh.mesh),
+        mesh.color,
+        mesh.modifier.clone(),
+        mesh.object_id.clone(),
+    )
 }
 
 #[wasm_bindgen]
 pub fn mirror_z(mesh: &WasmMesh) -> WasmMesh {
-    create_wasm_mesh_with_modifier(csg::mirror_z(&mesh.mesh), mesh.color, mesh.modifier.clone(), mesh.object_id.clone())
+    create_wasm_mesh_with_modifier(
+        csg::mirror_z(&mesh.mesh),
+        mesh.color,
+        mesh.modifier.clone(),
+        mesh.object_id.clone(),
+    )
 }
 
 #[wasm_bindgen]
@@ -279,7 +345,12 @@ pub fn multmatrix(mesh: &WasmMesh, matrix: Vec<f32>) -> WasmMesh {
     }
     let mut mat_array = [0.0; 16];
     mat_array.copy_from_slice(&matrix);
-    create_wasm_mesh_with_modifier(csg::multmatrix(&mesh.mesh, &mat_array), mesh.color, mesh.modifier.clone(), mesh.object_id.clone())
+    create_wasm_mesh_with_modifier(
+        csg::multmatrix(&mesh.mesh, &mat_array),
+        mesh.color,
+        mesh.modifier.clone(),
+        mesh.object_id.clone(),
+    )
 }
 
 #[wasm_bindgen]

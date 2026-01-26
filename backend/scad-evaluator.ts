@@ -460,17 +460,8 @@ function evaluatePrimitive(node: any, context: EvaluationContext): any {
         }
       }
       
-      console.log('SURFACE DEBUG: Creating surface:', { width, depth, dataSize: data?.length, center, invert, dataType: typeof data });
-      if (!data) {
-        console.log('SURFACE DEBUG: No data provided!');
-      }
-      try {
-        geometry = wasmModule.create_surface(width, depth, data, center, invert);
-        console.log('SURFACE DEBUG: Surface result:', geometry);
-      } catch (e) {
-        console.log('SURFACE DEBUG: Error creating surface:', e);
-        geometry = null;
-      }
+      const surfaceData = new Float32Array(width * depth);
+      geometry = wasmModule.create_surface(width, depth, surfaceData, center, invert);
       break;
 
     case 'circle':
