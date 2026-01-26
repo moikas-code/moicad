@@ -249,6 +249,31 @@ pub fn hull_two(a: &WasmMesh, b: &WasmMesh) -> WasmMesh {
     )
 }
 
+#[wasm_bindgen]
+pub fn hull_multiple(mesh_pointers: &[usize]) -> WasmMesh {
+    // UNSAFE: This function relies on the caller to provide valid pointers
+    // to WasmMesh objects.
+    let meshes: Vec<&Mesh> = mesh_pointers
+        .iter()
+        .map(|ptr| unsafe { &(*(ptr as *const WasmMesh)).mesh })
+        .collect();
+
+    let result_mesh = hull::hull_meshes(&meshes);
+
+    // Preserve color and modifier from the first mesh if available
+    if !mesh_pointers.is_empty() {
+        let first_mesh = unsafe { &(*(mesh_pointers[0] as *const WasmMesh)) };
+        create_wasm_mesh_with_modifier(
+            result_mesh,
+            first_mesh.color,
+            first_mesh.modifier.clone(),
+            first_mesh.object_id.clone(),
+        )
+    } else {
+        create_wasm_mesh(result_mesh)
+    }
+}
+
 // Color operations
 #[wasm_bindgen]
 pub fn set_color(mesh: &WasmMesh, r: f32, g: f32, b: f32, a: Option<f32>) -> WasmMesh {

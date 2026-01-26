@@ -31,6 +31,7 @@ interface WasmModule {
   minkowski: (a: any, b: any) => any;
   hull: (mesh: any) => any;
   hull_two: (a: any, b: any) => any;
+  hull_multiple: (mesh_pointers: number[]) => any;
   translate: (mesh: any, x: number, y: number, z: number) => any;
   rotate_x: (mesh: any, angle: number) => any;
   rotate_y: (mesh: any, angle: number) => any;
@@ -847,18 +848,26 @@ async function evaluateBooleanOp(
     return null;
   }
 
-  // Special handling for hull - combine all children then compute hull
+  // Special handling for hull - use optimized multi-child implementation
   if (node.op === "hull") {
-    // First, evaluate all children and union them together
-    let combined = await evaluateNode(node.children[0], context);
-    for (let i = 1; i < node.children.length; i++) {
-      const next = await evaluateNode(node.children[i], context);
-      if (!next) continue;
-      // Use union to combine vertices (not hull_two which computes hull immediately)
-      combined = wasmModule.union(combined, next);
+    const child_geoms = [];
+    for (const child of node.children) {
+      const geom = await evaluateNode(child, context);
+      if (geom) {
+        child_geoms.push(geom);
+      }
     }
-    // Now compute convex hull on the combined geometry
-    return combined ? wasmModule.hull(combined) : null;
+
+    if (child_geoms.length === 0) {
+      return null;
+    }
+    if (child_geoms.length === 1) {
+      return wasmModule.hull(child_geoms[0]);
+    }
+
+    // New efficient path for multiple children
+    const mesh_pointers = child_geoms.map((geom) => geom.ptr);
+    return wasmModule.hull_multiple(mesh_pointers);
   }
 
   let result = await evaluateNode(node.children[0], context);
