@@ -53,8 +53,7 @@ const tools: Tool[] = [
   },
   {
     name: "get_primitives",
-    description:
-      "Get list of available primitive shapes and their parameters.",
+    description: "Get list of available primitive shapes and their parameters.",
     inputSchema: {
       type: "object" as const,
       properties: {},
@@ -85,11 +84,13 @@ const tools: Tool[] = [
         format: {
           type: "string",
           enum: ["stl", "obj", "3mf"],
-          description: "Export format (STL for 3D printing, OBJ for 3D models, 3MF for models with color)",
+          description:
+            "Export format (STL for 3D printing, OBJ for 3D models, 3MF for models with color)",
         },
         binary: {
           type: "boolean",
-          description: "For STL format: true for binary, false for ASCII (default: true)",
+          description:
+            "For STL format: true for binary, false for ASCII (default: true)",
         },
       },
       required: ["code", "format"],
@@ -151,7 +152,7 @@ server.setRequestHandler(async (request) => {
 
       case "export_model":
         return await handleExportModel(
-          args as { code: string; format: string; binary?: boolean }
+          args as { code: string; format: string; binary?: boolean },
         );
 
       case "validate_syntax":
@@ -189,7 +190,7 @@ async function handleParse(args: {
   code: string;
 }): Promise<Response & { isError?: boolean }> {
   try {
-    const response = await fetch("http://localhost:3000/api/parse", {
+    const response = await fetch("http://localhost:42069/api/parse", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(args),
@@ -222,7 +223,7 @@ async function handleEvaluate(args: {
   code: string;
 }): Promise<Response & { isError?: boolean }> {
   try {
-    const response = await fetch("http://localhost:3000/api/evaluate", {
+    const response = await fetch("http://localhost:42069/api/evaluate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(args),
@@ -353,7 +354,8 @@ function handleGetOperations(): Response & { isError?: boolean } {
         name: "multmatrix",
         params: ["4x4 matrix"],
         description: "Apply custom 4x4 transformation matrix",
-        example: "multmatrix([[1,0,0,0],[0,1,0,0],[0,0,1,5],[0,0,0,1]]) cube(10);",
+        example:
+          "multmatrix([[1,0,0,0],[0,1,0,0],[0,0,1,5],[0,0,0,1]]) cube(10);",
       },
     ],
     boolean_operations: [
@@ -364,7 +366,8 @@ function handleGetOperations(): Response & { isError?: boolean } {
       },
       {
         name: "difference",
-        description: "Subtract second shape from first (currently returns first)",
+        description:
+          "Subtract second shape from first (currently returns first)",
         example: "difference(cube(10), sphere(6));",
       },
       {
@@ -392,7 +395,7 @@ async function handleExportModel(args: {
 }): Promise<Response & { isError?: boolean }> {
   try {
     // First evaluate the code
-    const evalResponse = await fetch("http://localhost:3000/api/evaluate", {
+    const evalResponse = await fetch("http://localhost:42069/api/evaluate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code: args.code }),
@@ -413,7 +416,7 @@ async function handleExportModel(args: {
     }
 
     // Export to requested format
-    const exportResponse = await fetch("http://localhost:3000/api/export", {
+    const exportResponse = await fetch("http://localhost:42069/api/export", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -455,7 +458,7 @@ async function handleValidateSyntax(args: {
   code: string;
 }): Promise<Response & { isError?: boolean }> {
   try {
-    const response = await fetch("http://localhost:3000/api/parse", {
+    const response = await fetch("http://localhost:42069/api/parse", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(args),
@@ -500,7 +503,7 @@ async function handleGetModelInfo(args: {
   code: string;
 }): Promise<Response & { isError?: boolean }> {
   try {
-    const response = await fetch("http://localhost:3000/api/evaluate", {
+    const response = await fetch("http://localhost:42069/api/evaluate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(args),

@@ -48,7 +48,7 @@ Client (Web/Mobile/Desktop)     MCP Server     Backend Services     AI Providers
 
 ```typescript
 // Connect to MCP WebSocket
-const ws = new WebSocket('ws://localhost:3000/mcp');
+const ws = new WebSocket('ws://localhost:42069/mcp');
 
 // Authentication
 ws.send(JSON.stringify({

@@ -122,7 +122,7 @@ cd wasm && wasm-pack build --target web --features parallel
 ./benchmark-hot-path.sh
 
 # Test with complex geometry
-curl -X POST http://localhost:3000/api/evaluate \
+curl -X POST http://localhost:42069/api/evaluate \
   -H "Content-Type: application/json" \
   -d '{"code":"for(i=[0:20]) union(translate([i*10,0,0]) sphere(5), translate([-i*10,0,0]) cylinder(2,20));"}'
 ```

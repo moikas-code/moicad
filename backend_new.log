@@ -1,20 +1,17 @@
-Parallel evaluation enabled (placeholder implementation)
-Parallel evaluation enabled (placeholder implementation)
-Parallel evaluation enabled (placeholder implementation)
-Parallel evaluation enabled (placeholder implementation)
+[32minfo[39m: Backend PID file created {"pid":53869,"service":"moicad-backend","timestamp":"2026-01-26T22:12:11.602Z"}
 Stub AI provider initialized with config: {}
 AI provider registered: Stub AI Provider (stub-provider)
 Default AI providers initialized
-✓ WASM module initialized
+[32minfo[39m: WASM module initialized successfully {"service":"moicad-backend","timestamp":"2026-01-26T22:12:11.617Z"}
 Sample data initialized
 
 ╔════════════════════════════════════════════════════════════╗
 ║         🏗️  moicad CAD Engine Server                       ║
 ║                                                            ║
-║  Server running at: http://localhost:3000                ║
-║  WebSocket:        ws://localhost:3000/ws               ║
-║  MCP WebSocket:     ws://localhost:3000/ws/mcp           ║
-║  Health check:     http://localhost:3000/health         ║
+║  Server running at: http://localhost:42069                ║
+║  WebSocket:        ws://localhost:42069/ws               ║
+║  MCP WebSocket:     ws://localhost:42069/ws/mcp           ║
+║  Health check:     http://localhost:42069/health         ║
 ║                                                            ║
 ║  API Endpoints:                                           ║
 ║    POST /api/parse     - Parse OpenSCAD code             ║
@@ -32,37 +29,17 @@ Sample data initialized
 ║    GET  /api/mcp/stats          - System statistics     ║
 ╚════════════════════════════════════════════════════════════╝
 
-Parallel evaluation enabled (placeholder implementation)
-Parallel evaluation enabled (placeholder implementation)
-Parallel evaluation enabled (placeholder implementation)
-Parallel evaluation enabled (placeholder implementation)
-Stub AI provider initialized with config: {}
-AI provider registered: Stub AI Provider (stub-provider)
-Default AI providers initialized
-✓ WASM module initialized
-Sample data initialized
-
-╔════════════════════════════════════════════════════════════╗
-║         🏗️  moicad CAD Engine Server                       ║
-║                                                            ║
-║  Server running at: http://localhost:3000                ║
-║  WebSocket:        ws://localhost:3000/ws               ║
-║  MCP WebSocket:     ws://localhost:3000/ws/mcp           ║
-║  Health check:     http://localhost:3000/health         ║
-║                                                            ║
-║  API Endpoints:                                           ║
-║    POST /api/parse     - Parse OpenSCAD code             ║
-║    POST /api/evaluate  - Parse and evaluate to geometry   ║
-║    POST /api/export    - Export geometry to STL/OBJ       ║
-║                                                            ║
-║  MCP Endpoints:                                          ║
-║    POST /api/mcp/auth/register    - User registration     ║
-║    POST /api/mcp/auth/login       - User login           ║
-║    GET  /api/mcp/auth/me         - Current user         ║
-║    GET  /api/mcp/projects        - List projects        ║
-║    POST /api/mcp/projects        - Create project       ║
-║    GET  /api/mcp/sessions       - List sessions        ║
-║    POST /api/mcp/sessions       - Create session        ║
-║    GET  /api/mcp/stats          - System statistics     ║
-╚════════════════════════════════════════════════════════════╝
-
+✓ WebSocket client connected
+[32minfo[39m: Job xn8tn3 queued {"position":1,"queueSize":1,"service":"moicad-backend","timestamp":"2026-01-26T22:12:15.066Z"}
+[32minfo[39m: Processing job xn8tn3 {"codeLength":64,"service":"moicad-backend","timestamp":"2026-01-26T22:12:15.066Z","waitTime":"0ms"}
+[32minfo[39m: Job xn8tn3 completed {"executionTime":"1183ms","service":"moicad-backend","success":true,"timestamp":"2026-01-26T22:12:16.249Z"}
+[32minfo[39m: Job hh32ai queued {"position":1,"queueSize":1,"service":"moicad-backend","timestamp":"2026-01-26T22:12:17.594Z"}
+[32minfo[39m: Processing job hh32ai {"codeLength":80,"service":"moicad-backend","timestamp":"2026-01-26T22:12:17.595Z","waitTime":"1ms"}
+[32minfo[39m: Job hh32ai completed {"executionTime":"1158ms","service":"moicad-backend","success":true,"timestamp":"2026-01-26T22:12:18.752Z"}
+[32minfo[39m: Job 4l2qpl queued {"position":1,"queueSize":1,"service":"moicad-backend","timestamp":"2026-01-26T22:12:29.115Z"}
+[32minfo[39m: Processing job 4l2qpl {"codeLength":64,"service":"moicad-backend","timestamp":"2026-01-26T22:12:29.116Z","waitTime":"1ms"}
+[32minfo[39m: Job 4l2qpl completed {"executionTime":"1148ms","service":"moicad-backend","success":true,"timestamp":"2026-01-26T22:12:30.263Z"}
+[32minfo[39m: Job 2qwjx queued {"position":1,"queueSize":1,"service":"moicad-backend","timestamp":"2026-01-26T22:12:39.486Z"}
+[32minfo[39m: Processing job 2qwjx {"codeLength":82,"service":"moicad-backend","timestamp":"2026-01-26T22:12:39.487Z","waitTime":"1ms"}
+[32minfo[39m: Job 2qwjx completed {"executionTime":"114331ms","service":"moicad-backend","success":true,"timestamp":"2026-01-26T22:14:33.818Z"}
+[32minfo[39m: Received SIGTERM, shutting down {"service":"moicad-backend","timestamp":"2026-01-26T22:14:33.845Z"}

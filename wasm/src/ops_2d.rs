@@ -131,12 +131,14 @@ fn offset_inset(points: &[Vec2], delta: f32, chamfer: bool) -> Vec<Vec2> {
 }
 
 /// Check if an inset point would cause self-intersection
-fn is_valid_inset_point(point: &Vec2, original: &[Vec2], delta: f32) -> bool {
-    // Simple check: ensure point is inside original polygon and not too close to edges
+fn is_valid_inset_point(point: &Vec2, original: &[Vec2], _delta: f32) -> bool {
+    // Only reject points that are clearly invalid (crossed through to wrong side)
+    // Valid inset points should be approximately delta away from edges, which is correct
+    // Use small epsilon for numerical stability instead of delta-based threshold
     for edge in original.windows(2) {
         if edge.len() == 2 {
             let dist_to_edge = point_to_line_distance(point, &edge[0], &edge[1]);
-            if dist_to_edge < delta * 0.5 {
+            if dist_to_edge < 0.001 {  // Small epsilon to catch numerical errors only
                 return false;
             }
         }

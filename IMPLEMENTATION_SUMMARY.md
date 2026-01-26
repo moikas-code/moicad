@@ -7,7 +7,7 @@
 
 ### **Phase 1: Process Management** ✅
 - **PID File Locking**: Prevents multiple backend instances (`.moicad-backend.pid`)
-- **Port Availability Check**: Fails fast if port 3000 is already in use
+- **Port Availability Check**: Fails fast if port 69420 is already in use
 - **Cleanup Handlers**: Proper shutdown on SIGINT/SIGTERM/exit
 - **Stale Process Detection**: Auto-removes old PID files from crashed processes
 
@@ -84,7 +84,7 @@
 
 ### **Simple Cube Test:**
 ```bash
-curl -X POST http://localhost:3000/api/evaluate \
+curl -X POST http://localhost:42069/api/evaluate \
   -H "Content-Type: application/json" \
   -d '{"code":"cube(10);"}'
 ```
@@ -93,7 +93,7 @@ curl -X POST http://localhost:3000/api/evaluate \
 
 ### **Variable Array Test:**
 ```bash
-curl -X POST http://localhost:3000/api/evaluate \
+curl -X POST http://localhost:42069/api/evaluate \
   -H "Content-Type: application/json" \
   -d '{"code":"x=10;\ncube([x,20,30]);"}'
 ```
@@ -102,7 +102,7 @@ curl -X POST http://localhost:3000/api/evaluate \
 
 ### **Negative Variable Test:**
 ```bash
-curl -X POST http://localhost:3000/api/evaluate \
+curl -X POST http://localhost:42069/api/evaluate \
   -H "Content-Type: application/json" \
   -d '{"code":"body_roll=-5;\nrotate([body_roll,0,0]) cube(10);"}'
 ```

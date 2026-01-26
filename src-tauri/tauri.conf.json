@@ -6,14 +6,14 @@
   "build": {
     "beforeBuildCommand": "cd frontend && npm run build",
     "beforeDevCommand": "bun run dev:all",
-    "devUrl": "http://localhost:3001",
+    "devUrl": "http://localhost:3002",
     "frontendDist": "../frontend/out"
   },
   "app": {
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "moicad - OpenSCAD Clone",
+        "title": "moicad",
         "width": 1400,
         "height": 900,
         "resizable": true,
@@ -30,11 +30,7 @@
     "active": true,
     "targets": "all",
     "icon": [],
-    "resources": [
-      "../backend/**/*",
-      "../wasm/pkg/**/*",
-      "../shared/**/*"
-    ],
+    "resources": ["../backend/**/*", "../wasm/pkg/**/*", "../shared/**/*"],
     "linux": {
       "appimage": {
         "bundleMediaFramework": false

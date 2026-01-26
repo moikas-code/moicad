@@ -1,4 +1,0 @@
-./backend/index.ts: line 1: /bin: Is a directory
-./backend/index.ts: line 2: 100_PERCENT_COMPATIBILITY_ACHIEVED.md: command not found
-./backend/index.ts: line 3: syntax error near unexpected token `('
-./backend/index.ts: line 3: ` * Bun.serve() with REST API and WebSocket support'

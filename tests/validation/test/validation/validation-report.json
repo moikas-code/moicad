@@ -1,0 +1,365 @@
+{
+  "timestamp": "2026-01-24T23:43:42.841Z",
+  "summary": {
+    "passed": 21,
+    "failed": 15,
+    "partial": 0,
+    "notTested": 0,
+    "successRate": 58.3
+  },
+  "details": [
+    {
+      "name": "Union - Simple two objects",
+      "status": "✅ PASS",
+      "error": null,
+      "code": "union() { cube(10); translate([15, 0, 0]) cube(10); }",
+      "geometry": {
+        "vertices": 16,
+        "faces": 24
+      },
+      "executionTime": 1.7017419999974663
+    },
+    {
+      "name": "Union - Multiple objects",
+      "status": "✅ PASS",
+      "error": null,
+      "code": "union() { cube(10); sphere(8); cylinder(5, 15); }",
+      "geometry": {
+        "vertices": 812,
+        "faces": 1612
+      },
+      "executionTime": 2.2684160000062548
+    },
+    {
+      "name": "Union - Overlapping cubes",
+      "status": "✅ PASS",
+      "error": null,
+      "code": "union() { cube(10); translate([5, 5, 0]) cube(10); }",
+      "geometry": {
+        "vertices": 16,
+        "faces": 24
+      },
+      "executionTime": 0.400710000001709
+    },
+    {
+      "name": "Union - Different shape types",
+      "status": "✅ PASS",
+      "error": null,
+      "code": "union() { cube(15); sphere(10); translate([0, 0, 10]) cylinder(8, 20); }",
+      "geometry": {
+        "vertices": 812,
+        "faces": 1612
+      },
+      "executionTime": 1.2633009999990463
+    },
+    {
+      "name": "Union - Nested unions",
+      "status": "✅ PASS",
+      "error": null,
+      "code": "union() { union() { cube(8); translate([10, 0, 0]) cube(8); } translate([0, 10, 0]) sphere(6); }",
+      "geometry": {
+        "vertices": 778,
+        "faces": 1544
+      },
+      "executionTime": 2.385169000001042
+    },
+    {
+      "name": "Difference - Simple subtraction",
+      "status": "✅ PASS",
+      "error": null,
+      "code": "difference() { cube(20); translate([10, 10, 0]) cube(10); }",
+      "geometry": {
+        "vertices": 76,
+        "faces": 32
+      },
+      "executionTime": 1.9252470000064932
+    },
+    {
+      "name": "Difference - Hole in object",
+      "status": "✅ PASS",
+      "error": null,
+      "code": "difference() { cube(20); translate([10, 10, -1]) cylinder(5, 22); }",
+      "geometry": {
+        "vertices": 19,
+        "faces": 13
+      },
+      "executionTime": 1.1779099999985192
+    },
+    {
+      "name": "Difference - Multiple subtractions",
+      "status": "✅ PASS",
+      "error": null,
+      "code": "difference() { cube(25); translate([8, 8, -1]) cylinder(4, 27); translate([17, 17, -1]) cylinder(4, 27); }",
+      "geometry": {
+        "vertices": 60,
+        "faces": 26
+      },
+      "executionTime": 1.8056140000044252
+    },
+    {
+      "name": "Difference - Complex shape",
+      "status": "✅ PASS",
+      "error": null,
+      "code": "difference() { sphere(20); translate([0, 0, -10]) cube(30, center=true); }",
+      "geometry": {
+        "vertices": 7222,
+        "faces": 2964
+      },
+      "executionTime": 132.08547900000121
+    },
+    {
+      "name": "Difference - Nested differences",
+      "status": "✅ PASS",
+      "error": null,
+      "code": "difference() { cube(20); difference() { translate([5, 5, 5]) cube(10); translate([8, 8, 8]) cube(4); } }",
+      "geometry": {
+        "vertices": 48,
+        "faces": 20
+      },
+      "executionTime": 0.5068020000035176
+    },
+    {
+      "name": "Intersection - Simple overlap",
+      "status": "✅ PASS",
+      "error": null,
+      "code": "intersection() { cube(20, center=true); translate([5, 5, 0]) cube(20, center=true); }",
+      "geometry": {
+        "vertices": 56,
+        "faces": 24
+      },
+      "executionTime": 0.3731289999996079
+    },
+    {
+      "name": "Intersection - Sphere and cube",
+      "status": "✅ PASS",
+      "error": null,
+      "code": "intersection() { sphere(15); cube(20, center=true); }",
+      "geometry": {
+        "vertices": 3720,
+        "faces": 1508
+      },
+      "executionTime": 106.88350899999932
+    },
+    {
+      "name": "Intersection - Multiple objects",
+      "status": "✅ PASS",
+      "error": null,
+      "code": "intersection() { cube(25, center=true); sphere(18); translate([0, 0, 5]) cube(15, center=true); }",
+      "geometry": {
+        "vertices": 2313,
+        "faces": 829
+      },
+      "executionTime": 90.13976800000091
+    },
+    {
+      "name": "Intersection - Sliding objects",
+      "status": "✅ PASS",
+      "error": null,
+      "code": "intersection() { cube(20); translate([15, 15, 0]) cube(20); }",
+      "geometry": {
+        "vertices": 56,
+        "faces": 24
+      },
+      "executionTime": 0.27531699999963166
+    },
+    {
+      "name": "Hull - Two points",
+      "status": "✅ PASS",
+      "error": null,
+      "code": "hull() { translate([0, 0, 0]) cube(1); translate([20, 20, 20]) cube(1); }",
+      "geometry": {
+        "vertices": 72,
+        "faces": 24
+      },
+      "executionTime": 1.218380000005709
+    },
+    {
+      "name": "Hull - Multiple points",
+      "status": "✅ PASS",
+      "error": null,
+      "code": "hull() { cube(5); translate([20, 0, 0]) sphere(5); translate([0, 20, 0]) cylinder(3, 10); translate([0, 0, 20]) cube(3); }",
+      "geometry": {
+        "vertices": 1776,
+        "faces": 592
+      },
+      "executionTime": 7.277558999994653
+    },
+    {
+      "name": "Hull - Overlapping objects",
+      "status": "✅ PASS",
+      "error": null,
+      "code": "hull() { cube(10); translate([5, 5, 0]) cube(10); translate([10, 0, 10]) sphere(8); }",
+      "geometry": {
+        "vertices": 2184,
+        "faces": 728
+      },
+      "executionTime": 7.7308694200000424
+    },
+    {
+      "name": "Hull - Complex arrangement",
+      "status": "✅ PASS",
+      "error": null,
+      "code": "hull() { translate([0, 0, 0]) sphere(5); translate([30, 0, 0]) sphere(5); translate([15, 25, 10]) sphere(5); }",
+      "geometry": {
+        "vertices": 5022,
+        "faces": 1674
+      },
+      "executionTime": 36.38196500000049
+    },
+    {
+      "name": "Minkowski - Simple minkowski",
+      "status": "❌ FAIL",
+      "error": "Evaluation failed: Unknown transform: minkowski",
+      "code": "minkowski() { cube(10); sphere(2); }",
+      "geometry": {
+        "vertices": 770,
+        "faces": 1532
+      },
+      "executionTime": 0.6618859999944107
+    },
+    {
+      "name": "Minkowski - Cube and cylinder",
+      "status": "❌ FAIL",
+      "error": "Evaluation failed: Unknown transform: minkowski",
+      "code": "minkowski() { cube(15); cylinder(2, 5); }",
+      "geometry": {
+        "vertices": 50,
+        "faces": 92
+      },
+      "executionTime": 0.18993500000215136
+    },
+    {
+      "name": "Minkowski - Multiple objects",
+      "status": "❌ FAIL",
+      "error": "Evaluation failed: Unknown transform: minkowski",
+      "code": "minkowski() { cube(10); sphere(3); cylinder(1, 6); }",
+      "geometry": {
+        "vertices": 812,
+        "faces": 1612
+      },
+      "executionTime": 1.0997770000030869
+    },
+    {
+      "name": "Minkowski - Complex shapes",
+      "status": "❌ FAIL",
+      "error": "Evaluation failed: Unknown module: linear_extrude, Unknown transform: minkowski",
+      "code": "minkowski() { linear_extrude(10) polygon([[0,0], [10,0], [8,8], [2,6]]); sphere(2); }",
+      "geometry": {
+        "vertices": 762,
+        "faces": 1520
+      },
+      "executionTime": 0.7955290000027162
+    },
+    {
+      "name": "Complex - Union of differences",
+      "status": "✅ PASS",
+      "error": null,
+      "code": "union() { difference() { cube(20); translate([10, 10, -1]) cylinder(5, 22); } difference() { translate([0, 25, 0]) cube(20); translate([10, 35, -1]) cylinder(3, 22); } }",
+      "geometry": {
+        "vertices": 38,
+        "faces": 26
+      },
+      "executionTime": 0.8454910000000382
+    },
+    {
+      "name": "Complex - Difference of unions",
+      "status": "❌ FAIL",
+      "error": "Evaluation failed: Out of bounds memory access (evaluating 'wasm.difference(a.__wbg_ptr, b.__wbg_ptr)')",
+      "code": "difference() { union() { cube(30); translate([15, 15, 0]) sphere(12); } union() { translate([10, 10, 10]) cube(15); translate([20, 20, 10]) sphere(8); } }",
+      "geometry": null,
+      "executionTime": 354.30695600000035
+    },
+    {
+      "name": "Complex - Intersection of differences",
+      "status": "❌ FAIL",
+      "error": "Evaluation failed: Out of bounds memory access (evaluating 'wasm.translate(mesh.__wbg_ptr, x, y, z)')",
+      "code": "intersection() { difference() { cube(25); translate([5, 5, 5]) cube(15); } difference() { translate([10, 0, 0]) cube(25); translate([15, 5, 5]) cube(15); } }",
+      "geometry": null,
+      "executionTime": 0.2675170000002254
+    },
+    {
+      "name": "Complex - Hull of intersections",
+      "status": "❌ FAIL",
+      "error": "Evaluation failed: Out of bounds memory access (evaluating 'wasm.intersection(a.__wbg_ptr, b.__wbg_ptr)')",
+      "code": "hull() { intersection() { cube(15); sphere(12); } intersection() { translate([20, 0, 0]) cube(15); translate([20, 0, 0]) sphere(12); } }",
+      "geometry": null,
+      "executionTime": 0.42733099999895785
+    },
+    {
+      "name": "Complex - Minkowski with boolean",
+      "status": "❌ FAIL",
+      "error": "Evaluation failed: Out of bounds memory access (evaluating 'wasm.translate(mesh.__wbg_ptr, x, y, z)')",
+      "code": "minkowski() { difference() { cube(15); translate([5, 5, 5]) cube(8); } sphere(2); }",
+      "geometry": null,
+      "executionTime": 0.30682700000033947
+    },
+    {
+      "name": "Boolean + Transform - Transformed union",
+      "status": "❌ FAIL",
+      "error": "Evaluation failed: Out of bounds memory access (evaluating 'wasm.rotate_z(mesh.__wbg_ptr, angle)')",
+      "code": "translate([10, 0, 0]) union() { cube(10); rotate(45) cube(10); }",
+      "geometry": null,
+      "executionTime": 0.20544499999959953
+    },
+    {
+      "name": "Boolean + Transform - Rotated difference",
+      "status": "❌ FAIL",
+      "error": "Evaluation failed: Out of bounds memory access (evaluating 'wasm.translate(mesh.__wbg_ptr, x, y, z)')",
+      "code": "rotate([0, 0, 45]) difference() { cube(20); translate([10, 10, 0]) cube(8); }",
+      "geometry": null,
+      "executionTime": 0.10087299999577226
+    },
+    {
+      "name": "Boolean + Transform - Scaled intersection",
+      "status": "❌ FAIL",
+      "error": "Evaluation failed: Out of bounds memory access (evaluating 'wasm.intersection(a.__wbg_ptr, b.__wbg_ptr)')",
+      "code": "scale(1.5) intersection() { sphere(15); cube(20, center=true); }",
+      "geometry": null,
+      "executionTime": 0.19592499999998836
+    },
+    {
+      "name": "Boolean + Transform - Multiple transforms",
+      "status": "❌ FAIL",
+      "error": "Evaluation failed: Out of bounds memory access (evaluating 'wasm.union(a.__wbg_ptr, b.__wbg_ptr)')",
+      "code": "translate([5, 5, 0]) rotate([45, 0, 0]) scale([1, 2, 0.5]) union() { cube(10); sphere(8); }",
+      "geometry": null,
+      "executionTime": 0.15247399999498157
+    },
+    {
+      "name": "Boolean - Empty union",
+      "status": "✅ PASS",
+      "error": null,
+      "code": "union() { }",
+      "geometry": null,
+      "executionTime": 0.038261000001512
+    },
+    {
+      "name": "Boolean - Single object union",
+      "status": "❌ FAIL",
+      "error": "Evaluation failed: Out of bounds memory access (evaluating 'wasm.wasmmesh_vertex_count(this.__wbg_ptr)')",
+      "code": "union() { cube(10); }",
+      "geometry": null,
+      "executionTime": 0.21765600000071572
+    },
+    {
+      "name": "Boolean - Difference with no base",
+      "status": "✅ PASS",
+      "error": null,
+      "code": "difference() { }",
+      "geometry": null,
+      "executionTime": 0.04683099999965634
+    },
+    {
+      "name": "Boolean - Intersection of non-overlapping",
+      "status": "❌ FAIL",
+      "error": "Request failed: read ECONNRESET",
+      "code": "intersection() { translate([0, 0, 0]) cube(10); translate([50, 50, 50]) cube(10); }"
+    },
+    {
+      "name": "Boolean - Very complex nested",
+      "status": "❌ FAIL",
+      "error": "Request failed: ",
+      "code": "union() { difference() { intersection() { cube(30); sphere(20); } hull() { translate([10, 10, 10]) cube(5); translate([-10, -10, -10]) cube(5); } } minkowski() { translate([40, 0, 0]) cube(15); sphere(3); } }"
+    }
+  ]
+}

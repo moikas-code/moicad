@@ -8,11 +8,11 @@ cd /home/moika/Documents/code/moicad
 bun --hot ./backend/index.ts
 ```
 
-Server runs at: `http://localhost:3000`
+Server runs at: `http://localhost:42069`
 
 ### Your First Shape
 ```bash
-curl -X POST http://localhost:3000/api/evaluate \
+curl -X POST http://localhost:42069/api/evaluate \
   -H "Content-Type: application/json" \
   -d '{"code":"cube(10);"}'
 ```
@@ -151,14 +151,14 @@ See the `examples/` directory:
 
 ### Parse Only
 ```bash
-curl -X POST http://localhost:3000/api/parse \
+curl -X POST http://localhost:42069/api/parse \
   -H "Content-Type: application/json" \
   -d '{"code":"cube(10);"}'
 ```
 
 ### Evaluate to Geometry
 ```bash
-curl -X POST http://localhost:3000/api/evaluate \
+curl -X POST http://localhost:42069/api/evaluate \
   -H "Content-Type: application/json" \
   -d '{"code":"sphere(10);"}'
 ```
@@ -166,7 +166,7 @@ curl -X POST http://localhost:3000/api/evaluate \
 ### Export to STL
 ```bash
 # First get geometry, then:
-curl -X POST http://localhost:3000/api/export \
+curl -X POST http://localhost:42069/api/export \
   -H "Content-Type: application/json" \
   -d '{"geometry":{...},"format":"stl"}' \
   > model.stl

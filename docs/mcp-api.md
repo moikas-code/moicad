@@ -6,7 +6,7 @@ This document defines the REST API endpoints for the Model Context Protocol (MCP
 
 ```
 Production: https://api.moicad.com/mcp
-Development: http://localhost:3000/api/mcp
+Development: http://localhost:42069/api/mcp
 ```
 
 ## Authentication
@@ -501,7 +501,7 @@ Join a collaboration session.
       "color": "#2196F3",
       "permissionLevel": "editor"
     },
-    "websocketUrl": "ws://localhost:3000/mcp",
+    "websocketUrl": "ws://localhost:42069/mcp",
     "initialState": { /* SharedSessionState */ },
     "sessionInfo": { /* Session object */ }
   }

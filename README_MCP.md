@@ -24,8 +24,8 @@ bun install
 # Start MCP server with collaboration
 bun --hot ./backend/index.ts
 
-# Server runs on http://localhost:3000
-# WebSocket available at ws://localhost:3000/mcp
+# Server runs on http://localhost:42069
+# WebSocket available at ws://localhost:42069/mcp
 ```
 
 ## ✨ Key Features
@@ -131,7 +131,7 @@ const operation2 = {
 
 ```javascript
 // Connect to MCP WebSocket
-const ws = new WebSocket('ws://localhost:3000/mcp');
+const ws = new WebSocket('ws://localhost:42069/mcp');
 
 // Authenticate
 ws.send(JSON.stringify({
@@ -281,7 +281,7 @@ bun --hot ./backend/index.ts
 ```bash
 # Using Docker
 docker build -t moicad-mcp .
-docker run -p 3000:3000 moicad-mcp
+docker run -p 42069:42069 moicad-mcp
 
 # Using Docker Compose
 docker-compose up -d
@@ -291,7 +291,7 @@ docker-compose up -d
 
 ```bash
 # Server Configuration
-PORT=3000
+PORT=42069
 HOST=0.0.0.0
 
 # Database (when using persistent storage)

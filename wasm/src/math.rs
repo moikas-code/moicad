@@ -61,10 +61,12 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
+    #[inline]
     pub fn new(x: f32, y: f32, z: f32) -> Self {
         Vec3 { x, y, z }
     }
 
+    #[inline]
     pub fn zero() -> Self {
         Vec3 {
             x: 0.0,
@@ -73,6 +75,7 @@ impl Vec3 {
         }
     }
 
+    #[inline]
     pub fn add(&self, other: Vec3) -> Vec3 {
         Vec3 {
             x: self.x + other.x,
@@ -81,6 +84,7 @@ impl Vec3 {
         }
     }
 
+    #[inline]
     pub fn subtract(&self, other: Vec3) -> Vec3 {
         Vec3 {
             x: self.x - other.x,
@@ -89,6 +93,7 @@ impl Vec3 {
         }
     }
 
+    #[inline]
     pub fn scale(&self, factor: f32) -> Vec3 {
         Vec3 {
             x: self.x * factor,
@@ -97,10 +102,12 @@ impl Vec3 {
         }
     }
 
+    #[inline]
     pub fn dot(&self, other: Vec3) -> f32 {
         self.x * other.x + self.y * other.y + self.z * other.z
     }
 
+    #[inline]
     pub fn cross(&self, other: Vec3) -> Vec3 {
         Vec3 {
             x: self.y * other.z - self.z * other.y,
@@ -109,10 +116,12 @@ impl Vec3 {
         }
     }
 
+    #[inline]
     pub fn length(&self) -> f32 {
         (self.x * self.x + self.y * self.y + self.z * self.z).sqrt()
     }
 
+    #[inline]
     pub fn normalize(&self) -> Vec3 {
         let len = self.length();
         if len > 0.0 {

@@ -118,14 +118,22 @@ pub fn minkowski(mesh_a: &Mesh, mesh_b: &Mesh) -> Mesh {
     }
 
     // Strategy: For each face in A, add entire mesh B translated along that face's normal
-    let mut expanded_vertices = Vec::new();
+    // Pre-calculate polygon counts to estimate memory needs
+    let mesh_a_polys = bsp_ops::mesh_to_polygons(mesh_a);
+    let mesh_b_polys = bsp_ops::mesh_to_polygons(mesh_b);
+
+    // Pre-allocate with estimated capacity to reduce reallocations
+    // Each polygon in A adds |B.vertices| new vertices, and vice versa
+    let estimated_size = mesh_a.vertices.len()
+        + mesh_a_polys.len() * mesh_b.vertices.len()
+        + mesh_b_polys.len() * mesh_a.vertices.len();
+    let mut expanded_vertices = Vec::with_capacity(estimated_size);
 
     // Add original mesh A vertices
     expanded_vertices.extend_from_slice(&mesh_a.vertices);
 
     // For each face in mesh A, translate mesh B along that face's normal
-    let mesh_a_polys = bsp_ops::mesh_to_polygons(mesh_a);
-    for poly_a in mesh_a_polys {
+    for poly_a in &mesh_a_polys {
         let normal = poly_a.plane.normal;
 
         // Translate each vertex of mesh B by the normal (extrude it along the normal)
@@ -137,8 +145,7 @@ pub fn minkowski(mesh_a: &Mesh, mesh_b: &Mesh) -> Mesh {
 
     // For each face in mesh B, add translated copy of mesh A
     // This ensures both shapes contribute to the minkowski sum
-    let mesh_b_polys = bsp_ops::mesh_to_polygons(mesh_b);
-    for poly_b in mesh_b_polys {
+    for poly_b in &mesh_b_polys {
         let normal = poly_b.plane.normal;
         let face_offset = normal.scale(0.001);
 

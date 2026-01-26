@@ -76,7 +76,7 @@ export const API_ENDPOINTS = {
   PARSE: '/api/parse',
   EVALUATE: '/api/evaluate',
   EXPORT: '/api/export',
-  WS: 'ws://localhost:3000/ws',
+  WS: 'ws://localhost:42069/ws',
 } as const;
 
 // WebSocket message types

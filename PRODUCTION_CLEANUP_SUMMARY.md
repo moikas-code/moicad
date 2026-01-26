@@ -93,7 +93,7 @@ export LOG_LEVEL=info
   "tauri": {
     "allowlist": {
       "http": {
-        "scope": ["http://localhost:3000/*"]
+        "scope": ["http://localhost:42069/*"]
       }
     }
   }

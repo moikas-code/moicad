@@ -1,11 +1,18 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
-import { SceneManager } from '@/lib/three-utils';
-import { GeometryResponse } from '@/lib/api-client';
-import StatsOverlay from './StatsOverlay';
-import { ViewportControlsProvider, useViewportControls } from './ViewportControlsContext';
-import { PrinterPreset } from '@/lib/printer-presets';
+import { useEffect, useRef, useState } from "react";
+import { SceneManager } from "@/lib/three-utils";
+import { GeometryResponse } from "@/lib/api-client";
+import StatsOverlay from "./StatsOverlay";
+import {
+  ViewportControlsProvider,
+  useViewportControls,
+} from "./ViewportControlsContext";
+import { PrinterPreset } from "@/lib/printer-presets";
+import WebGLViewport from "./WebGLViewport";
+
+// Use custom WebGL renderer by default (fixes BSP rendering artifacts)
+const USE_CUSTOM_WEBGL = true;
 
 interface ViewportProps {
   geometry: GeometryResponse | null;
@@ -27,12 +34,14 @@ function ViewportInner({ geometry, printerSize }: ViewportProps) {
       container: containerRef.current,
       width: containerRef.current.clientWidth,
       height: containerRef.current.clientHeight,
-      printerSize: printerSize ? {
-        width: printerSize.width,
-        depth: printerSize.depth,
-        height: printerSize.height,
-        name: `${printerSize.manufacturer} ${printerSize.name}`
-      } : undefined
+      printerSize: printerSize
+        ? {
+            width: printerSize.width,
+            depth: printerSize.depth,
+            height: printerSize.height,
+            name: `${printerSize.manufacturer} ${printerSize.name}`,
+          }
+        : undefined,
     };
 
     sceneRef.current = new SceneManager(config);
@@ -55,7 +64,7 @@ function ViewportInner({ geometry, printerSize }: ViewportProps) {
         width: printerSize.width,
         depth: printerSize.depth,
         height: printerSize.height,
-        name: `${printerSize.manufacturer} ${printerSize.name}`
+        name: `${printerSize.manufacturer} ${printerSize.name}`,
       });
     }
   }, [printerSize]);
@@ -63,24 +72,30 @@ function ViewportInner({ geometry, printerSize }: ViewportProps) {
   // Update geometry when it changes
   useEffect(() => {
     try {
-      if (geometry && sceneRef.current && geometry.vertices && geometry.indices && geometry.bounds) {
+      if (
+        geometry &&
+        sceneRef.current &&
+        geometry.vertices &&
+        geometry.indices &&
+        geometry.bounds
+      ) {
         sceneRef.current.renderGeometry(geometry);
-        
+
         // Setup highlighting callbacks
         sceneRef.current.setHoverCallback((objectId: string | null) => {
           setHoveredObject(objectId);
           // Handle hover - could highlight corresponding code in editor
-          console.log('Hovered object:', objectId);
+          console.log("Hovered object:", objectId);
         });
-        
+
         sceneRef.current.setSelectCallback((objectIds: string[]) => {
           setSelectedObjects(objectIds);
           // Handle selection - could select corresponding code in editor
-          console.log('Selected objects:', objectIds);
+          console.log("Selected objects:", objectIds);
         });
       }
     } catch (error) {
-      console.error('Failed to render geometry:', error);
+      console.error("Failed to render geometry:", error);
     }
   }, [geometry]);
 
@@ -113,11 +128,11 @@ function ViewportInner({ geometry, printerSize }: ViewportProps) {
     <div
       ref={containerRef}
       className="w-full h-full bg-[#303030]"
-      style={{ position: 'relative' }}
+      style={{ position: "relative" }}
     >
       {/* Stats overlay */}
       <StatsOverlay geometry={geometry} />
-      
+
       {/* Highlighting status overlay */}
       {(hoveredObject || selectedObjects.length > 0) && (
         <div className="absolute top-4 left-4 bg-[#1D1D1D] border border-[#4772B3] rounded p-2 text-white text-sm z-10">
@@ -130,7 +145,10 @@ function ViewportInner({ geometry, printerSize }: ViewportProps) {
           {selectedObjects.length > 0 && (
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 bg-cyan-400 rounded-full"></span>
-              <span>Selected: {selectedObjects.length} object{selectedObjects.length !== 1 ? 's' : ''}</span>
+              <span>
+                Selected: {selectedObjects.length} object
+                {selectedObjects.length !== 1 ? "s" : ""}
+              </span>
             </div>
           )}
         </div>
@@ -159,10 +177,16 @@ function ViewportInner({ geometry, printerSize }: ViewportProps) {
   );
 }
 
-export default function Viewport({ geometry }: ViewportProps) {
+export default function Viewport({ geometry, printerSize }: ViewportProps) {
+  // Use custom WebGL renderer for BSP meshes (fixes rendering artifacts)
+  if (USE_CUSTOM_WEBGL) {
+    return <WebGLViewport geometry={geometry} />;
+  }
+
+  // Fallback to Three.js renderer
   return (
     <ViewportControlsProvider>
-      <ViewportInner geometry={geometry} />
+      <ViewportInner geometry={geometry} printerSize={printerSize} />
     </ViewportControlsProvider>
   );
 }

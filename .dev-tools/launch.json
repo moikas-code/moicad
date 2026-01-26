@@ -1,0 +1,289 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug: Range Parser",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/debug/range-parser.js",
+      "console": "integratedTerminal",
+      "env": {
+        "LOG_LEVEL": "debug",
+        "NODE_ENV": "development"
+      },
+      "presentation": {
+        "hidden": false,
+        "group": "Debug Utilities",
+        "order": 1
+      },
+      "problemMatcher": []
+    },
+    {
+      "name": "Debug: Tokenizer", 
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/debug/tokenizer.js",
+      "console": "integratedTerminal",
+      "env": {
+        "LOG_LEVEL": "debug",
+        "NODE_ENV": "development"
+      },
+      "presentation": {
+        "hidden": false,
+        "group": "Debug Utilities",
+        "order": 2
+      }
+    },
+    {
+      "name": "Debug: Step Evaluator",
+      "type": "node", 
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/debug/step-evaluator.js",
+      "console": "integratedTerminal",
+      "env": {
+        "LOG_LEVEL": "debug",
+        "NODE_ENV": "development"
+      },
+      "presentation": {
+        "hidden": false,
+        "group": "Debug Utilities", 
+        "order": 3
+      }
+    },
+    {
+      "name": "Debug: Simple Parser",
+      "type": "node",
+      "request": "launch", 
+      "program": "${workspaceFolder}/scripts/debug/simple-parser.js",
+      "console": "integratedTerminal",
+      "env": {
+        "LOG_LEVEL": "debug",
+        "NODE_ENV": "development"
+      },
+      "presentation": {
+        "hidden": false,
+        "group": "Debug Utilities",
+        "order": 4
+      }
+    },
+    {
+      "name": "Debug: String Parser",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/debug/string-parser.js", 
+      "console": "integratedTerminal",
+      "env": {
+        "LOG_LEVEL": "debug",
+        "NODE_ENV": "development"
+      },
+      "presentation": {
+        "hidden": false,
+        "group": "Debug Utilities",
+        "order": 5
+      }
+    },
+    {
+      "name": "Debug: List Comprehension",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/debug/list-comprehension.js",
+      "console": "integratedTerminal",
+      "env": {
+        "LOG_LEVEL": "debug",
+        "NODE_ENV": "development"
+      },
+      "presentation": {
+        "hidden": false,
+        "group": "Debug Utilities",
+        "order": 6
+      }
+    },
+    {
+      "name": "Debug: Backend Server",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/backend/index.ts",
+      "runtimeArgs": [
+        "--loader", 
+        "ts-node/esm"
+      ],
+      "console": "integratedTerminal",
+      "env": {
+        "LOG_LEVEL": "debug",
+        "NODE_ENV": "development",
+        "PORT": "69420"
+      },
+      "outputCapture": "std",
+      "presentation": {
+        "hidden": false,
+        "group": "Backend",
+        "order": 10
+      },
+      "problemMatcher": [
+        "$tsc"
+      ]
+    },
+    {
+      "name": "Debug: Parser Module",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/backend/scad-parser.ts",
+      "runtimeArgs": [
+        "--loader",
+        "ts-node/esm"
+      ],
+      "console": "integratedTerminal", 
+      "env": {
+        "LOG_LEVEL": "debug",
+        "NODE_ENV": "development"
+      },
+      "presentation": {
+        "hidden": false,
+        "group": "Backend Modules",
+        "order": 11
+      },
+      "problemMatcher": [
+        "$tsc"
+      ]
+    },
+    {
+      "name": "Debug: Evaluator Module", 
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/backend/scad-evaluator.ts",
+      "runtimeArgs": [
+        "--loader",
+        "ts-node/esm"
+      ],
+      "console": "integratedTerminal",
+      "env": {
+        "LOG_LEVEL": "debug",
+        "NODE_ENV": "development"
+      },
+      "presentation": {
+        "hidden": false,
+        "group": "Backend Modules",
+        "order": 12
+      },
+      "problemMatcher": [
+        "$tsc"
+      ]
+    },
+    {
+      "name": "Debug: WASM Build",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/wasm-pack.js",
+      "args": ["build", "--target", "web"],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/wasm",
+      "env": {
+        "RUST_LOG": "debug",
+        "NODE_ENV": "development"
+      },
+      "presentation": {
+        "hidden": false,
+        "group": "Build & Deploy",
+        "order": 20
+      }
+    },
+    {
+      "name": "Debug: Test Runner",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/tests/validation/test-runner.js",
+      "console": "integratedTerminal",
+      "env": {
+        "LOG_LEVEL": "debug",
+        "NODE_ENV": "test",
+        "TEST_MODE": "development"
+      },
+      "presentation": {
+        "hidden": false,
+        "group": "Testing",
+        "order": 30
+      }
+    },
+    {
+      "name": "Debug: Log Rotation",
+      "type": "node", 
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/dev/rotate-logs.js",
+      "console": "integratedTerminal",
+      "args": ["--dry-run"],
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "presentation": {
+        "hidden": false,
+        "group": "Dev Tools",
+        "order": 40
+      }
+    },
+    {
+      "name": "Debug: Log Cleanup",
+      "type": "node",
+      "request": "launch", 
+      "program": "${workspaceFolder}/scripts/dev/cleanup-logs.js",
+      "console": "integratedTerminal",
+      "args": ["--dry-run", "--retention", "7"],
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "presentation": {
+        "hidden": false,
+        "group": "Dev Tools", 
+        "order": 41
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Debug: Full Parser Analysis",
+      "configurations": [
+        "Debug: Tokenizer",
+        "Debug: Range Parser", 
+        "Debug: Step Evaluator"
+      ],
+      "presentation": {
+        "group": "Compound Debug",
+        "order": 1
+      }
+    },
+    {
+      "name": "Debug: Language Features",
+      "configurations": [
+        "Debug: List Comprehension",
+        "Debug: String Parser",
+        "Debug: Simple Parser"
+      ],
+      "presentation": {
+        "group": "Compound Debug", 
+        "order": 2
+      }
+    },
+    {
+      "name": "Debug: Backend Full Stack",
+      "configurations": [
+        "Debug: Backend Server",
+        "Debug: Parser Module", 
+        "Debug: Evaluator Module"
+      ],
+      "presentation": {
+        "group": "Compound Debug",
+        "order": 3
+      }
+    },
+    {
+      "name": "Debug: Development Tools",
+      "configurations": [
+        "Debug: Log Rotation",
+        "Debug: Log Cleanup"
+      ],
+      "presentation": {
+        "group": "Compound Debug",
+        "order": 4
+      }
+    }
+  ]
+}

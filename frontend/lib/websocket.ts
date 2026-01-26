@@ -5,7 +5,7 @@
 
 import { GeometryResponse, EvaluateResult } from './api-client';
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3000/ws';
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:42069/ws';
 
 export type WebSocketMessageType = 'evaluate' | 'parse' | 'error';
 

@@ -43,7 +43,7 @@ The collaboration system provides:
 
 ```javascript
 // Client-side WebSocket connection
-const ws = new WebSocket('ws://localhost:3000/ws');
+const ws = new WebSocket('ws://localhost:42069/ws');
 
 // Join a session
 ws.send(JSON.stringify({
@@ -311,7 +311,7 @@ ws.send(JSON.stringify({
 
 ### WebSocket Protocol
 
-Connect to: `ws://localhost:3000/ws`
+Connect to: `ws://localhost:42069/ws`
 
 Message format:
 ```typescript

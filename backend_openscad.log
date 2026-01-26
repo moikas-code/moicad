@@ -1,0 +1,44 @@
+[32minfo[39m: Backend PID file created {"pid":68721,"service":"moicad-backend","timestamp":"2026-01-26T22:29:33.344Z"}
+Stub AI provider initialized with config: {}
+AI provider registered: Stub AI Provider (stub-provider)
+Default AI providers initialized
+[32minfo[39m: WASM module initialized successfully {"service":"moicad-backend","timestamp":"2026-01-26T22:29:33.364Z"}
+Sample data initialized
+
+╔════════════════════════════════════════════════════════════╗
+║         🏗️  moicad CAD Engine Server                       ║
+║                                                            ║
+║  Server running at: http://localhost:42069                ║
+║  WebSocket:        ws://localhost:42069/ws               ║
+║  MCP WebSocket:     ws://localhost:42069/ws/mcp           ║
+║  Health check:     http://localhost:42069/health         ║
+║                                                            ║
+║  API Endpoints:                                           ║
+║    POST /api/parse     - Parse OpenSCAD code             ║
+║    POST /api/evaluate  - Parse and evaluate to geometry   ║
+║    POST /api/export    - Export geometry to STL/OBJ       ║
+║                                                            ║
+║  MCP Endpoints:                                          ║
+║    POST /api/mcp/auth/register    - User registration     ║
+║    POST /api/mcp/auth/login       - User login           ║
+║    GET  /api/mcp/auth/me         - Current user         ║
+║    GET  /api/mcp/projects        - List projects        ║
+║    POST /api/mcp/projects        - Create project       ║
+║    GET  /api/mcp/sessions       - List sessions        ║
+║    POST /api/mcp/sessions       - Create session        ║
+║    GET  /api/mcp/stats          - System statistics     ║
+╚════════════════════════════════════════════════════════════╝
+
+✓ WebSocket client connected
+✓ WebSocket client connected
+[32minfo[39m: Job mlxxfsd queued {"position":1,"queueSize":1,"service":"moicad-backend","timestamp":"2026-01-26T22:29:48.022Z"}
+[32minfo[39m: Processing job mlxxfsd {"codeLength":64,"service":"moicad-backend","timestamp":"2026-01-26T22:29:48.023Z","waitTime":"1ms"}
+[32minfo[39m: Job mlxxfsd completed {"executionTime":"43ms","service":"moicad-backend","success":false,"timestamp":"2026-01-26T22:29:48.065Z"}
+[32minfo[39m: Job uuyaey queued {"position":1,"queueSize":1,"service":"moicad-backend","timestamp":"2026-01-26T22:29:57.375Z"}
+[32minfo[39m: Processing job uuyaey {"codeLength":64,"service":"moicad-backend","timestamp":"2026-01-26T22:29:57.375Z","waitTime":"0ms"}
+[32minfo[39m: Job uuyaey completed {"executionTime":"1ms","service":"moicad-backend","success":false,"timestamp":"2026-01-26T22:29:57.376Z"}
+✓ WebSocket client disconnected
+✓ WebSocket client disconnected
+[32minfo[39m: Job dy63rg queued {"position":1,"queueSize":1,"service":"moicad-backend","timestamp":"2026-01-26T22:32:07.110Z"}
+[32minfo[39m: Processing job dy63rg {"codeLength":64,"service":"moicad-backend","timestamp":"2026-01-26T22:32:07.110Z","waitTime":"0ms"}
+[32minfo[39m: Job dy63rg completed {"executionTime":"0ms","service":"moicad-backend","success":false,"timestamp":"2026-01-26T22:32:07.110Z"}

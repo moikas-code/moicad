@@ -4,13 +4,13 @@
  */
 
 // Detect if running in Tauri desktop environment
-const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
+const isTauri = typeof window !== "undefined" && "__TAURI__" in window;
 
-// In Tauri, the backend always runs on localhost:3000
+// In Tauri, the backend always runs on localhost:42069
 // In web mode, use environment variable or default
 const API_BASE = isTauri
-  ? 'http://localhost:3000'
-  : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000');
+  ? "http://localhost:42069"
+  : process.env.NEXT_PUBLIC_API_URL || "http://localhost:42069";
 
 export interface GeometryResponse {
   vertices: number[];
@@ -31,7 +31,7 @@ export interface GeometryResponse {
     a?: number;
   };
   modifier?: {
-    type: '!' | '%' | '#' | '*';
+    type: "!" | "%" | "#" | "*";
     opacity?: number;
     highlightColor?: string;
   };
@@ -65,9 +65,9 @@ export interface ParseResult {
 export async function parseCode(code: string): Promise<ParseResult> {
   try {
     const response = await fetch(`${API_BASE}/api/parse`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({ code }),
     });
@@ -79,10 +79,11 @@ export async function parseCode(code: string): Promise<ParseResult> {
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error('Parse error:', error);
-    const message = error instanceof Error && error.message.includes('Failed to fetch')
-      ? `Could not connect to backend at ${API_BASE}. Is the server running?`
-      : `Failed to connect to parser: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    console.error("Parse error:", error);
+    const message =
+      error instanceof Error && error.message.includes("Failed to fetch")
+        ? `Could not connect to backend at ${API_BASE}. Is the server running?`
+        : `Failed to connect to parser: ${error instanceof Error ? error.message : "Unknown error"}`;
 
     return {
       ast: null,
@@ -96,40 +97,49 @@ export async function parseCode(code: string): Promise<ParseResult> {
  * Evaluate OpenSCAD code to geometry with progress tracking
  */
 export async function evaluateCode(
-  code: string, 
-  onProgress?: (progress: { stage: string; percentage?: number; time?: number }) => void
+  code: string,
+  onProgress?: (progress: {
+    stage: string;
+    percentage?: number;
+    time?: number;
+  }) => void,
 ): Promise<EvaluateResult> {
   const startTime = Date.now();
-  
+
   try {
-    onProgress?.({ stage: 'Connecting to server...', percentage: 10 });
-    
+    onProgress?.({ stage: "Connecting to server...", percentage: 10 });
+
     const response = await fetch(`${API_BASE}/api/evaluate`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({ code }),
     });
 
-    onProgress?.({ stage: 'Parsing code...', percentage: 30 });
+    onProgress?.({ stage: "Parsing code...", percentage: 30 });
 
     if (!response.ok) {
       throw new Error(`Evaluation failed: ${response.statusText}`);
     }
 
-    onProgress?.({ stage: 'Generating geometry...', percentage: 60 });
+    onProgress?.({ stage: "Generating geometry...", percentage: 60 });
 
     const data = await response.json();
-    
-    onProgress?.({ stage: 'Finalizing...', percentage: 90, time: Date.now() - startTime });
-    
+
+    onProgress?.({
+      stage: "Finalizing...",
+      percentage: 90,
+      time: Date.now() - startTime,
+    });
+
     return data;
   } catch (error) {
-    console.error('Evaluation error:', error);
-    const message = error instanceof Error && error.message.includes('Failed to fetch')
-      ? `Could not connect to backend at ${API_BASE}. Is the server running?`
-      : `Failed to evaluate code: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    console.error("Evaluation error:", error);
+    const message =
+      error instanceof Error && error.message.includes("Failed to fetch")
+        ? `Could not connect to backend at ${API_BASE}. Is the server running?`
+        : `Failed to evaluate code: ${error instanceof Error ? error.message : "Unknown error"}`;
 
     return {
       geometry: null,
@@ -143,7 +153,9 @@ export async function evaluateCode(
 /**
  * Evaluate OpenSCAD code to geometry (legacy version without progress)
  */
-export async function evaluateCodeLegacy(code: string): Promise<EvaluateResult> {
+export async function evaluateCodeLegacy(
+  code: string,
+): Promise<EvaluateResult> {
   return evaluateCode(code);
 }
 
@@ -152,14 +164,14 @@ export async function evaluateCodeLegacy(code: string): Promise<EvaluateResult> 
  */
 export async function exportGeometry(
   geometry: GeometryResponse,
-  format: 'stl' | 'obj',
-  binary: boolean = true
+  format: "stl" | "obj",
+  binary: boolean = true,
 ): Promise<Blob> {
   try {
     const response = await fetch(`${API_BASE}/api/export`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         geometry,
@@ -174,9 +186,11 @@ export async function exportGeometry(
 
     return await response.blob();
   } catch (error) {
-    console.error('Export error:', error);
-    if (error instanceof Error && error.message.includes('Failed to fetch')) {
-      throw new Error(`Could not connect to backend at ${API_BASE}. Is the server running?`);
+    console.error("Export error:", error);
+    if (error instanceof Error && error.message.includes("Failed to fetch")) {
+      throw new Error(
+        `Could not connect to backend at ${API_BASE}. Is the server running?`,
+      );
     }
     throw error;
   }
@@ -187,7 +201,7 @@ export async function exportGeometry(
  */
 export function downloadFile(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
+  const link = document.createElement("a");
   link.href = url;
   link.download = filename;
   document.body.appendChild(link);
@@ -202,7 +216,7 @@ export function downloadFile(blob: Blob, filename: string) {
 export async function checkHealth(): Promise<boolean> {
   try {
     const response = await fetch(`${API_BASE}/health`, {
-      method: 'GET',
+      method: "GET",
     });
     return response.ok;
   } catch {

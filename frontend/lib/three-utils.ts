@@ -3,18 +3,18 @@
  * Handles scene setup, geometry rendering, and camera controls
  */
 
-import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { GeometryResponse } from './api-client';
-import { Geometry, GeometryObject, HighlightInfo } from '../../shared/types';
+import * as THREE from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { GeometryResponse } from "./api-client";
+import { Geometry, GeometryObject, HighlightInfo } from "../../shared/types";
 
 export interface SceneConfig {
   container: HTMLElement;
   width: number;
   height: number;
   printerSize?: {
-    width: number;  // X axis
-    depth: number;  // Y axis  
+    width: number; // X axis
+    depth: number; // Y axis
     height: number; // Z axis
     name?: string;
   };
@@ -22,18 +22,22 @@ export interface SceneConfig {
 
 export class SceneManager {
   private scene: THREE.Scene;
-  private camera: THREE.PerspectiveCamera;
+  private camera: THREE.PerspectiveCamera | THREE.OrthographicCamera;
   private renderer: THREE.WebGLRenderer;
   private controls: OrbitControls;
-  private gridHelper: THREE.GridHelper;
-  private axisHelper: THREE.AxesHelper;
+  private gridHelper!: THREE.GridHelper;
+  private axisHelper!: THREE.AxesHelper;
   private edgesHelper: THREE.LineSegments | null = null;
   private mesh: THREE.Mesh | null = null;
-  private scaleMarkers: THREE.Group | null = null;
-  private geometry: Geometry | null = null;
-  private printerSize = { width: 150, depth: 150, height: 150 };
-  private lastGeometryBounds: { min: [number, number, number]; max: [number, number, number] } | null = null;
-  
+  private scaleMarkersGroup: THREE.Group | null = null;
+  private crosshairGroup: THREE.Group | null = null;
+  private buildVolumeBox: THREE.LineSegments | null = null;
+  private isPerspective = true;
+  private lastGeometryBounds: {
+    min: [number, number, number];
+    max: [number, number, number];
+  } | null = null;
+
   // Multi-object highlighting support
   private geometryObjects: Map<string, THREE.Mesh> = new Map();
   private highlightedObjects: Set<string> = new Set();
@@ -41,15 +45,8 @@ export class SceneManager {
   private raycaster: THREE.Raycaster = new THREE.Raycaster();
   private mouse: THREE.Vector2 = new THREE.Vector2();
   private animationId: number | null = null;
-  private gridHelper!: THREE.GridHelper;
-  private axisHelper!: THREE.AxesHelper;
-  private edgesHelper: THREE.LineSegments | null = null;
-  private scaleMarkersGroup: THREE.Group | null = null;
-  private crosshairGroup: THREE.Group | null = null;
-  private isPerspective = true;
   private onHoverCallback?: (objectId: string | null) => void;
   private onSelectCallback?: (objectIds: string[]) => void;
-  private lastGeometryBounds: { min: [number, number, number]; max: [number, number, number] } | null = null;
   private printerSize: {
     width: number;
     depth: number;
@@ -60,10 +57,10 @@ export class SceneManager {
   constructor(config: SceneConfig) {
     // Default to BambuLab P2S if no printer size provided
     const printerSize = config.printerSize || {
-      width: 256,   // X axis
-      depth: 256,   // Y axis
-      height: 300,  // Z axis
-      name: 'BambuLab P2S'
+      width: 256, // X axis
+      depth: 256, // Y axis
+      height: 300, // Z axis
+      name: "BambuLab P2S",
     };
 
     // Store printer size for reference
@@ -79,10 +76,23 @@ export class SceneManager {
     const centerX = printerSize.width / 2;
     const centerY = printerSize.height / 2;
     const centerZ = printerSize.depth / 2;
-    const maxDimension = Math.max(printerSize.width, printerSize.depth, printerSize.height);
+    const maxDimension = Math.max(
+      printerSize.width,
+      printerSize.depth,
+      printerSize.height,
+    );
     const cameraDistance = maxDimension * 1.5; // 1.5x the max dimension for good view
-    this.camera = new THREE.PerspectiveCamera(75, config.width / config.height, 0.1, cameraDistance * 3);
-    this.camera.position.set(centerX + cameraDistance * 0.7, centerY + cameraDistance * 0.7, centerZ + cameraDistance);
+    this.camera = new THREE.PerspectiveCamera(
+      75,
+      config.width / config.height,
+      0.1,
+      cameraDistance * 3,
+    );
+    this.camera.position.set(
+      centerX + cameraDistance * 0.7,
+      centerY + cameraDistance * 0.7,
+      centerZ + cameraDistance,
+    );
     this.camera.lookAt(centerX, centerY, centerZ);
 
     // Renderer setup
@@ -94,9 +104,9 @@ export class SceneManager {
     config.container.appendChild(this.renderer.domElement);
 
     // Style canvas to fill container for responsive resizing
-    this.renderer.domElement.style.width = '100%';
-    this.renderer.domElement.style.height = '100%';
-    this.renderer.domElement.style.display = 'block';
+    this.renderer.domElement.style.width = "100%";
+    this.renderer.domElement.style.height = "100%";
+    this.renderer.domElement.style.display = "block";
 
     // Lighting
     this.setupLighting();
@@ -116,59 +126,78 @@ export class SceneManager {
     this.gridHelper = new THREE.GridHelper(
       Math.max(printerSize.width, printerSize.depth),
       20,
-      0xFFFFFF, // White center lines (OpenSCAD style)
-      0x444444  // Dark gray grid lines
+      0xffffff, // White center lines (OpenSCAD style)
+      0x444444, // Dark gray grid lines
     );
-    this.gridHelper.name = 'grid';
-    this.gridHelper.position.set(printerSize.width / 2, 0, printerSize.depth / 2);
+    this.gridHelper.name = "grid";
+    this.gridHelper.position.set(
+      printerSize.width / 2,
+      0,
+      printerSize.depth / 2,
+    );
     this.scene.add(this.gridHelper);
 
     // Axis helper - OpenSCAD style with longer, brighter axes
-    this.axisHelper = new THREE.AxesHelper(Math.max(printerSize.width, printerSize.depth, printerSize.height) * 0.6);
-    this.axisHelper.name = 'axes';
-    this.axisHelper.position.set(printerSize.width / 2, 0, printerSize.depth / 2);
+    this.axisHelper = new THREE.AxesHelper(
+      Math.max(printerSize.width, printerSize.depth, printerSize.height) * 0.6,
+    );
+    this.axisHelper.name = "axes";
+    this.axisHelper.position.set(
+      printerSize.width / 2,
+      0,
+      printerSize.depth / 2,
+    );
     this.scene.add(this.axisHelper);
 
-    // Add OpenSCAD-style scale markers
-    this.addScaleMarkers(printerSize);
-
-    // No build volume box in OpenSCAD style
-    // this.addBuildVolumeBox(printerSize);
+    // Add build volume box to show printer boundaries
+    this.addBuildVolumeBox(printerSize);
 
     // Start animation loop
     this.animate();
 
     // Handle window resize
-    window.addEventListener('resize', () => this.onWindowResize(config));
-  }
-
-  /**
-   * Add OpenSCAD-style scale markers on axes
-   */
-  private addScaleMarkers(size: { width: number; depth: number; height: number }): void {
-    // Enable scale markers by default in OpenSCAD style
-    this.toggleScaleMarkers(true);
+    window.addEventListener("resize", () => this.onWindowResize(config));
   }
 
   /**
    * Add build volume visualization box
    */
-  private addBuildVolumeBox(size: { width: number; depth: number; height: number; name?: string }): void {
+  private addBuildVolumeBox(size: {
+    width: number;
+    depth: number;
+    height: number;
+    name?: string;
+  }): void {
     // Create wireframe box for build volume
-    const boxGeometry = new THREE.BoxGeometry(size.width, size.height, size.depth);
+    const boxGeometry = new THREE.BoxGeometry(
+      size.width,
+      size.height,
+      size.depth,
+    );
     const edges = new THREE.EdgesGeometry(boxGeometry);
-    const lineMaterial = new THREE.LineBasicMaterial({ 
-      color: 0x00ff00, 
+    const lineMaterial = new THREE.LineBasicMaterial({
+      color: 0x00ff00,
       linewidth: 2,
       transparent: true,
-      opacity: 0.3
+      opacity: 0.3,
     });
-    const buildVolumeBox = new THREE.LineSegments(edges, lineMaterial);
-    
-    // Position box so bottom is at Z=0 and corner is at origin
-    buildVolumeBox.position.set(size.width / 2, size.height / 2, size.depth / 2);
-    buildVolumeBox.name = 'buildVolume';
-    this.scene.add(buildVolumeBox);
+    // Remove existing build volume box if present
+    if (this.buildVolumeBox) {
+      this.scene.remove(this.buildVolumeBox);
+      this.buildVolumeBox.geometry.dispose();
+      (this.buildVolumeBox.material as THREE.Material).dispose();
+    }
+
+    this.buildVolumeBox = new THREE.LineSegments(edges, lineMaterial);
+
+    // Position box so bottom is at Y=0 and centered on build plate
+    this.buildVolumeBox.position.set(
+      size.width / 2,
+      size.height / 2,
+      size.depth / 2,
+    );
+    this.buildVolumeBox.name = "buildVolume";
+    this.scene.add(this.buildVolumeBox);
 
     // Add text label for printer name (if provided)
     if (size.name) {
@@ -215,17 +244,31 @@ export class SceneManager {
 
     // Create new geometry
     const bufferGeometry = new THREE.BufferGeometry();
-    bufferGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(geometry.vertices), 3));
-    bufferGeometry.setIndex(new THREE.BufferAttribute(new Uint32Array(geometry.indices), 1));
-    // Compute normals for flat shading (ignores WASM smooth normals)
-    bufferGeometry.computeVertexNormals();
+    bufferGeometry.setAttribute(
+      "position",
+      new THREE.BufferAttribute(new Float32Array(geometry.vertices), 3),
+    );
+    bufferGeometry.setIndex(
+      new THREE.BufferAttribute(new Uint32Array(geometry.indices), 1),
+    );
+    // Use normals from WASM (BSP-generated polygon plane normals)
+    if (geometry.normals && geometry.normals.length > 0) {
+      bufferGeometry.setAttribute(
+        "normal",
+        new THREE.BufferAttribute(new Float32Array(geometry.normals), 3),
+      );
+    } else {
+      // Fallback: compute normals if WASM didn't provide them
+      bufferGeometry.computeVertexNormals();
+    }
 
-    // Create material - Blender default gray style with flat shading for crisp edges
+    // Create material - flat shading for correct CSG rendering
+    // flatShading: true makes Three.js calculate face normals from winding
     const material = new THREE.MeshStandardMaterial({
       color: 0x808080,
       metalness: 0.1,
       roughness: 0.5,
-      flatShading: true,
+      flatShading: true, // Flat shading for sharp CSG edges
       side: THREE.DoubleSide,
     });
 
@@ -233,10 +276,18 @@ export class SceneManager {
     this.mesh = new THREE.Mesh(bufferGeometry, material);
     this.mesh.castShadow = true;
     this.mesh.receiveShadow = true;
-    
-    // Offset geometry so origin (0,0,0) is at center of build plate (X/Y center, Z=0 at bottom)
-    this.mesh.position.set(this.printerSize.width / 2, 0, this.printerSize.depth / 2);
-    
+
+    // OpenSCAD uses Z-up coordinate system, Three.js uses Y-up
+    // Rotate -90 degrees around X axis to convert: OpenSCAD Z -> Three.js Y
+    this.mesh.rotation.x = -Math.PI / 2;
+
+    // Offset geometry so origin (0,0,0) is at center of build plate
+    this.mesh.position.set(
+      this.printerSize.width / 2,
+      0,
+      this.printerSize.depth / 2,
+    );
+
     this.scene.add(this.mesh);
 
     // Handle highlighting for individual objects if available
@@ -263,9 +314,23 @@ export class SceneManager {
 
       // Create mesh for this object
       const bufferGeometry = new THREE.BufferGeometry();
-      bufferGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(geometry.vertices), 3));
-      bufferGeometry.setIndex(new THREE.BufferAttribute(new Uint32Array(geometry.indices), 1));
-      bufferGeometry.computeVertexNormals();
+      bufferGeometry.setAttribute(
+        "position",
+        new THREE.BufferAttribute(new Float32Array(geometry.vertices), 3),
+      );
+      bufferGeometry.setIndex(
+        new THREE.BufferAttribute(new Uint32Array(geometry.indices), 1),
+      );
+      // Use normals from WASM (BSP-generated polygon plane normals)
+      if (geometry.normals && geometry.normals.length > 0) {
+        bufferGeometry.setAttribute(
+          "normal",
+          new THREE.BufferAttribute(new Float32Array(geometry.normals), 3),
+        );
+      } else {
+        // Fallback: compute normals if WASM didn't provide them
+        bufferGeometry.computeVertexNormals();
+      }
 
       // Determine material based on modifier and highlighting state
       const material = this.createObjectMaterial(geometry, obj);
@@ -275,9 +340,17 @@ export class SceneManager {
       mesh.userData.lineNumber = obj.highlight?.line;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
-      
+
+      // OpenSCAD uses Z-up coordinate system, Three.js uses Y-up
+      // Rotate -90 degrees around X axis to convert: OpenSCAD Z -> Three.js Y
+      mesh.rotation.x = -Math.PI / 2;
+
       // Offset geometry so origin (0,0,0) is at center of build plate
-      mesh.position.set(this.printerSize.width / 2, 0, this.printerSize.depth / 2);
+      mesh.position.set(
+        this.printerSize.width / 2,
+        0,
+        this.printerSize.depth / 2,
+      );
 
       this.geometryObjects.set(objectId, mesh);
       this.scene.add(mesh);
@@ -287,7 +360,10 @@ export class SceneManager {
   /**
    * Create material for geometry object based on modifier and highlighting state
    */
-  private createObjectMaterial(geometry: Geometry, obj: GeometryObject): THREE.MeshStandardMaterial {
+  private createObjectMaterial(
+    geometry: Geometry,
+    obj: GeometryObject,
+  ): THREE.MeshStandardMaterial {
     let color = 0x808080; // Default gray
     let opacity = 1.0;
     let transparent = false;
@@ -295,14 +371,14 @@ export class SceneManager {
     // Apply modifier colors
     if (geometry.modifier) {
       switch (geometry.modifier.type) {
-        case '#':
+        case "#":
           color = 0xff0000; // Red for debug
           break;
-        case '%':
+        case "%":
           opacity = 0.5;
           transparent = true;
           break;
-        case '!':
+        case "!":
           color = 0x00ff00; // Green for root
           break;
       }
@@ -330,7 +406,7 @@ export class SceneManager {
       color,
       metalness: 0.1,
       roughness: 0.5,
-      flatShading: true,
+      flatShading: true, // Flat shading for sharp CSG edges
       side: THREE.DoubleSide,
       transparent,
       opacity,
@@ -393,7 +469,7 @@ export class SceneManager {
 
     // Update material emissive color for highlighting
     const material = mesh.material as THREE.MeshStandardMaterial;
-    
+
     if (isSelected) {
       material.emissive = new THREE.Color(0x00ffff); // Cyan
       material.emissiveIntensity = 0.3;
@@ -415,7 +491,7 @@ export class SceneManager {
     this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
     this.raycaster.setFromCamera(this.mouse, this.camera);
-    
+
     // Get all geometry object meshes
     const meshes = Array.from(this.geometryObjects.values());
     const intersects = this.raycaster.intersectObjects(meshes);
@@ -428,7 +504,7 @@ export class SceneManager {
       const intersection = intersects[0];
       const mesh = intersection.object as THREE.Mesh;
       const objectId = mesh.userData.objectId;
-      
+
       if (objectId) {
         this.highlightedObjects.add(objectId);
         hoveredObjectId = objectId;
@@ -436,7 +512,7 @@ export class SceneManager {
     }
 
     // Update all materials
-    meshes.forEach(mesh => this.updateObjectMaterial(mesh));
+    meshes.forEach((mesh) => this.updateObjectMaterial(mesh));
 
     // Call hover callback
     if (this.onHoverCallback) {
@@ -453,7 +529,7 @@ export class SceneManager {
     this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
     this.raycaster.setFromCamera(this.mouse, this.camera);
-    
+
     const meshes = Array.from(this.geometryObjects.values());
     const intersects = this.raycaster.intersectObjects(meshes);
 
@@ -461,7 +537,7 @@ export class SceneManager {
       const intersection = intersects[0];
       const mesh = intersection.object as THREE.Mesh;
       const objectId = mesh.userData.objectId;
-      
+
       if (objectId) {
         // Toggle selection
         if (this.selectedObjects.has(objectId)) {
@@ -469,7 +545,7 @@ export class SceneManager {
         } else {
           this.selectedObjects.add(objectId);
         }
-        
+
         this.updateObjectMaterial(mesh);
 
         // Call selection callback
@@ -480,8 +556,8 @@ export class SceneManager {
     } else {
       // Clear selection when clicking empty space
       this.selectedObjects.clear();
-      meshes.forEach(mesh => this.updateObjectMaterial(mesh));
-      
+      meshes.forEach((mesh) => this.updateObjectMaterial(mesh));
+
       if (this.onSelectCallback) {
         this.onSelectCallback([]);
       }
@@ -496,7 +572,7 @@ export class SceneManager {
   }
 
   /**
-   * Set selection callback  
+   * Set selection callback
    */
   public setSelectCallback(callback: (objectIds: string[]) => void): void {
     this.onSelectCallback = callback;
@@ -515,36 +591,46 @@ export class SceneManager {
   public clearHighlighting(): void {
     this.highlightedObjects.clear();
     this.selectedObjects.clear();
-    
+
     const meshes = Array.from(this.geometryObjects.values());
-    meshes.forEach(mesh => this.updateObjectMaterial(mesh));
+    meshes.forEach((mesh) => this.updateObjectMaterial(mesh));
   }
 
   /**
    * Fit camera view to geometry bounds
    */
-  public fitViewToGeometry(bounds: { min: [number, number, number]; max: [number, number, number] }): void {
+  public fitViewToGeometry(bounds: {
+    min: [number, number, number];
+    max: [number, number, number];
+  }): void {
     if (!bounds || !bounds.min || !bounds.max) {
       return; // Early return if bounds are invalid
     }
-    
+
     // Store bounds for resetView()
     this.lastGeometryBounds = bounds;
-    
+
     // Bounds from backend are in original coordinate system
     // We offset geometry by (printerSize.width/2, 0, printerSize.depth/2) to center it
-    const offset = new THREE.Vector3(this.printerSize.width / 2, 0, this.printerSize.depth / 2);
-    
+    const offset = new THREE.Vector3(
+      this.printerSize.width / 2,
+      0,
+      this.printerSize.depth / 2,
+    );
+
     const min = new THREE.Vector3(...bounds.min).add(offset);
     const max = new THREE.Vector3(...bounds.max).add(offset);
     const center = new THREE.Vector3().addVectors(min, max).multiplyScalar(0.5);
     const size = new THREE.Vector3().subVectors(max, min).length();
 
     // Position camera
-    const fov = this.camera instanceof THREE.PerspectiveCamera ? this.camera.fov : 75;
+    const fov =
+      this.camera instanceof THREE.PerspectiveCamera ? this.camera.fov : 75;
     const distance = size / Math.tan((fov * Math.PI) / 360);
     const direction = new THREE.Vector3(1, 1, 1).normalize();
-    this.camera.position.copy(center.clone().add(direction.clone().multiplyScalar(distance * 1.2)));
+    this.camera.position.copy(
+      center.clone().add(direction.clone().multiplyScalar(distance * 1.2)),
+    );
     this.camera.lookAt(center);
 
     // Update controls
@@ -561,10 +647,17 @@ export class SceneManager {
       this.fitViewToGeometry(this.lastGeometryBounds);
     } else {
       // Default view if no geometry loaded
-      const center = new THREE.Vector3(this.printerSize.width / 2, 0, this.printerSize.depth / 2);
-      const distance = Math.max(this.printerSize.width, this.printerSize.depth) * 1.5;
+      const center = new THREE.Vector3(
+        this.printerSize.width / 2,
+        0,
+        this.printerSize.depth / 2,
+      );
+      const distance =
+        Math.max(this.printerSize.width, this.printerSize.depth) * 1.5;
       const direction = new THREE.Vector3(1, 1, 1).normalize();
-      this.camera.position.copy(center.clone().add(direction.clone().multiplyScalar(distance)));
+      this.camera.position.copy(
+        center.clone().add(direction.clone().multiplyScalar(distance)),
+      );
       this.camera.lookAt(center);
       this.controls.target.copy(center);
       this.controls.update();
@@ -575,7 +668,8 @@ export class SceneManager {
    * Toggle grid visibility
    */
   public toggleGrid(visible?: boolean): void {
-    const shouldShow = visible !== undefined ? visible : !this.gridHelper.visible;
+    const shouldShow =
+      visible !== undefined ? visible : !this.gridHelper.visible;
     this.gridHelper.visible = shouldShow;
   }
 
@@ -584,15 +678,15 @@ export class SceneManager {
    */
   public toggleEdges(visible?: boolean): void {
     if (!this.mesh) return;
-    
+
     if (visible !== undefined ? visible : !this.edgesHelper) {
       // Create edges helper
       const edges = new THREE.EdgesGeometry(this.mesh.geometry);
       this.edgesHelper = new THREE.LineSegments(
         edges,
-        new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 })
+        new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 }),
       );
-      this.edgesHelper.name = 'edges';
+      this.edgesHelper.name = "edges";
       this.scene.add(this.edgesHelper);
     } else if (this.edgesHelper) {
       // Remove edges helper
@@ -607,7 +701,8 @@ export class SceneManager {
    * Toggle axes visibility
    */
   public toggleAxes(visible?: boolean): void {
-    const shouldShow = visible !== undefined ? visible : !this.axisHelper.visible;
+    const shouldShow =
+      visible !== undefined ? visible : !this.axisHelper.visible;
     this.axisHelper.visible = shouldShow;
   }
 
@@ -615,43 +710,48 @@ export class SceneManager {
    * Toggle scale markers
    */
   public toggleScaleMarkers(visible?: boolean): void {
-    const shouldShow = visible !== undefined ? visible : !this.scaleMarkersGroup;
-    
+    const shouldShow =
+      visible !== undefined ? visible : !this.scaleMarkersGroup;
+
     if (shouldShow && !this.scaleMarkersGroup) {
       // Create scale markers
       this.scaleMarkersGroup = new THREE.Group();
-      this.scaleMarkersGroup.name = 'scaleMarkers';
-      
+      this.scaleMarkersGroup.name = "scaleMarkers";
+
       // Create axis lines with measurements
       const materials = {
         x: new THREE.LineBasicMaterial({ color: 0xff0000 }),
         y: new THREE.LineBasicMaterial({ color: 0x00ff00 }),
-        z: new THREE.LineBasicMaterial({ color: 0x0000ff })
+        z: new THREE.LineBasicMaterial({ color: 0x0000ff }),
       };
-      
+
       const axisLength = 50;
       const positions = [
-        [-axisLength, 0, 0], [axisLength, 0, 0], // X axis
-        [0, -axisLength, 0], [0, axisLength, 0], // Y axis
-        [0, 0, -axisLength], [0, 0, axisLength]  // Z axis
+        [-axisLength, 0, 0],
+        [axisLength, 0, 0], // X axis
+        [0, -axisLength, 0],
+        [0, axisLength, 0], // Y axis
+        [0, 0, -axisLength],
+        [0, 0, axisLength], // Z axis
       ];
-      
+
       positions.forEach((start, i) => {
         if (i % 2 === 0) {
           const end = positions[i + 1];
           const geometry = new THREE.BufferGeometry().setFromPoints([
             new THREE.Vector3(...start),
-            new THREE.Vector3(...end)
+            new THREE.Vector3(...end),
           ]);
           const materialIndex = Math.floor(i / 2);
-          const material = materials[materialIndex as unknown as keyof typeof materials];
+          const material =
+            materials[materialIndex as unknown as keyof typeof materials];
           const line = new THREE.Line(geometry, material);
           if (this.scaleMarkersGroup) {
             this.scaleMarkersGroup.add(line);
           }
         }
       });
-      
+
       this.scene.add(this.scaleMarkersGroup);
     } else if (!shouldShow && this.scaleMarkersGroup) {
       // Remove scale markers
@@ -671,27 +771,30 @@ export class SceneManager {
    */
   public toggleCrosshair(visible?: boolean): void {
     const shouldShow = visible !== undefined ? visible : !this.crosshairGroup;
-    
+
     if (shouldShow && !this.crosshairGroup) {
       // Create crosshair
       this.crosshairGroup = new THREE.Group();
-      this.crosshairGroup.name = 'crosshair';
-      
+      this.crosshairGroup.name = "crosshair";
+
       const crosshairSize = 20;
       const crosshairGeometry = new THREE.BufferGeometry().setFromPoints([
         new THREE.Vector3(-crosshairSize, 0, 0),
         new THREE.Vector3(crosshairSize, 0, 0),
         new THREE.Vector3(0, -crosshairSize, 0),
-        new THREE.Vector3(0, crosshairSize, 0)
+        new THREE.Vector3(0, crosshairSize, 0),
       ]);
-      
-      const crosshairMaterial = new THREE.LineBasicMaterial({ 
-        color: 0xffffff, 
+
+      const crosshairMaterial = new THREE.LineBasicMaterial({
+        color: 0xffffff,
         linewidth: 2,
-        depthTest: false 
+        depthTest: false,
       });
-      
-      const crosshair = new THREE.LineSegments(crosshairGeometry, crosshairMaterial);
+
+      const crosshair = new THREE.LineSegments(
+        crosshairGeometry,
+        crosshairMaterial,
+      );
       this.crosshairGroup.add(crosshair);
       this.scene.add(this.crosshairGroup);
     } else if (!shouldShow && this.crosshairGroup) {
@@ -713,16 +816,16 @@ export class SceneManager {
   public setViewOrientation(position: string): void {
     const distance = 100;
     const positions: Record<string, [number, number, number]> = {
-      'front': [0, 0, distance],
-      'back': [0, 0, -distance],
-      'left': [-distance, 0, 0],
-      'right': [distance, 0, 0],
-      'top': [0, distance, 0],
-      'bottom': [0, -distance, 0],
-      'diagonal': [distance, distance, distance],
-      'center': [distance, distance * 0.5, distance]
+      front: [0, 0, distance],
+      back: [0, 0, -distance],
+      left: [-distance, 0, 0],
+      right: [distance, 0, 0],
+      top: [0, distance, 0],
+      bottom: [0, -distance, 0],
+      diagonal: [distance, distance, distance],
+      center: [distance, distance * 0.5, distance],
     };
-    
+
     const pos = positions[position] || positions.front;
     this.camera.position.set(...pos);
     this.camera.lookAt(0, 0, 0);
@@ -733,31 +836,35 @@ export class SceneManager {
   /**
    * Toggle projection mode
    */
-  public setProjectionMode(mode: 'perspective' | 'orthographic'): void {
-    if (this.isPerspective === (mode === 'perspective')) return;
-    
+  public setProjectionMode(mode: "perspective" | "orthographic"): void {
+    if (this.isPerspective === (mode === "perspective")) return;
+
     const currentCamera = this.camera;
-    const aspect = this.renderer.domElement.width / this.renderer.domElement.height;
-    
-    if (mode === 'orthographic') {
+    const aspect =
+      this.renderer.domElement.width / this.renderer.domElement.height;
+
+    if (mode === "orthographic") {
       // Switch to orthographic
       const frustumSize = 100;
       this.camera = new THREE.OrthographicCamera(
-        -frustumSize * aspect / 2, frustumSize * aspect / 2,
-        frustumSize / 2, -frustumSize / 2,
-        0.1, 3000
+        (-frustumSize * aspect) / 2,
+        (frustumSize * aspect) / 2,
+        frustumSize / 2,
+        -frustumSize / 2,
+        0.1,
+        3000,
       );
       this.isPerspective = false;
     } else {
       // Switch to perspective
-      this.camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 3000);
+      this.camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 69420);
       this.isPerspective = true;
     }
-    
+
     // Copy position and target from old camera
     this.camera.position.copy(currentCamera.position);
     this.camera.lookAt(this.controls.target);
-    
+
     // Update controls and renderer
     this.controls.object = this.camera;
     this.controls.update();
@@ -804,16 +911,16 @@ export class SceneManager {
       const box = new THREE.Box3().setFromObject(this.mesh);
       const size = box.getSize(new THREE.Vector3());
       const center = box.getCenter(new THREE.Vector3());
-      
+
       // Calculate distance based on size
       const maxDim = Math.max(size.x, size.y, size.z);
       const distance = maxDim * 2;
-      
+
       // Position camera
       this.camera.position.copy(center);
       this.camera.position.z += distance;
       this.camera.lookAt(center);
-      
+
       // Update controls
       this.controls.target.copy(center);
       this.controls.update();
@@ -824,7 +931,9 @@ export class SceneManager {
    * Get scene statistics
    */
   public getStats(): { fps: number; triangles: number; renderTime: number } {
-    const triangles = this.mesh ? (this.mesh.geometry as THREE.BufferGeometry).index?.count || 0 : 0;
+    const triangles = this.mesh
+      ? (this.mesh.geometry as THREE.BufferGeometry).index?.count || 0
+      : 0;
     return {
       fps: Math.round(1000 / 16.67), // Approximation
       triangles,
@@ -851,8 +960,8 @@ export class SceneManager {
     } else if (this.camera instanceof THREE.OrthographicCamera) {
       const aspect = width / height;
       const frustumSize = 100;
-      this.camera.left = -frustumSize * aspect / 2;
-      this.camera.right = frustumSize * aspect / 2;
+      this.camera.left = (-frustumSize * aspect) / 2;
+      this.camera.right = (frustumSize * aspect) / 2;
       this.camera.top = frustumSize / 2;
       this.camera.bottom = -frustumSize / 2;
       this.camera.updateProjectionMatrix();
@@ -860,19 +969,19 @@ export class SceneManager {
     this.renderer.setSize(width, height);
 
     // Ensure canvas CSS matches (defensive sizing)
-    this.renderer.domElement.style.width = '100%';
-    this.renderer.domElement.style.height = '100%';
+    this.renderer.domElement.style.width = "100%";
+    this.renderer.domElement.style.height = "100%";
   }
 
   /**
    * Setup mouse event listeners for interactive highlighting
    */
   private setupMouseEvents(): void {
-    this.renderer.domElement.addEventListener('mousemove', (event) => {
+    this.renderer.domElement.addEventListener("mousemove", (event) => {
       this.onMouseMove(event);
     });
 
-    this.renderer.domElement.addEventListener('click', (event) => {
+    this.renderer.domElement.addEventListener("click", (event) => {
       this.onMouseClick(event);
     });
   }
@@ -890,14 +999,13 @@ export class SceneManager {
   /**
    * Update printer build volume size
    */
-  public updatePrinterSize(size: { width: number; depth: number; height: number; name?: string }): void {
+  public updatePrinterSize(size: {
+    width: number;
+    depth: number;
+    height: number;
+    name?: string;
+  }): void {
     this.printerSize = size;
-
-    // Remove old build volume
-    const oldBuildVolume = this.scene.getObjectByName('buildVolume');
-    if (oldBuildVolume) {
-      this.scene.remove(oldBuildVolume);
-    }
 
     // Remove old grid
     if (this.gridHelper) {
@@ -909,9 +1017,9 @@ export class SceneManager {
       Math.max(size.width, size.depth),
       20,
       0x434343,
-      0x282828
+      0x282828,
     );
-    this.gridHelper.name = 'grid';
+    this.gridHelper.name = "grid";
     this.gridHelper.position.set(size.width / 2, 0, size.depth / 2);
     this.scene.add(this.gridHelper);
 
@@ -922,12 +1030,12 @@ export class SceneManager {
 
     // Add new build volume
     this.addBuildVolumeBox(size);
-    
+
     // Update existing geometry positions to new center
     if (this.mesh) {
       this.mesh.position.set(size.width / 2, 0, size.depth / 2);
     }
-    this.geometryObjects.forEach(mesh => {
+    this.geometryObjects.forEach((mesh) => {
       mesh.position.set(size.width / 2, 0, size.depth / 2);
     });
 
@@ -937,7 +1045,11 @@ export class SceneManager {
     const centerZ = size.depth / 2;
     const maxDimension = Math.max(size.width, size.depth, size.height);
     const cameraDistance = maxDimension * 1.5;
-    this.camera.position.set(centerX + cameraDistance * 0.7, centerY + cameraDistance * 0.7, centerZ + cameraDistance);
+    this.camera.position.set(
+      centerX + cameraDistance * 0.7,
+      centerY + cameraDistance * 0.7,
+      centerZ + cameraDistance,
+    );
     this.camera.lookAt(centerX, centerY, centerZ);
     this.controls.target.set(centerX, centerY, centerZ);
     this.controls.update();
@@ -946,7 +1058,12 @@ export class SceneManager {
   /**
    * Get current printer size
    */
-  public getPrinterSize(): { width: number; depth: number; height: number; name?: string } {
+  public getPrinterSize(): {
+    width: number;
+    depth: number;
+    height: number;
+    name?: string;
+  } {
     return { ...this.printerSize };
   }
 

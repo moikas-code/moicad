@@ -235,7 +235,7 @@ bun install
 
 ### Start Development Server
 ```bash
-# Backend only (port 3000)
+# Backend only (port 42069)
 bun run dev
 
 # Frontend only (port 3001)
@@ -245,8 +245,8 @@ bun run dev:frontend
 bun run dev:all
 ```
 
-- Backend: `http://localhost:3000`
-- Frontend: `http://localhost:3001`
+- Backend: `http://localhost:42069`
+- Frontend: `http://localhost:3002`
 
 ---
 
@@ -303,17 +303,17 @@ bun run dev:all
 ### API Testing (curl examples)
 ```bash
 # Test parse endpoint
-curl -X POST http://localhost:3000/api/parse \
+curl -X POST http://localhost:42069/api/parse \
   -H "Content-Type: application/json" \
   -d '{"code":"cube(10);"}'
 
 # Test evaluate endpoint
-curl -X POST http://localhost:3000/api/evaluate \
+curl -X POST http://localhost:42069/api/evaluate \
   -H "Content-Type: application/json" \
   -d '{"code":"cube(10);"}'
 
 # Test export endpoint
-curl -X POST http://localhost:3000/api/export \
+curl -X POST http://localhost:42069/api/export \
   -H "Content-Type: application/json" \
   -d '{"geometry":{...},"format":"stl"}' \
   > model.stl
@@ -321,7 +321,7 @@ curl -X POST http://localhost:3000/api/export \
 
 ### Health Check
 ```bash
-curl http://localhost:3000/health
+curl http://localhost:42069/health
 ```
 
 ---
@@ -375,7 +375,7 @@ moicad/
 1. **Build WASM** (if not built): `cd wasm && wasm-pack build --target web`
 2. **Install deps**: `bun install && cd frontend && npm install`
 3. **Start dev servers**: `bun run dev:all`
-4. **Open frontend**: http://localhost:3001
+4. **Open frontend**: http://localhost:42069
 5. **Test**: Type `cube(10);` or `sphere(5);` to see 3D geometry
 6. **Next**: Add MCP server integration for AI-assisted CAD
 

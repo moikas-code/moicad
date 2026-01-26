@@ -79,7 +79,7 @@ console.log('System performance:', await metrics.json());
 // Frontend API calls
 import { invoke } from '@tauri-apps/api/core';
 
-// Instead of fetch('http://localhost:3000/api/...')
+// Instead of fetch('http://localhost:42069/api/...')
 const result = await invoke('evaluate_openscad', { 
   code: openscadCode 
 });
@@ -97,7 +97,7 @@ The key sections that matter for your setup:
       "http": {
         "all": true, 
         "request": true,
-        "scope": ["http://localhost:3000/*"]
+        "scope": ["http://localhost:42069/*"]
       }
     }
   }
@@ -132,7 +132,7 @@ The key sections that matter for your setup:
 ### Backend Health
 ```bash
 # Check if backend is accessible from Tauri context
-curl -v http://localhost:3000/health
+curl -v http://localhost:42069/health
 ```
 
 ### Tauri IPC

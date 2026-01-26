@@ -59,7 +59,7 @@ docker-compose -f docker-compose.production.yml up -d
 
 # Or build and run manually
 docker build -f Dockerfile.production -t moicad-backend .
-docker run -p 3000:3000 --env-file .env moicad-backend
+docker run -p 42069:42069 --env-file .env moicad-backend
 ```
 
 ## Security Configuration
@@ -179,7 +179,7 @@ logs/
 ```json
 {
   "error": "Request timeout",
-  "message": "Request timed out after 30000ms", 
+  "message": "Request timed out after 3000ms", 
   "requestId": "uuid-string",
   "timestamp": "2024-01-25T10:30:00.000Z"
 }
@@ -203,7 +203,7 @@ services:
     volumes:
       - ./logs:/app/logs
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:42069/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -254,7 +254,7 @@ Collect metrics from `/metrics` endpoint:
 scrape_configs:
   - job_name: 'moicad'
     static_configs:
-      - targets: ['localhost:3000']
+      - targets: ['localhost:42069']
     metrics_path: '/metrics'
     scrape_interval: 30s
 ```
@@ -307,14 +307,14 @@ grep "heapUsed" logs/combined.log
 **Rate Limiting Issues**
 ```bash
 # Test rate limits
-curl -v http://localhost:3000/api/evaluate
+curl -v http://localhost:42069/api/evaluate
 # Check RateLimit headers in response
 ```
 
 **CORS Issues**
 ```bash
 # Test CORS preflight
-curl -v -X OPTIONS http://localhost:3000/api/parse \
+curl -v -X OPTIONS http://localhost:42069/api/parse \
   -H "Origin: https://yourdomain.com" \
   -H "Access-Control-Request-Method: POST"
 ```

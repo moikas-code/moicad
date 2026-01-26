@@ -215,16 +215,16 @@ cargo install wasm-pack
 cd wasm && wasm-pack build --target web && cd ..
 ```
 
-### Port 3000 already in use
+### Port 42069 already in use
 
-The backend server uses port 3000. Kill any existing processes:
+The backend server uses port 42069. Kill any existing processes:
 
 ```bash
 # Linux/macOS
-lsof -ti:3000 | xargs kill -9
+lsof -ti:42069 | xargs kill -9
 
 # Windows
-netstat -ano | findstr :3000
+netstat -ano | findstr 42069
 taskkill /PID <PID> /F
 ```
 

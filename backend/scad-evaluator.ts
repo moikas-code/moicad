@@ -7,6 +7,7 @@ import type {
 } from "../shared/types";
 import { readTextFile, readTextFileSync, parseSurfaceData } from "./file-utils";
 import logger, { logWarn, logInfo, logDebug, logError } from "./logger";
+import * as ThreeBVHCSG from "./csg-three-bvh";
 
 /**
  * OpenSCAD Evaluator - Executes AST using WASM CSG engine
@@ -28,8 +29,25 @@ interface WasmModule {
   ) => any;
   create_text: (text: string, size: number) => any;
   create_text_3d: (text: string, size: number, depth: number) => any;
-  create_text_aligned?: (text: string, size: number, halign: string, valign: string, spacing: number, font: string, direction: string) => any;
-  create_text_3d_aligned?: (text: string, size: number, depth: number, halign: string, valign: string, spacing: number, font: string, direction: string) => any;
+  create_text_aligned?: (
+    text: string,
+    size: number,
+    halign: string,
+    valign: string,
+    spacing: number,
+    font: string,
+    direction: string,
+  ) => any;
+  create_text_3d_aligned?: (
+    text: string,
+    size: number,
+    depth: number,
+    halign: string,
+    valign: string,
+    spacing: number,
+    font: string,
+    direction: string,
+  ) => any;
   union: (a: any, b: any) => any;
   difference: (a: any, b: any) => any;
   intersection: (a: any, b: any) => any;
@@ -143,7 +161,12 @@ const primitiveCache = new PrimitiveCache();
  * @param fa - Fragment angle in degrees ($fa)
  * @returns Number of fragments to use
  */
-function getFragments(radius: number, fn: number, fs: number, fa: number): number {
+function getFragments(
+  radius: number,
+  fn: number,
+  fs: number,
+  fa: number,
+): number {
   // If $fn is explicitly set and > 0, use it directly
   if (fn > 0) {
     return Math.max(3, Math.floor(fn));
@@ -280,7 +303,9 @@ export async function evaluateAST(
       }
     } else {
       // Check if parallel evaluation would be beneficial
-      if (executableNodes.length > 3 && !options?.disableParallel) {
+      // DISABLED: Parallel evaluation is causing hangs - worker communication issue
+      // TODO: Fix worker pool initialization and message handling
+      if (false && executableNodes.length > 3 && !options?.disableParallel) {
         try {
           // Use parallel evaluation for complex scenes
           const batchResults = await parallelEvaluator.batchEvaluateNodes(
@@ -293,10 +318,10 @@ export async function evaluateAST(
             }
           }
         } catch (error) {
-          logWarn(
-            "Parallel evaluation failed, falling back to sequential",
-            { error: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined }
-          );
+          logWarn("Parallel evaluation failed, falling back to sequential", {
+            error: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+          });
           // Fallback to sequential evaluation
           for (const node of executableNodes) {
             const result = await evaluateNode(node, context);
@@ -353,7 +378,8 @@ export async function evaluateAST(
 
     // Memory management: Clear primitive cache if it's getting large
     const cacheStats = primitiveCache.getStats();
-    if (cacheStats.size > 50) { // Clear if > 50% full
+    if (cacheStats.size > 50) {
+      // Clear if > 50% full
       primitiveCache.clear();
     }
 
@@ -366,7 +392,7 @@ export async function evaluateAST(
   } catch (err: any) {
     // Clear cache on error too
     primitiveCache.clear();
-    
+
     return {
       geometry: null,
       errors: [{ message: err.message, stack: err.stack }],
@@ -453,10 +479,16 @@ function evaluatePrimitive(node: any, context: EvaluationContext): any {
   switch (node.op) {
     case "cube":
       // Handle array syntax cube([x, y, z]) or single size cube(size)
-      let cube_size: number | number[] = params._positional ?? params.size ?? 10;
+      let cube_size: number | number[] =
+        params._positional ?? params.size ?? 10;
       const cube_center = params.center ?? false;
 
-      console.log(`Cube params:`, JSON.stringify(params), `center:`, cube_center);
+      console.log(
+        `Cube params:`,
+        JSON.stringify(params),
+        `center:`,
+        cube_center,
+      );
 
       if (Array.isArray(cube_size)) {
         geometry = wasmModule.create_cube_vec(new Float32Array(cube_size));
@@ -467,7 +499,12 @@ function evaluatePrimitive(node: any, context: EvaluationContext): any {
       // Handle center=false - translate by half size
       if (!cube_center) {
         if (Array.isArray(cube_size)) {
-          geometry = wasmModule!.translate(geometry, (cube_size[0] ?? 0) / 2, (cube_size[1] ?? 0) / 2, (cube_size[2] ?? 0) / 2);
+          geometry = wasmModule!.translate(
+            geometry,
+            (cube_size[0] ?? 0) / 2,
+            (cube_size[1] ?? 0) / 2,
+            (cube_size[2] ?? 0) / 2,
+          );
         } else {
           const half = cube_size / 2;
           geometry = wasmModule!.translate(geometry, half, half, half);
@@ -487,7 +524,12 @@ function evaluatePrimitive(node: any, context: EvaluationContext): any {
       const sphere_fn = params.$fn ?? context.variables.get("$fn") ?? 0;
       const sphere_fs = params.$fs ?? context.variables.get("$fs") ?? 2;
       const sphere_fa = params.$fa ?? context.variables.get("$fa") ?? 12;
-      const sphere_detail = getFragments(sphere_r, sphere_fn, sphere_fs, sphere_fa);
+      const sphere_detail = getFragments(
+        sphere_r,
+        sphere_fn,
+        sphere_fs,
+        sphere_fa,
+      );
       geometry = wasmModule.create_sphere(sphere_r, sphere_detail);
       break;
 
@@ -516,8 +558,8 @@ function evaluatePrimitive(node: any, context: EvaluationContext): any {
         cyl_r2 = single_r;
       } else if (params.d1 !== undefined || params.d2 !== undefined) {
         // Separate diameters
-        cyl_r1 = (params.d1 !== undefined) ? params.d1 / 2 : 5;
-        cyl_r2 = (params.d2 !== undefined) ? params.d2 / 2 : 5;
+        cyl_r1 = params.d1 !== undefined ? params.d1 / 2 : 5;
+        cyl_r2 = params.d2 !== undefined ? params.d2 / 2 : 5;
       } else if (Array.isArray(params._positional) && params._positional[1]) {
         // Positional r1, r2
         cyl_r1 = params._positional[1];
@@ -708,9 +750,13 @@ function evaluatePrimitive(node: any, context: EvaluationContext): any {
       const text_script = params.script ?? "latin"; // (not yet used)
 
       // Use aligned text functions if available and parameters are non-default
-      const useAligned = wasmModule.create_text_aligned &&
-        (text_halign !== "left" || text_valign !== "baseline" || text_spacing !== 1 ||
-          text_font !== "Liberation Sans" || text_direction !== "ltr");
+      const useAligned =
+        wasmModule.create_text_aligned &&
+        (text_halign !== "left" ||
+          text_valign !== "baseline" ||
+          text_spacing !== 1 ||
+          text_font !== "Liberation Sans" ||
+          text_direction !== "ltr");
 
       if (useAligned) {
         if (text_depth > 0) {
@@ -1025,9 +1071,13 @@ async function evaluateBooleanOp(
       return wasmModule.hull(child_geoms[0]);
     }
 
-    // New efficient path for multiple children
-    const mesh_pointers = child_geoms.map((geom) => geom.ptr);
-    return wasmModule.hull_multiple(mesh_pointers);
+    // Use hull_progressive to safely combine multiple meshes
+    // (hull_multiple with raw pointers doesn't work from JavaScript)
+    let result = child_geoms[0];
+    for (let i = 1; i < child_geoms.length; i++) {
+      result = wasmModule.hull_progressive(result, child_geoms[i]);
+    }
+    return result;
   }
 
   let result = await evaluateNode(node.children[0], context);
@@ -1202,15 +1252,12 @@ async function evaluateAssert(
   context: EvaluationContext,
 ): Promise<any> {
   const condition = evaluateExpression(node.condition, context);
-  logDebug(
-    "ASSERT condition evaluation",
-    {
-      condition: node.condition,
-      result: condition,
-      type: typeof condition,
-      line: node.line
-    }
-  );
+  logDebug("ASSERT condition evaluation", {
+    condition: node.condition,
+    result: condition,
+    type: typeof condition,
+    line: node.line,
+  });
   if (!condition) {
     const message = node.message
       ? evaluateExpression(node.message, context)
@@ -1571,14 +1618,14 @@ function evaluateExpression(expr: any, context: EvaluationContext): any {
   // Safety: Check recursion depth to prevent stack overflow
   const depth = (context.evaluationDepth || 0) + 1;
   const MAX_DEPTH = 100; // OpenSCAD-style limit
-  
+
   if (depth > MAX_DEPTH) {
-    context.errors.push({ 
-      message: `Expression evaluation too deep (limit: ${MAX_DEPTH}). Possible infinite recursion.` 
+    context.errors.push({
+      message: `Expression evaluation too deep (limit: ${MAX_DEPTH}). Possible infinite recursion.`,
     });
     return null;
   }
-  
+
   // Create child context with incremented depth
   const childContext = { ...context, evaluationDepth: depth };
 
@@ -1637,8 +1684,8 @@ function evaluateExpression(expr: any, context: EvaluationContext): any {
     }
   } catch (error: any) {
     // Safety: Catch any unexpected errors during evaluation
-    context.errors.push({ 
-      message: `Error evaluating expression: ${error.message}` 
+    context.errors.push({
+      message: `Error evaluating expression: ${error.message}`,
     });
     return null;
   }
@@ -1846,8 +1893,10 @@ function evaluateFunctionCall(call: any, context: EvaluationContext): any {
       case "search": {
         const matchVal = evaluateExpression(call.args[0], context);
         const vector = evaluateExpression(call.args[1], context);
-        const numReturns = call.args.length > 2 ? evaluateExpression(call.args[2], context) : 1;
-        const matchType = call.args.length > 3 ? evaluateExpression(call.args[3], context) : 0;
+        const numReturns =
+          call.args.length > 2 ? evaluateExpression(call.args[2], context) : 1;
+        const matchType =
+          call.args.length > 3 ? evaluateExpression(call.args[3], context) : 0;
         return performSearch(matchVal, vector, numReturns, matchType);
       }
 
@@ -1861,7 +1910,10 @@ function evaluateFunctionCall(call: any, context: EvaluationContext): any {
         const minVal = evaluateExpression(call.args[0], context);
         const maxVal = evaluateExpression(call.args[1], context);
         const count = evaluateExpression(call.args[2], context);
-        const seed = call.args.length > 3 ? evaluateExpression(call.args[3], context) : undefined;
+        const seed =
+          call.args.length > 3
+            ? evaluateExpression(call.args[3], context)
+            : undefined;
         return performRands(minVal, maxVal, count, seed);
       }
 
@@ -1933,8 +1985,8 @@ function evaluateParameters(
       result[key] = evaluateValue(value, context);
     } catch (error: any) {
       // Safety: Catch parameter evaluation errors
-      context.errors.push({ 
-        message: `Error evaluating parameter '${key}': ${error.message}` 
+      context.errors.push({
+        message: `Error evaluating parameter '${key}': ${error.message}`,
       });
       result[key] = null;
     }
@@ -2020,16 +2072,23 @@ class GeometryConverter {
     }
   }
 
-  private calculateBounds(vertices: number[]): { min: [number, number, number]; max: [number, number, number] } {
+  private calculateBounds(vertices: number[]): {
+    min: [number, number, number];
+    max: [number, number, number];
+  } {
     if (vertices.length === 0) {
       return {
         min: [0, 0, 0],
-        max: [0, 0, 0]
+        max: [0, 0, 0],
       };
     }
 
-    let minX = vertices[0] || 0, minY = vertices[1] || 0, minZ = vertices[2] || 0;
-    let maxX = vertices[0] || 0, maxY = vertices[1] || 0, maxZ = vertices[2] || 0;
+    let minX = vertices[0] || 0,
+      minY = vertices[1] || 0,
+      minZ = vertices[2] || 0;
+    let maxX = vertices[0] || 0,
+      maxY = vertices[1] || 0,
+      maxZ = vertices[2] || 0;
 
     for (let i = 3; i < vertices.length; i += 3) {
       const x = vertices[i] || 0;
@@ -2047,7 +2106,7 @@ class GeometryConverter {
 
     return {
       min: [minX, minY, minZ],
-      max: [maxX, maxY, maxZ]
+      max: [maxX, maxY, maxZ],
     };
   }
 
@@ -2325,7 +2384,9 @@ class ParallelEvaluator {
     };
 
     worker.onerror = (error) => {
-      logError("Error in parallel evaluator worker", { error: error instanceof Error ? error.message : String(error) });
+      logError("Error in parallel evaluator worker", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       const taskIndex = this.taskQueue.findIndex(
         (t) => (t as any).worker === worker,
       );
@@ -2642,11 +2703,15 @@ async function evaluateImport(
 // Global parallel evaluator instance
 const parallelEvaluator = new ParallelEvaluator();
 
-
 /**
  * Helper for search() function
  */
-function performSearch(matchVal: any, vector: any, numReturns: number, matchType: number): any[] {
+function performSearch(
+  matchVal: any,
+  vector: any,
+  numReturns: number,
+  matchType: number,
+): any[] {
   // Basic implementation of search
   // matchVal: value or list of values to search for
   // vector: string or list of values to search in
@@ -2657,7 +2722,7 @@ function performSearch(matchVal: any, vector: any, numReturns: number, matchType
   const findMatches = (val: any, target: any): number[] => {
     let indices: number[] = [];
 
-    if (typeof target === 'string') {
+    if (typeof target === "string") {
       // Search characters in string
       const sVal = String(val);
       for (let i = 0; i < target.length; i++) {
@@ -2676,7 +2741,7 @@ function performSearch(matchVal: any, vector: any, numReturns: number, matchType
 
   if (Array.isArray(matchVal)) {
     // If matchVal is a list, result is a list of lists of indices
-    return matchVal.map(v => {
+    return matchVal.map((v) => {
       const matches = findMatches(v, vector);
       return numReturns === 0 ? matches : matches.slice(0, numReturns);
     });
@@ -2693,7 +2758,7 @@ function performSearch(matchVal: any, vector: any, numReturns: number, matchType
 function performLookup(key: number, table: any[]): number {
   if (!Array.isArray(table) || table.length === 0) return 0;
 
-  // Ensure table is sorted by key (first element) to be safe, 
+  // Ensure table is sorted by key (first element) to be safe,
   // though OpenSCAD expects it to be sorted.
   // We'll trust the user provided it sorted for performance, or simple scan.
 
@@ -2718,13 +2783,18 @@ function performLookup(key: number, table: any[]): number {
   // y = y1 + (x - x1) * (y2 - y1) / (x2 - x1)
   if (p2[0] === p1[0]) return p1[1];
 
-  return p1[1] + (key - p1[0]) * (p2[1] - p1[1]) / (p2[0] - p1[0]);
+  return p1[1] + ((key - p1[0]) * (p2[1] - p1[1])) / (p2[0] - p1[0]);
 }
 
 /**
  * Helper for rands() function
  */
-function performRands(minVal: number, maxVal: number, count: number, seed?: number): number[] {
+function performRands(
+  minVal: number,
+  maxVal: number,
+  count: number,
+  seed?: number,
+): number[] {
   const result: number[] = [];
 
   // If seed is provided, use a simple LCG or similar deterministic generator
@@ -2755,4 +2825,27 @@ function performRands(minVal: number, maxVal: number, count: number, seed?: numb
  */
 function convertWasmGeometry(wasmGeom: any): Geometry {
   return geometryConverter.convertWasmGeometry(wasmGeom);
+}
+
+/**
+ * Convert WASM mesh to Geometry format for three-bvh-csg
+ */
+function wasmMeshToGeometry(wasmMesh: any): Geometry {
+  return geometryConverter.convertWasmGeometry(wasmMesh);
+}
+
+/**
+ * Convert Geometry format back to WASM mesh format
+ */
+function geometryToWasmMesh(geom: Geometry): any {
+  // Create a mock WASM mesh object that looks like WASM output
+  // but contains our Geometry data
+  return {
+    vertices: new Float32Array(geom.vertices),
+    indices: new Uint32Array(geom.indices),
+    normals: new Float32Array(geom.normals),
+    bounds: geom.bounds,
+    _color: (geom as any).color,
+    _modifier: (geom as any).modifier?.type,
+  };
 }

@@ -68,7 +68,7 @@ fn parse_long_hex(hex: &str) -> Option<[f32; 4]> {
     Some([r, g, b, 1.0])
 }
 
-/// Parse #RRGGBBAA format  
+/// Parse #RRGGBBAA format
 fn parse_long_hex_alpha(hex: &str) -> Option<[f32; 4]> {
     if hex.len() != 8 {
         return None;
@@ -302,7 +302,7 @@ mod tests {
     #[test]
     fn test_hex_color_parsing() {
         assert_eq!(parse_hex_color("#FF0000"), Some([1.0, 0.0, 0.0, 1.0]));
-        assert_eq!(parse_hex_color("#F00"), Some([1.0, 1.0, 0.0, 0.0, 1.0]));
+        assert_eq!(parse_hex_color("#F00"), Some([1.0, 0.0, 0.0, 1.0]));
         assert_eq!(parse_hex_color("#FF000080"), Some([1.0, 0.0, 0.0, 0.502]));
         assert_eq!(parse_hex_color("#invalid"), None);
     }

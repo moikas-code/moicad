@@ -14,7 +14,7 @@ The Model Context Protocol (MCP) backend service has been successfully scaffolde
 ### Integration Points
 
 The MCP backend is seamlessly integrated into the existing Bun server in `backend/index.ts`:
-- **WebSocket endpoint**: `ws://localhost:3000/ws/mcp`
+- **WebSocket endpoint**: `ws://localhost:42069/ws/mcp`
 - **REST API base**: `/api/mcp/*`
 - **Compatibility**: Preserves existing `/ws` and `/api/*` endpoints
 
@@ -180,15 +180,15 @@ The server will display the available endpoints and WebSocket URLs.
 
 ```bash
 # Get system stats
-curl http://localhost:3000/api/mcp/stats
+curl http://localhost:42069/api/mcp/stats
 
 # Register a user
-curl -X POST http://localhost:3000/api/mcp/auth/register \
+curl -X POST http://localhost:42069/api/mcp/auth/register \
   -H "Content-Type: application/json" \
   -d '{"username":"testuser","email":"test@example.com","password":"password123"}'
 
 # Login
-curl -X POST http://localhost:3000/api/mcp/auth/login \
+curl -X POST http://localhost:42069/api/mcp/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"test@example.com","password":"password123"}'
 ```
@@ -197,7 +197,7 @@ curl -X POST http://localhost:3000/api/mcp/auth/login \
 
 ```javascript
 // Connect to MCP WebSocket
-const ws = new WebSocket('ws://localhost:3000/ws/mcp');
+const ws = new WebSocket('ws://localhost:42069/ws/mcp');
 
 ws.onopen = () => {
   // Authenticate

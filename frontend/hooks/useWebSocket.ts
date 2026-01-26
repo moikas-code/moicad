@@ -12,7 +12,7 @@ export interface UseWebSocketOptions {
 }
 
 export function useWebSocket(options: UseWebSocketOptions = {}) {
-  const { url = 'ws://localhost:3000/ws', autoConnect = true, onError } = options;
+  const { url = 'ws://localhost:42069/ws', autoConnect = true, onError } = options;
 
   const clientRef = useRef<WebSocketClient | null>(null);
   const [connected, setConnected] = useState(false);

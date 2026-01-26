@@ -1,0 +1,41 @@
+[32minfo[39m: Removed stale PID file from previous run {"oldPid":60461,"service":"moicad-backend","timestamp":"2026-01-26T22:18:55.630Z"}
+[32minfo[39m: Backend PID file created {"pid":61471,"service":"moicad-backend","timestamp":"2026-01-26T22:18:55.632Z"}
+Stub AI provider initialized with config: {}
+AI provider registered: Stub AI Provider (stub-provider)
+Default AI providers initialized
+[32minfo[39m: WASM module initialized successfully {"service":"moicad-backend","timestamp":"2026-01-26T22:18:55.641Z"}
+Sample data initialized
+
+╔════════════════════════════════════════════════════════════╗
+║         🏗️  moicad CAD Engine Server                       ║
+║                                                            ║
+║  Server running at: http://localhost:42069                ║
+║  WebSocket:        ws://localhost:42069/ws               ║
+║  MCP WebSocket:     ws://localhost:42069/ws/mcp           ║
+║  Health check:     http://localhost:42069/health         ║
+║                                                            ║
+║  API Endpoints:                                           ║
+║    POST /api/parse     - Parse OpenSCAD code             ║
+║    POST /api/evaluate  - Parse and evaluate to geometry   ║
+║    POST /api/export    - Export geometry to STL/OBJ       ║
+║                                                            ║
+║  MCP Endpoints:                                          ║
+║    POST /api/mcp/auth/register    - User registration     ║
+║    POST /api/mcp/auth/login       - User login           ║
+║    GET  /api/mcp/auth/me         - Current user         ║
+║    GET  /api/mcp/projects        - List projects        ║
+║    POST /api/mcp/projects        - Create project       ║
+║    GET  /api/mcp/sessions       - List sessions        ║
+║    POST /api/mcp/sessions       - Create session        ║
+║    GET  /api/mcp/stats          - System statistics     ║
+╚════════════════════════════════════════════════════════════╝
+
+[32minfo[39m: Job hj7oxq queued {"position":1,"queueSize":1,"service":"moicad-backend","timestamp":"2026-01-26T22:18:59.560Z"}
+[32minfo[39m: Processing job hj7oxq {"codeLength":64,"service":"moicad-backend","timestamp":"2026-01-26T22:18:59.561Z","waitTime":"1ms"}
+MeshBVH: "maxLeafTris" option has been deprecated. Use maxLeafSize, instead.
+MeshBVH: "maxLeafTris" option has been deprecated. Use maxLeafSize, instead.
+[32minfo[39m: Job hj7oxq completed {"executionTime":"33ms","service":"moicad-backend","success":false,"timestamp":"2026-01-26T22:18:59.593Z"}
+[32minfo[39m: Job 0hs5x8 queued {"position":1,"queueSize":1,"service":"moicad-backend","timestamp":"2026-01-26T22:19:08.006Z"}
+[32minfo[39m: Processing job 0hs5x8 {"codeLength":9,"service":"moicad-backend","timestamp":"2026-01-26T22:19:08.008Z","waitTime":"2ms"}
+Cube params: {"_positional":10} center: false
+[32minfo[39m: Job 0hs5x8 completed {"executionTime":"2ms","service":"moicad-backend","success":true,"timestamp":"2026-01-26T22:19:08.008Z"}

@@ -28,27 +28,27 @@ This generates `/wasm/pkg/` with TypeScript bindings and .wasm files.
 bun --hot ./backend/index.ts
 ```
 
-Server starts on `http://localhost:3000`
+Server starts on `http://localhost:42069`
 
 ### 4. Test API Endpoints
 
 **Parse endpoint:**
 ```bash
-curl -X POST http://localhost:3000/api/parse \
+curl -X POST http://localhost:42069/api/parse \
   -H "Content-Type: application/json" \
   -d '{"code":"cube(10);"}'
 ```
 
 **Evaluate endpoint:**
 ```bash
-curl -X POST http://localhost:3000/api/evaluate \
+curl -X POST http://localhost:42069/api/evaluate \
   -H "Content-Type: application/json" \
   -d '{"code":"translate([5,0,0]) sphere(10);"}'
 ```
 
 **Health check:**
 ```bash
-curl http://localhost:3000/health
+curl http://localhost:42069/health
 ```
 
 ---
@@ -129,7 +129,7 @@ curl http://localhost:3000/health
 
 3. **Test immediately**
    ```bash
-   curl -X POST http://localhost:3000/api/evaluate \
+   curl -X POST http://localhost:42069/api/evaluate \
      -H "Content-Type: application/json" \
      -d '{"code":"YOUR_CODE_HERE"}'
    ```
@@ -271,7 +271,7 @@ cd wasm && wasm-pack build --target web
 ```bash
 # Change port in backend/index.ts
 # Or kill process on port 3000
-lsof -ti:3000 | xargs kill -9
+lsof -ti:42069 | xargs kill -9
 ```
 
 ### WASM Compilation Errors

@@ -44,6 +44,16 @@ pub struct Mesh {
 }
 
 impl Mesh {
+    /// Create an empty mesh with no vertices or indices
+    pub fn empty() -> Self {
+        Mesh {
+            vertices: Vec::new(),
+            indices: Vec::new(),
+            normals: Vec::new(),
+            bounds: Bounds::new(),
+        }
+    }
+
     pub fn new(vertices: Vec<Vec3>, indices: Vec<u32>) -> Self {
         let mut bounds = Bounds::new();
         for v in &vertices {
@@ -86,14 +96,20 @@ impl Mesh {
             }
         }
 
-        // Normalize the accumulated normals
+        // Normalize the accumulated normals (skip zero-length vectors)
         for normal in &mut self.normals {
-            *normal = normal.normalize();
+            let len_sq = normal.x * normal.x + normal.y * normal.y + normal.z * normal.z;
+            if len_sq > 1e-12 {
+                let inv_len = 1.0 / len_sq.sqrt();
+                normal.x *= inv_len;
+                normal.y *= inv_len;
+                normal.z *= inv_len;
+            }
         }
     }
 
     pub fn transform(&self, transform_fn: impl Fn(Vec3) -> Vec3) -> Mesh {
-        let mut new_vertices = Vec::new();
+        let mut new_vertices = Vec::with_capacity(self.vertices.len());
         let mut new_bounds = Bounds::new();
 
         for v in &self.vertices {
@@ -105,7 +121,7 @@ impl Mesh {
         let mut mesh = Mesh {
             vertices: new_vertices,
             indices: self.indices.clone(),
-            normals: self.normals.clone(),
+            normals: Vec::new(), // Don't clone - will be recalculated
             bounds: new_bounds,
         };
 
@@ -174,6 +190,29 @@ impl Mesh {
                 face_count: self.face_count(),
                 volume: self.bounds.volume(),
             },
+        }
+    }
+}
+
+impl From<MeshJson> for Mesh {
+    fn from(json: MeshJson) -> Self {
+        // Convert flat f32 array back to Vec3 vertices
+        let vertices: Vec<Vec3> = json.vertices
+            .chunks(3)
+            .map(|chunk| Vec3::new(chunk[0], chunk[1], chunk[2]))
+            .collect();
+
+        // Convert flat f32 array back to Vec3 normals
+        let normals: Vec<Vec3> = json.normals
+            .chunks(3)
+            .map(|chunk| Vec3::new(chunk[0], chunk[1], chunk[2]))
+            .collect();
+
+        Mesh {
+            vertices,
+            indices: json.indices,
+            normals,
+            bounds: json.bounds,
         }
     }
 }

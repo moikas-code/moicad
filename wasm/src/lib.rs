@@ -22,6 +22,9 @@ fn create_wasm_mesh(mesh: Mesh) -> WasmMesh {
         color: None,
         modifier: None,
         object_id: None,
+        cached_vertices: std::cell::OnceCell::new(),
+        cached_indices: std::cell::OnceCell::new(),
+        cached_normals: std::cell::OnceCell::new(),
     }
 }
 
@@ -31,6 +34,9 @@ fn create_wasm_mesh_with_color(mesh: Mesh, color: Option<[f32; 4]>) -> WasmMesh 
         color,
         modifier: None,
         object_id: None,
+        cached_vertices: std::cell::OnceCell::new(),
+        cached_indices: std::cell::OnceCell::new(),
+        cached_normals: std::cell::OnceCell::new(),
     }
 }
 
@@ -45,32 +51,53 @@ fn create_wasm_mesh_with_modifier(
         color,
         modifier,
         object_id,
+        cached_vertices: std::cell::OnceCell::new(),
+        cached_indices: std::cell::OnceCell::new(),
+        cached_normals: std::cell::OnceCell::new(),
     }
 }
 
+/// WasmMesh wraps a Mesh with optional metadata and caches computed arrays
+/// for efficient repeated access from JavaScript
 #[wasm_bindgen]
 pub struct WasmMesh {
     mesh: Mesh,
     color: Option<[f32; 4]>,   // RGBA color (0-1 range)
     modifier: Option<String>,  // OpenSCAD modifier: "!", "%", "#", "*"
     object_id: Option<String>, // Unique identifier for highlighting
+    // Cached arrays for efficient repeated access (computed on first access)
+    #[wasm_bindgen(skip)]
+    cached_vertices: std::cell::OnceCell<Vec<f32>>,
+    #[wasm_bindgen(skip)]
+    cached_indices: std::cell::OnceCell<Vec<u32>>,
+    #[wasm_bindgen(skip)]
+    cached_normals: std::cell::OnceCell<Vec<f32>>,
 }
 
 #[wasm_bindgen]
 impl WasmMesh {
     #[wasm_bindgen(getter)]
     pub fn vertices(&self) -> Vec<f32> {
-        self.mesh.to_vertices_array()
+        // Return cached copy (clone required for wasm-bindgen)
+        self.cached_vertices
+            .get_or_init(|| self.mesh.to_vertices_array())
+            .clone()
     }
 
     #[wasm_bindgen(getter)]
     pub fn indices(&self) -> Vec<u32> {
-        self.mesh.to_indices_array()
+        // Return cached copy (clone required for wasm-bindgen)
+        self.cached_indices
+            .get_or_init(|| self.mesh.to_indices_array())
+            .clone()
     }
 
     #[wasm_bindgen(getter)]
     pub fn normals(&self) -> Vec<f32> {
-        self.mesh.to_normals_array()
+        // Return cached copy (clone required for wasm-bindgen)
+        self.cached_normals
+            .get_or_init(|| self.mesh.to_normals_array())
+            .clone()
     }
 
     #[wasm_bindgen]
@@ -261,29 +288,79 @@ pub fn hull_two(a: &WasmMesh, b: &WasmMesh) -> WasmMesh {
     )
 }
 
+/// Hull multiple meshes together safely using progressive hull computation
+/// This avoids unsafe pointer manipulation by computing hull incrementally
 #[wasm_bindgen]
+pub fn hull_multiple_safe(meshes_json: &str) -> WasmMesh {
+    // Parse JSON array of mesh data and compute hull
+    // This is a safe alternative that doesn't use raw pointers
+    match serde_json::from_str::<Vec<geometry::MeshJson>>(meshes_json) {
+        Ok(mesh_jsons) => {
+            if mesh_jsons.is_empty() {
+                return create_wasm_mesh(Mesh::empty());
+            }
+
+            // Convert JSON to meshes
+            let meshes: Vec<Mesh> = mesh_jsons.into_iter().map(|mj| mj.into()).collect();
+            let mesh_refs: Vec<&Mesh> = meshes.iter().collect();
+
+            let result_mesh = hull::hull_meshes(&mesh_refs);
+            create_wasm_mesh(result_mesh)
+        }
+        Err(_) => create_wasm_mesh(Mesh::empty()),
+    }
+}
+
+/// Progressive hull: add one mesh at a time to build up a hull
+/// Safer than hull_multiple as it takes references instead of pointers
+#[wasm_bindgen]
+pub fn hull_progressive(current_hull: &WasmMesh, new_mesh: &WasmMesh) -> WasmMesh {
+    let meshes = vec![&current_hull.mesh, &new_mesh.mesh];
+    let result_mesh = hull::hull_meshes(&meshes);
+
+    // Preserve color and modifier from current hull
+    create_wasm_mesh_with_modifier(
+        result_mesh,
+        current_hull.color,
+        current_hull.modifier.clone(),
+        current_hull.object_id.clone(),
+    )
+}
+
+#[wasm_bindgen]
+#[deprecated(note = "Use hull_progressive or hull_multiple_safe instead - this uses unsafe pointers")]
 pub fn hull_multiple(mesh_pointers: &[usize]) -> WasmMesh {
     // UNSAFE: This function relies on the caller to provide valid pointers
-    // to WasmMesh objects.
+    // to WasmMesh objects. Kept for backwards compatibility but deprecated.
+    if mesh_pointers.is_empty() {
+        return create_wasm_mesh(Mesh::empty());
+    }
+
     let meshes: Vec<&Mesh> = mesh_pointers
         .iter()
-        .map(|ptr| unsafe { &(*(*ptr as *const WasmMesh)).mesh })
+        .filter_map(|ptr| {
+            if *ptr == 0 {
+                None // Skip null pointers
+            } else {
+                Some(unsafe { &(*(*ptr as *const WasmMesh)).mesh })
+            }
+        })
         .collect();
+
+    if meshes.is_empty() {
+        return create_wasm_mesh(Mesh::empty());
+    }
 
     let result_mesh = hull::hull_meshes(&meshes);
 
     // Preserve color and modifier from the first mesh if available
-    if !mesh_pointers.is_empty() {
-        let first_mesh = unsafe { &(*(mesh_pointers[0] as *const WasmMesh)) };
-        create_wasm_mesh_with_modifier(
-            result_mesh,
-            first_mesh.color,
-            first_mesh.modifier.clone(),
-            first_mesh.object_id.clone(),
-        )
-    } else {
-        create_wasm_mesh(result_mesh)
-    }
+    let first_mesh = unsafe { &(*(mesh_pointers[0] as *const WasmMesh)) };
+    create_wasm_mesh_with_modifier(
+        result_mesh,
+        first_mesh.color,
+        first_mesh.modifier.clone(),
+        first_mesh.object_id.clone(),
+    )
 }
 
 // Color operations

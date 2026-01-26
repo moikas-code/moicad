@@ -158,7 +158,7 @@ Run tests:
 bun --hot ./backend/index.ts
 
 # Test feature showcase
-curl -X POST http://localhost:3000/api/evaluate \
+curl -X POST http://localhost:42069/api/evaluate \
   -H "Content-Type: application/json" \
   --data-binary @examples/feature-showcase.scad
 ```

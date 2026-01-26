@@ -1,10 +1,20 @@
 // AI-specific type definitions for moicad
 // Extends MCP types with AI-specific interfaces
 
-import type { Suggestion, SuggestionMetadata, SuggestionFeedback, AIProvider } from './mcp-types';
+import type {
+  Suggestion,
+  SuggestionMetadata,
+  SuggestionFeedback,
+  AIProvider,
+} from "./mcp-types";
 
 // Re-export for convenience
-export type { Suggestion, SuggestionMetadata, SuggestionFeedback, AIProvider } from './mcp-types';
+export type {
+  Suggestion,
+  SuggestionMetadata,
+  SuggestionFeedback,
+  AIProvider,
+} from "./mcp-types";
 
 // =============================================================================
 // CORE AI INTERFACES
@@ -19,31 +29,34 @@ export interface IAIProvider {
    */
   readonly id: string;
   readonly name: string;
-  readonly type: 'openai' | 'claude' | 'local' | 'stub' | 'custom';
+  readonly type: "openai" | "claude" | "local" | "stub" | "custom";
   readonly model: string;
   readonly capabilities?: AICapability[];
   readonly isAvailable: boolean;
-  
+
   /**
    * Initialize the provider with configuration
    */
   initialize(config: AIProviderConfig): Promise<void>;
-  
+
   /**
    * Generate suggestions for OpenSCAD code
    */
   generateSuggestions(request: SuggestionRequest): Promise<SuggestionResponse>;
-  
+
   /**
    * Validate a suggestion before applying
    */
-  validateSuggestion(suggestion: Suggestion, context: ValidationContext): Promise<ValidationResult>;
-  
+  validateSuggestion(
+    suggestion: Suggestion,
+    context: ValidationContext,
+  ): Promise<ValidationResult>;
+
   /**
    * Get provider health and status
    */
   healthCheck(): Promise<ProviderHealth>;
-  
+
   /**
    * Clean shutdown of provider resources
    */
@@ -70,7 +83,7 @@ export interface AIProviderConfig {
   model?: string;
   temperature?: number; // 0-1, default 0.3
   maxTokens?: number; // default 1000
-  timeout?: number; // default 30000ms
+  timeout?: number; // default 694200ms
   retryAttempts?: number; // default 3
   customSettings?: Record<string, any>;
 }
@@ -209,7 +222,7 @@ export interface ValidationContext {
     canExecute: boolean;
   };
   safetyLevel: SafetyLevel;
-  environment: 'development' | 'staging' | 'production';
+  environment: "development" | "staging" | "production";
 }
 
 /**
@@ -229,8 +242,8 @@ export interface ValidationResult {
  * Validation issue that blocks application
  */
 export interface ValidationIssue {
-  type: 'syntax' | 'security' | 'permission' | 'dependency' | 'compatibility';
-  severity: 'error' | 'warning' | 'info';
+  type: "syntax" | "security" | "permission" | "dependency" | "compatibility";
+  severity: "error" | "warning" | "info";
   message: string;
   line?: number;
   column?: number;
@@ -241,7 +254,7 @@ export interface ValidationIssue {
  * Validation warning that doesn't block application
  */
 export interface ValidationWarning {
-  type: 'performance' | 'style' | 'deprecation' | 'experimental';
+  type: "performance" | "style" | "deprecation" | "experimental";
   message: string;
   impact: string;
   suggestion?: string;
@@ -270,52 +283,37 @@ export interface ProviderHealth {
 /**
  * Suggestion types supported by the AI system
  */
-export type SuggestionType = 
-  | 'code' // General code improvements
-  | 'optimization' // Performance optimizations
-  | 'bug_fix' // Bug detection and fixes
-  | 'enhancement' // Feature additions
-  | 'style' // Code style improvements
-  | 'documentation' // Documentation generation
-  | 'refactor' // Code refactoring
-  | 'security' // Security improvements
-  | 'completion' // Code completion
-  | 'explanation'; // Code explanation
+export type SuggestionType =
+  | "code" // General code improvements
+  | "optimization" // Performance optimizations
+  | "bug_fix" // Bug detection and fixes
+  | "enhancement" // Feature additions
+  | "style" // Code style improvements
+  | "documentation" // Documentation generation
+  | "refactor" // Code refactoring
+  | "security" // Security improvements
+  | "completion" // Code completion
+  | "explanation"; // Code explanation
 
 /**
  * Suggestion priority levels
  */
-export type SuggestionPriority = 
-  | 'low'
-  | 'medium'
-  | 'high'
-  | 'critical';
+export type SuggestionPriority = "low" | "medium" | "high" | "critical";
 
 /**
  * Impact levels for suggestions
  */
-export type ImpactLevel = 
-  | 'low'
-  | 'medium'
-  | 'high';
+export type ImpactLevel = "low" | "medium" | "high";
 
 /**
  * Safety levels for validation
  */
-export type SafetyLevel = 
-  | 'strict'
-  | 'moderate'
-  | 'permissive';
+export type SafetyLevel = "strict" | "moderate" | "permissive";
 
 /**
  * Risk levels for suggestions
  */
-export type RiskLevel = 
-  | 'minimal'
-  | 'low'
-  | 'medium'
-  | 'high'
-  | 'critical';
+export type RiskLevel = "minimal" | "low" | "medium" | "high" | "critical";
 
 // =============================================================================
 // AI MANAGER INTERFACES
@@ -329,47 +327,55 @@ export interface IAIManager {
    * Register an AI provider
    */
   registerProvider(provider: IAIProvider): Promise<void>;
-  
+
   /**
    * Unregister an AI provider
    */
   unregisterProvider(providerId: string): Promise<void>;
-  
+
   /**
    * Get available providers
    */
   getProviders(): IAIProvider[];
-  
+
   /**
    * Get active/default provider
    */
   getActiveProvider(): IAIProvider | null;
-  
+
   /**
    * Set active provider
    */
   setActiveProvider(providerId: string): Promise<void>;
-  
+
   /**
    * Generate suggestions using active provider
    */
   generateSuggestions(request: SuggestionRequest): Promise<SuggestionResponse>;
-  
+
   /**
    * Validate suggestion
    */
-  validateSuggestion(suggestion: Suggestion, context: ValidationContext): Promise<ValidationResult>;
-  
+  validateSuggestion(
+    suggestion: Suggestion,
+    context: ValidationContext,
+  ): Promise<ValidationResult>;
+
   /**
    * Get suggestion history
    */
-  getSuggestionHistory(filters?: SuggestionFilters): Promise<SuggestionHistoryEntry[]>;
-  
+  getSuggestionHistory(
+    filters?: SuggestionFilters,
+  ): Promise<SuggestionHistoryEntry[]>;
+
   /**
    * Track suggestion feedback
    */
-  trackFeedback(suggestionId: string, feedback: SuggestionFeedback): Promise<void>;
-  
+  trackFeedback(
+    suggestionId: string,
+    feedback: SuggestionFeedback,
+  ): Promise<void>;
+
   /**
    * Get analytics and metrics
    */
@@ -398,7 +404,7 @@ export interface SuggestionFilters {
 export interface SuggestionHistoryEntry {
   suggestion: Suggestion;
   feedback?: SuggestionFeedback;
-  outcome: 'applied' | 'rejected' | 'expired' | 'pending';
+  outcome: "applied" | "rejected" | "expired" | "pending";
   appliedAt?: Date;
   processingTime: number;
   provider: string;
@@ -458,22 +464,22 @@ export interface StubProviderConfig extends AIProviderConfig {
    * Deterministic seed for reproducible suggestions
    */
   seed?: number;
-  
+
   /**
    * Pre-defined response templates
    */
   templates?: Record<string, StubTemplate>;
-  
+
   /**
    * Response delay in milliseconds (for testing)
    */
   responseDelay?: number;
-  
+
   /**
    * Error rate simulation (0-1)
    */
   errorRate?: number;
-  
+
   /**
    * Whether to always succeed
    */
@@ -530,10 +536,10 @@ export class AISuggestionError extends Error {
     message: string,
     public provider: string,
     public code: string,
-    public details?: any
+    public details?: any,
   ) {
     super(message);
-    this.name = 'AISuggestionError';
+    this.name = "AISuggestionError";
   }
 }
 
@@ -542,10 +548,10 @@ export class AIProviderError extends Error {
     message: string,
     public provider: string,
     public operation: string,
-    public details?: any
+    public details?: any,
   ) {
     super(message);
-    this.name = 'AIProviderError';
+    this.name = "AIProviderError";
   }
 }
 
@@ -553,9 +559,9 @@ export class AIValidationError extends Error {
   constructor(
     message: string,
     public validationIssues: ValidationIssue[],
-    public suggestionId?: string
+    public suggestionId?: string,
   ) {
     super(message);
-    this.name = 'AIValidationError';
+    this.name = "AIValidationError";
   }
 }
