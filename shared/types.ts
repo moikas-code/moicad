@@ -22,12 +22,21 @@ export type ScadNode =
   | LetNode
   | ModifierNode
   | ListComprehensionNode
-  | ImportNode;
+  | ImportNode
+  | IntersectionForNode;
 
 export interface PrimitiveNode {
   type: 'primitive';
   op: 'cube' | 'sphere' | 'cylinder' | 'cone' | 'circle' | 'square' | 'polygon' | 'polyhedron' | 'text';
   params: Record<string, any>;
+  line?: number;
+}
+
+export interface IntersectionForNode {
+  type: 'intersection_for';
+  variable: string;
+  range: [number, number] | [number, number, number];
+  body: ScadNode[];
   line?: number;
 }
 

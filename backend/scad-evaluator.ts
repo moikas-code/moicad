@@ -6,6 +6,7 @@ import type {
   ModifierInfo,
 } from "../shared/types";
 import { readTextFile, readTextFileSync, parseSurfaceData } from "./file-utils";
+import logger, { logWarn, logInfo, logDebug, logError } from "./logger";
 
 /**
  * OpenSCAD Evaluator - Executes AST using WASM CSG engine
@@ -13,8 +14,10 @@ import { readTextFile, readTextFileSync, parseSurfaceData } from "./file-utils";
 
 interface WasmModule {
   create_cube: (size: number) => any;
+  create_cube_vec: (size: Float32Array) => any;
   create_sphere: (radius: number, detail: number) => any;
   create_cylinder: (radius: number, height: number, detail: number) => any;
+  // ... (lines omitted)
   create_cone: (radius: number, height: number, detail: number) => any;
   create_circle: (radius: number, detail: number) => any;
   create_square: (size: number) => any;
@@ -49,8 +52,8 @@ interface WasmModule {
     slices: number,
   ) => any;
   rotate_extrude: (mesh: any, angle: number, segments: number) => any;
-  project_orthographic: (mesh: any, convexity: boolean) => any;
-  project_slice: (mesh: any, scale: number[], convexity: boolean) => any;
+  project_orthographic?: (mesh: any, convexity: boolean) => any;
+  project_slice?: (mesh: any, scale: number[], convexity: boolean) => any;
   create_surface: (
     width: number,
     depth: number,
@@ -152,9 +155,9 @@ async function evaluateProjection(
   }
 
   if (cut) {
-    return wasmModule.project_slice(childGeom, scale, convexity);
+    return wasmModule!.project_slice(childGeom, scale, convexity);
   } else {
-    return wasmModule.project_orthographic(childGeom, convexity);
+    return wasmModule!.project_orthographic(childGeom, convexity);
   }
 }
 
@@ -172,7 +175,7 @@ interface EvaluationContext {
  */
 export async function evaluateAST(
   ast: ScadNode[],
-  options?: { previewMode?: boolean },
+  options?: { previewMode?: boolean; disableParallel?: boolean },
 ): Promise<EvaluateResult> {
   const startTime = performance.now();
   const context: EvaluationContext = {
@@ -187,7 +190,10 @@ export async function evaluateAST(
       ["$vpt", [0, 0, 0]], // Viewport translation [x, y, z]
       ["$vpd", 100], // Viewport camera distance
       ["$vpf", 45], // Viewport field of view in degrees
+      ["$vpf", 45], // Viewport field of view in degrees
       ["$preview", options?.previewMode ?? true], // Preview mode flag (auto-detected with manual override)
+      ["$version", [2021, 1, 0]], // OpenSCAD version
+      ["$version_num", 20210100], // OpenSCAD version number
     ]),
     functions: new Map(),
     modules: new Map(),
@@ -238,7 +244,7 @@ export async function evaluateAST(
       }
     } else {
       // Check if parallel evaluation would be beneficial
-      if (executableNodes.length > 3) {
+      if (executableNodes.length > 3 && !options?.disableParallel) {
         try {
           // Use parallel evaluation for complex scenes
           const batchResults = await parallelEvaluator.batchEvaluateNodes(
@@ -251,9 +257,9 @@ export async function evaluateAST(
             }
           }
         } catch (error) {
-          console.warn(
-            "Parallel evaluation failed, falling back to sequential:",
-            error,
+          logWarn(
+            "Parallel evaluation failed, falling back to sequential",
+            { error: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined }
           );
           // Fallback to sequential evaluation
           for (const node of executableNodes) {
@@ -344,6 +350,9 @@ async function evaluateNode(
     case "for":
       return evaluateForLoop(node as any, context);
 
+    case "intersection_for":
+      return evaluateIntersectionFor(node as any, context);
+
     case "assignment":
       return evaluateAssignment(node as any, context);
 
@@ -398,9 +407,25 @@ function evaluatePrimitive(node: any, context: EvaluationContext): any {
 
   switch (node.op) {
     case "cube":
-      // Handle positional: cube(size) or named: cube(size=10)
-      const cube_size = params._positional ?? params.size ?? 10;
-      geometry = wasmModule.create_cube(cube_size);
+      // Handle array syntax cube([x, y, z]) or single size cube(size)
+      let cube_size: number | number[] = params._positional ?? params.size ?? 10;
+      const cube_center = params.center ?? false;
+
+      if (Array.isArray(cube_size)) {
+        geometry = wasmModule.create_cube_vec(new Float32Array(cube_size));
+      } else {
+        geometry = wasmModule.create_cube(cube_size);
+      }
+
+      // Handle center=false - translate by half size
+      if (!cube_center) {
+        if (Array.isArray(cube_size)) {
+          geometry = wasmModule!.translate(geometry, cube_size[0] / 2, cube_size[1] / 2, cube_size[2] / 2);
+        } else {
+          const half = cube_size / 2;
+          geometry = wasmModule!.translate(geometry, half, half, half);
+        }
+      }
       break;
 
     case "sphere":
@@ -427,9 +452,15 @@ function evaluatePrimitive(node: any, context: EvaluationContext): any {
           : (params.r ?? params.radius ?? 5);
       const cyl_r1 = params.r1 ?? cyl_r;
       const cyl_r2 = params.r2 ?? cyl_r;
+      const cyl_center = params.center ?? false;
       const cyl_detail = params.$fn ?? params.detail ?? 20;
       const cyl_r_avg = (cyl_r1 + cyl_r2) / 2;
       geometry = wasmModule.create_cylinder(cyl_r_avg, cyl_h, cyl_detail);
+      
+      // Handle center=false - translate up by half height
+      if (!cyl_center) {
+        geometry = wasmModule!.translate(geometry, 0, 0, cyl_h/2);
+      }
       break;
 
     case "cone":
@@ -964,6 +995,67 @@ async function evaluateForLoop(
   return result;
 }
 
+async function evaluateIntersectionFor(
+  node: any,
+  context: EvaluationContext,
+): Promise<any> {
+  if (!wasmModule) throw new Error("WASM module not initialized");
+
+  const variable = node.variable;
+  const range = node.range;
+
+  let start: number,
+    end: number,
+    step = 1;
+
+  if (range.length === 2) {
+    [start, end] = range;
+  } else if (range.length === 3) {
+    [start, step, end] = range;
+  } else {
+    context.errors.push({ message: "Invalid range in intersection_for loop" });
+    return null;
+  }
+
+  const geometries: any[] = [];
+
+  // Create loop range array
+  const range_arr: number[] = [];
+  if (step > 0) {
+    for (let i = start; i < end; i += step) {
+      range_arr.push(i);
+    }
+  } else {
+    for (let i = start; i > end; i += step) {
+      range_arr.push(i);
+    }
+  }
+
+  // Evaluate body for each iteration
+  for (const value of range_arr) {
+    context.variables.set(variable, value);
+
+    for (const bodyNode of node.body) {
+      const geom = await evaluateNode(bodyNode, context);
+      if (geom) {
+        geometries.push(geom);
+      }
+    }
+  }
+
+  // Combine geometries with intersection
+  if (geometries.length === 0) {
+    return null;
+  }
+
+  let result = geometries[0];
+  for (let i = 1; i < geometries.length; i++) {
+    result = wasmModule.intersection(result, geometries[i]);
+  }
+
+  return result;
+}
+
 async function evaluateEcho(
   node: any,
   context: EvaluationContext,
@@ -972,7 +1064,7 @@ async function evaluateEcho(
     const evaluated = evaluateExpression(v, context);
     return evaluated;
   });
-  console.log("ECHO:", ...values);
+  logInfo("ECHO output", { values });
   return null; // Echo doesn't produce geometry
 }
 
@@ -981,13 +1073,14 @@ async function evaluateAssert(
   context: EvaluationContext,
 ): Promise<any> {
   const condition = evaluateExpression(node.condition, context);
-  console.log(
-    "ASSERT condition:",
-    node.condition,
-    "=> evaluated to:",
-    condition,
-    "type:",
-    typeof condition,
+  logDebug(
+    "ASSERT condition evaluation",
+    {
+      condition: node.condition,
+      result: condition,
+      type: typeof condition,
+      line: node.line
+    }
   );
   if (!condition) {
     const message = node.message
@@ -1225,6 +1318,24 @@ async function evaluateModuleCall(
       column: node.column,
     };
     return evaluatePrimitive(primitiveNode, context);
+  }
+
+  // Handle render() explicitly
+  if (node.name === "render") {
+    // Evaluating render() - just pass through regular evaluation of children
+    // In a full implementation we might force caching here
+    if (!node.children || node.children.length === 0) return null;
+
+    // Union all children like a regular group
+    let result = null;
+    for (const child of node.children) {
+      const childGeom = await evaluateNode(child, context);
+      if (childGeom) {
+        if (!result) result = childGeom;
+        else result = wasmModule.union(result, childGeom);
+      }
+    }
+    return result;
   }
 
   // Handle built-in extrusion operations as special cases
@@ -1584,6 +1695,29 @@ function evaluateFunctionCall(call: any, context: EvaluationContext): any {
         return arrays.flat();
       }
 
+      // Search and Lookup
+      case "search": {
+        const matchVal = evaluateExpression(call.args[0], context);
+        const vector = evaluateExpression(call.args[1], context);
+        const numReturns = call.args.length > 2 ? evaluateExpression(call.args[2], context) : 1;
+        const matchType = call.args.length > 3 ? evaluateExpression(call.args[3], context) : 0;
+        return performSearch(matchVal, vector, numReturns, matchType);
+      }
+
+      case "lookup": {
+        const key = evaluateExpression(call.args[0], context);
+        const table = evaluateExpression(call.args[1], context);
+        return performLookup(key, table);
+      }
+
+      case "rands": {
+        const minVal = evaluateExpression(call.args[0], context);
+        const maxVal = evaluateExpression(call.args[1], context);
+        const count = evaluateExpression(call.args[2], context);
+        const seed = call.args.length > 3 ? evaluateExpression(call.args[3], context) : undefined;
+        return performRands(minVal, maxVal, count, seed);
+      }
+
       // String functions
       case "str": {
         return call.args
@@ -1731,8 +1865,38 @@ class GeometryConverter {
     }
   }
 
+  private calculateBounds(vertices: number[]): { min: [number, number, number]; max: [number, number, number] } {
+    if (vertices.length === 0) {
+      return {
+        min: [0, 0, 0],
+        max: [0, 0, 0]
+      };
+    }
+
+    let minX = vertices[0] || 0, minY = vertices[1] || 0, minZ = vertices[2] || 0;
+    let maxX = vertices[0] || 0, maxY = vertices[1] || 0, maxZ = vertices[2] || 0;
+
+    for (let i = 3; i < vertices.length; i += 3) {
+      const x = vertices[i] || 0;
+      const y = vertices[i + 1] || 0;
+      const z = vertices[i + 2] || 0;
+
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      minZ = Math.min(minZ, z);
+
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+      maxZ = Math.max(maxZ, z);
+    }
+
+    return {
+      min: [minX, minY, minZ],
+      max: [maxX, maxY, maxZ]
+    };
+  }
+
   private convertFallback(wasmGeom: any): Geometry {
-    // Original conversion logic as fallback
     const vertices =
       wasmGeom.vertices instanceof Float32Array
         ? Array.from(wasmGeom.vertices)
@@ -1758,11 +1922,14 @@ class GeometryConverter {
     const vertexCount = vertices.length / 3;
     const faceCount = indices.length / 3;
 
+    // Calculate bounds from vertices
+    const bounds = this.calculateBounds(vertices);
+
     const geometry: Geometry = {
       vertices: vertices as number[],
       indices: indices as number[],
       normals: normals as number[],
-      bounds: wasmGeom.bounds,
+      bounds,
       stats: {
         vertexCount,
         faceCount,
@@ -1993,7 +2160,9 @@ class ParallelEvaluator {
       );
       if (taskIndex > -1) {
         const task = this.taskQueue.splice(taskIndex, 1)[0];
-        task.resolve(event.data.result);
+        if (task && task.resolve) {
+          task.resolve(event.data.result);
+        }
       }
       // Add the worker back to the idle pool
       this.idleWorkers.push(worker);
@@ -2001,13 +2170,15 @@ class ParallelEvaluator {
     };
 
     worker.onerror = (error) => {
-      console.error("Error in parallel evaluator worker:", error);
+      logError("Error in parallel evaluator worker", { error: error instanceof Error ? error.message : String(error) });
       const taskIndex = this.taskQueue.findIndex(
         (t) => (t as any).worker === worker,
       );
       if (taskIndex > -1) {
         const task = this.taskQueue.splice(taskIndex, 1)[0];
-        task.reject(error);
+        if (task && task.reject) {
+          task.reject(error);
+        }
       }
       // Don't add the worker back to the pool, let it terminate
     };
@@ -2175,6 +2346,9 @@ async function evaluateImport(
   node: any,
   context: EvaluationContext,
 ): Promise<any> {
+  // Check for circular dependencies
+  const normalizedFilename = node.filename.replace(/\\/g, "/");
+
   try {
     // OpenSCAD-style library path resolution
     // Search order: 1) Current directory, 2) lib/, 3) modules/, 4) system library paths
@@ -2192,8 +2366,6 @@ async function evaluateImport(
       "C:\\Program Files\\OpenSCAD\\libraries\\", // System libraries (Windows)
     ];
 
-    // Check for circular dependencies
-    const normalizedFilename = node.filename.replace(/\\/g, "/");
     if (context.includedFiles?.has(normalizedFilename)) {
       context.errors.push({
         message: `Circular dependency detected: ${node.filename} is already included`,
@@ -2314,6 +2486,114 @@ async function evaluateImport(
 
 // Global parallel evaluator instance
 const parallelEvaluator = new ParallelEvaluator();
+
+
+/**
+ * Helper for search() function
+ */
+function performSearch(matchVal: any, vector: any, numReturns: number, matchType: number): any[] {
+  // Basic implementation of search
+  // matchVal: value or list of values to search for
+  // vector: string or list of values to search in
+
+  const results: any[] = [];
+
+  // Helper to find matches for a single value
+  const findMatches = (val: any, target: any): number[] => {
+    let indices: number[] = [];
+
+    if (typeof target === 'string') {
+      // Search characters in string
+      const sVal = String(val);
+      for (let i = 0; i < target.length; i++) {
+        if (target[i] === sVal) indices.push(i);
+      }
+    } else if (Array.isArray(target)) {
+      // Search in list
+      for (let i = 0; i < target.length; i++) {
+        if (target[i] === val) indices.push(i);
+        // Deep equality check could be added here for objects/lists
+      }
+    }
+
+    return indices;
+  };
+
+  if (Array.isArray(matchVal)) {
+    // If matchVal is a list, result is a list of lists of indices
+    return matchVal.map(v => {
+      const matches = findMatches(v, vector);
+      return numReturns === 0 ? matches : matches.slice(0, numReturns);
+    });
+  } else {
+    // Single value search
+    const matches = findMatches(matchVal, vector);
+    return numReturns === 0 ? matches : matches.slice(0, numReturns);
+  }
+}
+
+/**
+ * Helper for lookup() function
+ */
+function performLookup(key: number, table: any[]): number {
+  if (!Array.isArray(table) || table.length === 0) return 0;
+
+  // Ensure table is sorted by key (first element) to be safe, 
+  // though OpenSCAD expects it to be sorted.
+  // We'll trust the user provided it sorted for performance, or simple scan.
+
+  // Find p1 and p2 such that p1.key <= key <= p2.key
+  let p1 = table[0];
+  let p2 = table[table.length - 1];
+
+  // Key out of bounds
+  if (key <= p1[0]) return p1[1];
+  if (key >= p2[0]) return p2[1];
+
+  // Linear search for interval (binary search would be better for large tables)
+  for (let i = 0; i < table.length - 1; i++) {
+    if (key >= table[i][0] && key <= table[i + 1][0]) {
+      p1 = table[i];
+      p2 = table[i + 1];
+      break;
+    }
+  }
+
+  // Interpolate
+  // y = y1 + (x - x1) * (y2 - y1) / (x2 - x1)
+  if (p2[0] === p1[0]) return p1[1];
+
+  return p1[1] + (key - p1[0]) * (p2[1] - p1[1]) / (p2[0] - p1[0]);
+}
+
+/**
+ * Helper for rands() function
+ */
+function performRands(minVal: number, maxVal: number, count: number, seed?: number): number[] {
+  const result: number[] = [];
+
+  // If seed is provided, use a simple LCG or similar deterministic generator
+  // If not, use Math.random()
+
+  let currentSeed = seed !== undefined ? seed : Math.random() * 2147483647;
+
+  const nextRand = () => {
+    if (seed !== undefined) {
+      // Simple LCG
+      currentSeed = (currentSeed * 1664525 + 1013904223) % 4294967296;
+      return currentSeed / 4294967296;
+    } else {
+      return Math.random();
+    }
+  };
+
+  for (let i = 0; i < count; i++) {
+    const r = nextRand();
+    result.push(minVal + r * (maxVal - minVal));
+  }
+
+  return result;
+}
 
 /**
  * Convert WASM geometry to standard Geometry format (JSON-serializable)
