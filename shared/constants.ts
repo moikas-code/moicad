@@ -7,7 +7,7 @@ export const SCAD_KEYWORDS = [
   'union', 'difference', 'intersection', 'hull', 'minkowski',
   'linear_extrude', 'rotate_extrude', 'projection', 'offset', 'resize',
   'for', 'let', 'function', 'module', 'include', 'use', 'import',
-  'if', 'else', 'echo',
+  'if', 'else', 'echo', 'surface',
   'true', 'false', 'undef',
 ] as const;
 
@@ -41,9 +41,8 @@ export const DEFAULT_SPECIAL_VARIABLES = {
 
 // Primitive operators
 export const PRIMITIVES = [
-  'cube', 'sphere', 'cylinder', 'cone', 'circle', 'square',
-  'polygon', 'polyhedron', 'text',
-] as const;
+  'cube', 'sphere', 'cylinder', 'cone', 'polygon', 'polyhedron', 'text',
+ ] as const;
 
 // Boolean operations
 export const BOOLEAN_OPS = ['union', 'difference', 'intersection', 'hull', 'minkowski'] as const;
