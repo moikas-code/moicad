@@ -12,10 +12,10 @@ Detailed implementation plans for known enhancement opportunities:
 - **[include-use.md](./future-enhancements/include-use.md)** - File import operations
 - **[extrusion.md](./future-enhancements/extrusion.md)** - Extrusion operations implementation and future enhancements
 
-### [architecture/](./architecture/) (planned)
+### [architecture/](./architecture/)
 System architecture documentation:
 - **parser.md** - Parser design and OpenSCAD language support
-- **evaluator.md** - Evaluation engine and CSG operations  
+- **[evaluator.md](./architecture/evaluator.md)** - Evaluation engine and CSG operations  
 - **wasm-engine.md** - WASM CSG engine and geometry processing
 
 ### [api/](./api/) (planned)
