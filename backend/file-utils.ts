@@ -1,4 +1,5 @@
 import { join, resolve } from 'path';
+import { readFileSync } from 'fs';
 
 // Allowed file extensions for surface data
 const ALLOWED_EXTENSIONS = ['.dat', '.txt', '.csv'];
@@ -12,8 +13,14 @@ export interface FileReadResult {
   error?: string;
 }
 
+export interface FileReadSyncResult {
+  success: boolean;
+  content?: string;
+  error?: string;
+}
+
 /**
- * Read a text file with security validation
+ * Read a text file with security validation (async)
  * @param filePath - Path to the file (relative or absolute)
  * @param workingDirectory - Base directory for relative paths
  * @returns FileReadResult with content or error
@@ -89,6 +96,65 @@ export function parseSurfaceData(content: string): Float32Array {
   }
 
   return new Float32Array(numbers);
+}
+
+/**
+ * Read a text file with security validation (sync)
+ * @param filePath - Path to the file (relative or absolute)
+ * @param workingDirectory - Base directory for relative paths
+ * @returns FileReadSyncResult with content or error
+ */
+export function readTextFileSync(filePath: string, workingDirectory: string = process.cwd()): FileReadSyncResult {
+  try {
+    // Validate file path
+    const validation = validateFilePath(filePath, workingDirectory);
+    if (!validation.valid) {
+      return {
+        success: false,
+        error: validation.error
+      };
+    }
+
+    // Check file extension
+    const ext = getFileExtension(filePath);
+    if (!ALLOWED_EXTENSIONS.includes(ext)) {
+      return {
+        success: false,
+        error: `File extension "${ext}" not allowed. Allowed: ${ALLOWED_EXTENSIONS.join(', ')}`
+      };
+    }
+
+    // Read file using Node.js sync method for compatibility
+    const fullPath = validation.resolvedPath!;
+    const content = readFileSync(fullPath, 'utf8');
+    
+    // Check file size (for sync, we need to read first)
+    try {
+      const stats = readFileSync(fullPath);
+      const size = stats.length;
+      if (size > MAX_FILE_SIZE) {
+        return {
+          success: false,
+          error: `File too large: ${size} bytes (max: ${MAX_FILE_SIZE} bytes)`
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: `Failed to read file "${filePath}": ${error instanceof Error ? error.message : String(error)}`
+      };
+    }
+
+    return {
+      success: true,
+      content
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: `Failed to read file "${filePath}": ${error instanceof Error ? error.message : String(error)}`
+    };
+  }
 }
 
 /**

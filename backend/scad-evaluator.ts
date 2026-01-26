@@ -1,5 +1,5 @@
 import type { ScadNode, Geometry, EvaluateResult, EvaluationError, ModifierInfo } from '../shared/types';
-import { readTextFile, parseSurfaceData } from './file-utils';
+import { readTextFile, readTextFileSync, parseSurfaceData } from './file-utils';
 
 /**
  * OpenSCAD Evaluator - Executes AST using WASM CSG engine
@@ -357,7 +357,6 @@ function evaluatePrimitive(node: any, context: EvaluationContext): any {
 
   let geometry = null;
 
-  console.log('EVAL DEBUG: node.op =', node.op);
   switch (node.op) {
     case 'cube':
       // Handle positional: cube(size) or named: cube(size=10)
@@ -403,22 +402,25 @@ function evaluatePrimitive(node: any, context: EvaluationContext): any {
           // Parse multi-line string data
           data = parseSurfaceData(params.data);
         } else {
-          // Handle as file path using synchronous file reading
-          try {
-            const file = Bun.file(params.data);
-            const content = file.text();
-            if (content instanceof Promise) {
-              // Async file - use default pattern for now
-              data = new Float32Array(width * depth);
-              for (let i = 0; i < width * depth; i++) {
-                data[i] = Math.sin(i * 0.1) * 0.5;
-              }
-              context.errors.push({ 
-                message: `Async file reading not yet supported for surface: ${params.data}. Using default pattern.` 
-              });
+      // Handle as file path using hybrid reading
+        try {
+          const file = Bun.file(params.data);
+          const content = file.text();
+          
+          if (content instanceof Promise) {
+            // Use synchronous fallback for Bun Promise behavior
+            const syncResult = readTextFileSync(params.data);
+            if (syncResult.success) {
+              data = parseSurfaceData(syncResult.content!);
             } else {
-              data = parseSurfaceData(content);
+              data = new Float32Array(width * depth);
+              context.errors.push({ 
+                message: `File reading error: ${syncResult.error}` 
+              });
             }
+          } else {
+            data = parseSurfaceData(content);
+          }
           } catch (error) {
             context.errors.push({ 
               message: `Failed to read surface file "${params.data}": ${error instanceof Error ? error.message : String(error)}` 
@@ -432,15 +434,18 @@ function evaluatePrimitive(node: any, context: EvaluationContext): any {
         try {
           const file = Bun.file(params.file);
           const content = file.text();
+          
           if (content instanceof Promise) {
-            // Async file - use default pattern for now
-            data = new Float32Array(width * depth);
-            for (let i = 0; i < width * depth; i++) {
-              data[i] = Math.sin(i * 0.1) * 0.5;
+            // Use synchronous fallback for Bun Promise behavior
+            const syncResult = readTextFileSync(params.file);
+            if (syncResult.success) {
+              data = parseSurfaceData(syncResult.content!);
+            } else {
+              data = new Float32Array(width * depth);
+              context.errors.push({ 
+                message: `File reading error: ${syncResult.error}` 
+              });
             }
-            context.errors.push({ 
-              message: `Async file reading not yet supported for surface: ${params.file}. Using default pattern.` 
-            });
           } else {
             data = parseSurfaceData(content);
           }
