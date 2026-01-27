@@ -65,6 +65,14 @@ function HomeContent() {
 
   const customMenus = useViewportMenus();
 
+  // Initialize code template based on saved language preference (on mount only)
+  useEffect(() => {
+    if (language === 'javascript' && code === 'cube(10);') {
+      // User has JavaScript language saved but OpenSCAD default code
+      setCode(`import { Shape } from 'moicad';\n\nexport default Shape.cube(10);`);
+    }
+  }, []); // Empty deps - run only on mount
+
   // Add global keyboard shortcut for Alt+R
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
