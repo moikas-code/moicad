@@ -95,6 +95,35 @@ const geometry = await evaluate(result.ast);
 console.log('Vertices:', geometry.vertices.length);
 ```
 
+### 3D Viewport
+
+```typescript
+import { Viewport } from '@moicad/sdk/viewport';
+
+// Create viewport container
+const container = document.createElement('div');
+document.body.appendChild(container);
+
+// Initialize viewport with 3D geometry
+const viewport = new Viewport(container, {
+  width: 800,
+  height: 600,
+  enableStats: true,
+  backgroundColor: '#1a1a1a'
+});
+
+// Update viewport with geometry
+viewport.updateGeometry(geometry);
+
+// Get performance stats
+const stats = viewport.getStats();
+console.log('FPS:', stats.fps);
+console.log('Vertices:', stats.vertices);
+
+// Clean up
+viewport.dispose();
+```
+
 ## 🎨 API Reference
 
 ### 3D Primitives
