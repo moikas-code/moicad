@@ -1,0 +1,34 @@
+{
+  "name": "@moicad/shared",
+  "version": "0.1.0",
+  "description": "Shared utilities and types for moicad monorepo",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "cad",
+    "3d",
+    "utilities",
+    "typescript"
+  ],
+  "author": "moicad",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "files": [
+    "dist/**/*"
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  }
+}
