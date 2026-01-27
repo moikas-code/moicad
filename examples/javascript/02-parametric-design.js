@@ -1,44 +1,88 @@
 /**
- * Example 2: Parametric Design with Classes
+ * Example 2: Parametric Design with ISO Metric Threads
  *
- * Demonstrates creating reusable parametric components using classes.
+ * Demonstrates creating a realistic ISO metric bolt with helical threads.
  *
  * Topics covered:
- * - Creating classes for reusable designs
- * - Constructor parameters for customization
- * - Combining multiple operations
- * - Subtractive modeling (difference)
+ * - Object-oriented parametric design
+ * - ISO metric thread standards
+ * - Helical extrusion with twist
+ * - Polygon profiles for complex shapes
+ * - Boolean operations (union)
  */
 
 import { Shape } from 'moicad';
 
 /**
- * A parametric bolt with customizable dimensions
+ * ISO Metric Bolt with realistic helical threads
+ *
+ * Features:
+ * - Standard ISO metric thread pitches (M3, M4, M5, M6, M8, M10, etc.)
+ * - 60-degree thread profile (ISO standard)
+ * - Hexagonal head with proper proportions
+ * - Customizable diameter, length, and pitch
  */
-class Bolt {
-  constructor(length, diameter, headHeight = null) {
-    this.length = length;
-    this.diameter = diameter;
-    this.headHeight = headHeight || diameter * 0.7;
-    this.headDiameter = diameter * 1.8;
+class ISOMetricBolt {
+  constructor(diameter, length, pitch = null) {
+    this.diameter = diameter; // Nominal diameter in mm (M5 = 5mm)
+    this.length = length; // Shaft length in mm
+    // Use standard pitch if not specified
+    this.pitch = pitch || this.getStandardPitch(diameter);
+    this.threadHeight = this.pitch * 0.54; // ISO metric standard (H/2)
+  }
+
+  /**
+   * Get standard coarse thread pitch for common metric sizes
+   * Reference: ISO 68-1 standard
+   */
+  getStandardPitch(diameter) {
+    const pitches = {
+      3: 0.5,   // M3
+      4: 0.7,   // M4
+      5: 0.8,   // M5
+      6: 1.0,   // M6
+      8: 1.25,  // M8
+      10: 1.5,  // M10
+      12: 1.75, // M12
+      16: 2.0,  // M16
+      20: 2.5   // M20
+    };
+    return pitches[diameter] || 1.0;
   }
 
   build() {
-    // Shaft - cylinder naturally sits on Z=0 plane and extends upward
-    const shaft = Shape.cylinder(this.length, this.diameter / 2);
+    // Create core shaft (nominal diameter minus thread height)
+    const coreRadius = (this.diameter / 2) - this.threadHeight;
+    const shaft = Shape.cylinder(this.length, coreRadius);
 
-    // Hexagonal head - positioned on top of shaft
-    const head = Shape.cylinder(this.headHeight, this.headDiameter / 2, { $fn: 6 })
+    // Create thread profile (triangular, 60-degree ISO standard)
+    // Profile is a triangle that will be revolved around the shaft
+    const threadProfile = Shape.polygon([
+      [coreRadius, 0],                    // Inner radius at start
+      [this.diameter / 2, this.pitch / 2], // Outer radius at middle
+      [coreRadius, this.pitch]            // Inner radius at end
+    ]);
+
+    // Create helical thread by extruding with twist
+    const turns = this.length / this.pitch;
+    const thread = threadProfile.linearExtrude(this.length, {
+      twist: 360 * turns, // One full rotation per thread pitch
+      $fn: 48 // Smooth resolution
+    });
+
+    // Combine shaft and thread
+    const threadedShaft = shaft.union(thread);
+
+    // Create hexagonal head (ISO standard proportions)
+    const headHeight = this.diameter * 0.7;
+    const headDiameter = this.diameter * 1.6; // Across flats
+    const head = Shape.cylinder(headHeight, headDiameter / 2, { $fn: 6 })
       .translate([0, 0, this.length]);
 
-    // Combine shaft and head
-    return shaft.union(head);
+    // Combine all parts
+    return threadedShaft.union(head);
   }
 }
 
-// Create bolts with different sizes
-const smallBolt = new Bolt(15, 4).build();
-const mediumBolt = new Bolt(25, 6).build().translate([15, 0, 0]);
-const largeBolt = new Bolt(35, 8).build().translate([35, 0, 0]);
-
-export default Shape.union(smallBolt, mediumBolt, largeBolt);
+// Create an M5 bolt, 20mm long (standard metric bolt)
+export default new ISOMetricBolt(5, 20).build();
