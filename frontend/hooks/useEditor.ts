@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getCurrentFile, saveFile } from '@/lib/storage';
 
-export function useEditor(initialCode: string = 'cube(10);') {
+export function useEditor(initialCode: string = `import { Shape } from 'moicad';\n\nexport default Shape.cube(10);`) {
   const [code, setCode] = useState<string>(initialCode);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [cursorPosition, setCursorPosition] = useState(0);
