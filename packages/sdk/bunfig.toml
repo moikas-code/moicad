@@ -1,5 +1,8 @@
 registry = {url="https://registry.npmjs.org", token="$NPM_TOKEN"}
 
+["registry.scopes.moicad"]
+url = "https://registry.npmjs.org"
+token = "$NPM_TOKEN"
 [install]
 exact = true
 frozenLockfile = true

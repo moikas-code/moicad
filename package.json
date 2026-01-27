@@ -1,62 +1,55 @@
 {
-  "name": "moicad",
-  "module": "index.ts",
-  "type": "module",
+  "name": "moicad-monorepo",
+  "version": "0.1.0",
+  "description": "Modern JavaScript CAD Platform - SDK, Landing Page, and Desktop App",
   "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
-    "dev": "bun --watch --expose-gc ./backend/core/index.ts",
-    "dev:frontend": "cd frontend && npm run dev -- -p 3002",
-    "dev:all": "concurrently \"bun run dev\" \"bun run dev:frontend\"",
-    "build": "bun run build:frontend",
-    "build:frontend": "cd frontend && npm run build",
-    "start": "bun --expose-gc ./backend/core/index.ts",
-    "test": "bun test",
-    "test:unit": "bun test tests/unit/",
-    "test:integration": "bun test tests/integration/",
-    "test:performance": "bash tests/performance/benchmarks/test-performance.sh",
-    "test:e2e": "bash tests/e2e/ui/test-menu-system.sh",
-    "test:validation": "node tests/validation/test-runner.js",
-    "test:quick": "bash tests/scripts/quick-test.sh",
-    "test:all": "bun run test:unit && bun run test:integration && bun run test:performance && bun run test:validation",
-    "tauri:dev": "cargo tauri dev",
-    "tauri:build": "cargo tauri build",
-    "tauri:build:linux": "cargo tauri build --target x86_64-unknown-linux-gnu",
-    "tauri:build:mac": "cargo tauri build --target aarch64-apple-darwin",
-    "tauri:build:win": "cargo tauri build --target x86_64-pc-windows-msvc"
-  },
-  "dependencies": {
-    "@monaco-editor/react": "^4.6.0",
-    "@types/cors": "^2.8.19",
-    "@types/winston": "^2.4.4",
-    "autoprefixer": "^10.4.0",
-    "cors": "^2.8.6",
-    "express-rate-limit": "^8.2.1",
-    "helmet": "^8.1.0",
-    "manifold-3d": "^3.3.2",
-    "monaco-editor": "^0.50.0",
-    "next": "^16.1.4",
-    "postcss": "^8.4.0",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3",
-    "tailwindcss": "^3.4.0",
-    "three": "^0.182.0",
-    "three-bvh-csg": "^0.0.17",
-    "winston": "^3.19.0"
+    "dev:sdk": "cd packages/sdk && npm run dev",
+    "dev:landing": "cd packages/landing && npm run dev",
+    "dev:desktop": "cd packages/desktop && npm run tauri:dev",
+    "build:sdk": "cd packages/sdk && npm run build",
+    "build:landing": "cd packages/landing && npm run build",
+    "build:desktop": "cd packages/desktop && npm run tauri:build",
+    "build:all": "npm run build:sdk && npm run build:landing && npm run build:desktop",
+    "publish:sdk": "cd packages/sdk && npm publish",
+    "start:backend": "cd packages/landing && BACKEND_URL=http://localhost:42069 npm run dev",
+    "test:sdk": "cd packages/sdk && npm test",
+    "test:all": "npm run test:sdk && npm run build:all",
+    "clean": "rm -rf packages/*/dist packages/*/out packages/*/node_modules",
+    "install:all": "bun install && npm run install:sdk && npm run install:landing && npm run install:desktop",
+    "install:sdk": "cd packages/sdk && npm install",
+    "install:landing": "cd packages/landing && npm install",
+    "install:desktop": "cd packages/desktop && npm install"
   },
   "devDependencies": {
-    "@types/bun": "latest",
     "@types/node": "^20.0.0",
-    "@types/react": "^19.2.9",
-    "@types/react-dom": "^19.2.3",
-    "@types/three": "^0.160.0",
-    "concurrently": "^9.2.1",
-    "ts-node": "^10.9.0",
+    "bun-types": "latest",
     "typescript": "^5.0.0"
   },
-  "peerDependencies": {
-    "typescript": "^5"
-  },
   "engines": {
-    "bun": ">=1.0.0"
-  }
+    "bun": ">=1.0.0",
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/moikas/moicad"
+  },
+  "keywords": [
+    "cad",
+    "3d",
+    "modeling",
+    "javascript",
+    "typescript",
+    "monorepo",
+    "tauri",
+    "nextjs",
+    "openscad"
+  ],
+  "author": "moicad",
+  "license": "MIT",
+  "homepage": "https://moicad.moikas.com"
 }
