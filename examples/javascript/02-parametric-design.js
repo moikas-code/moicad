@@ -24,18 +24,15 @@ class Bolt {
   }
 
   build() {
-    // Shaft
+    // Shaft - cylinder naturally sits on Z=0 plane and extends upward
     const shaft = Shape.cylinder(this.length, this.diameter / 2);
 
-    // Hexagonal head (approximated with cylinder)
+    // Hexagonal head - positioned on top of shaft
     const head = Shape.cylinder(this.headHeight, this.headDiameter / 2, { $fn: 6 })
       .translate([0, 0, this.length]);
 
-    // Thread groove (simplified)
-    const threadCut = Shape.cylinder(this.length * 0.9, this.diameter / 2.5)
-      .translate([0, 0, this.length * 0.05]);
-
-    return shaft.union(head).subtract(threadCut);
+    // Combine shaft and head
+    return shaft.union(head);
   }
 }
 
