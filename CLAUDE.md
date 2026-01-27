@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project: moicad - Modern OpenSCAD CAD Engine
+## Project: moicad - Homebrew CAD TOOL
 
 moicad is a high-performance OpenSCAD clone built as a clean Bun monorepo with:
 - **Runtime**: Bun (TypeScript/JavaScript)
