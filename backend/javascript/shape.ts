@@ -80,16 +80,16 @@ export class Shape {
    * Create a cube/box.
    *
    * @param size - Single number for uniform cube, or [width, depth, height]
-   * @param center - If true, cube is centered at origin (default: true)
+   * @param center - If true, cube is centered at origin (default: false)
    *
    * @example
-   * Shape.cube(10)              // 10×10×10 cube centered at origin
+   * Shape.cube(10)              // 10×10×10 cube with corner at origin
    * Shape.cube([20, 30, 10])    // Box with different dimensions
-   * Shape.cube(10, false)       // Cube starting at origin
+   * Shape.cube(10, true)        // Cube centered at origin
    */
   static cube(
     size: number | [number, number, number],
-    center: boolean = true
+    center: boolean = false
   ): Shape {
     const manifold = createCube(size, center);
     return new Shape(manifold);
@@ -118,12 +118,13 @@ export class Shape {
    * @param height - Cylinder height
    * @param radius - Radius (or array [radiusBottom, radiusTop] for tapered)
    * @param options - Optional settings
-   * @param options.center - Center vertically (default: true)
+   * @param options.center - Center vertically (default: false, sits on Z=0)
    * @param options.$fn - Number of segments (default: 32)
    *
    * @example
-   * Shape.cylinder(20, 5)                 // Standard cylinder
+   * Shape.cylinder(20, 5)                 // Cylinder from Z=0 to Z=20
    * Shape.cylinder(20, [5, 3])            // Tapered cylinder
+   * Shape.cylinder(20, 5, { center: true }) // Centered at origin
    * Shape.cylinder(20, 5, { $fn: 64 })    // High-resolution
    */
   static cylinder(
@@ -131,7 +132,7 @@ export class Shape {
     radius: number | [number, number],
     options?: { center?: boolean; $fn?: number }
   ): Shape {
-    const center = options?.center ?? true;
+    const center = options?.center ?? false;
     const segments = options?.$fn ?? 32;
 
     let radiusBottom: number;
@@ -153,18 +154,19 @@ export class Shape {
    * @param height - Cone height
    * @param radius - Base radius
    * @param options - Optional settings
-   * @param options.center - Center vertically (default: true)
+   * @param options.center - Center vertically (default: false, sits on Z=0)
    * @param options.$fn - Number of segments (default: 32)
    *
    * @example
-   * Shape.cone(20, 10)          // Cone with base radius 10, height 20
+   * Shape.cone(20, 10)          // Cone from Z=0 to Z=20
+   * Shape.cone(20, 10, { center: true }) // Cone centered at origin
    */
   static cone(
     height: number,
     radius: number,
     options?: { center?: boolean; $fn?: number }
   ): Shape {
-    const center = options?.center ?? true;
+    const center = options?.center ?? false;
     const segments = options?.$fn ?? 32;
     const manifold = createCone(height, radius, segments, center);
     return new Shape(manifold);

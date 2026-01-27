@@ -15,7 +15,7 @@ import type { ManifoldObject } from './types';
  */
 export function createCube(
   size: number | [number, number, number],
-  center: boolean = true
+  center: boolean = false
 ): ManifoldObject {
   const Manifold = getManifold();
   const dimensions: [number, number, number] = Array.isArray(size)
@@ -51,7 +51,7 @@ export function createCylinder(
   radius: number,
   radiusTop?: number,
   circularSegments: number = 32,
-  center: boolean = true
+  center: boolean = false
 ): ManifoldObject {
   const Manifold = getManifold();
   const rTop = radiusTop !== undefined ? radiusTop : radius;
@@ -64,13 +64,13 @@ export function createCylinder(
  * @param height - Cone height
  * @param radius - Base radius
  * @param circularSegments - Number of segments
- * @param center - If true, cone is centered vertically
+ * @param center - If true, cone is centered vertically (default: false)
  */
 export function createCone(
   height: number,
   radius: number,
   circularSegments: number = 32,
-  center: boolean = true
+  center: boolean = false
 ): ManifoldObject {
   // Cone is a cylinder with top radius = 0
   return createCylinder(height, radius, 0, circularSegments, center);
