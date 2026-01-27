@@ -37,9 +37,12 @@ function HomeContent() {
     // Load language preference from localStorage
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('moicad-language');
-      return (saved === 'javascript' ? 'javascript' : 'openscad') as Language;
+      if (saved) {
+        return (saved === 'javascript' ? 'javascript' : 'openscad') as Language;
+      }
     }
-    return 'openscad';
+    // Default to JavaScript for new users
+    return 'javascript';
   });
 
   const [printerSize, setPrinterSize] = useState<PrinterPreset>(getDefaultPrinter());
@@ -63,13 +66,80 @@ function HomeContent() {
   const fileManagerRef = React.useRef<FileManagerRef>(null);
   const editorRef = React.useRef<any>(null);
 
-  const customMenus = useViewportMenus();
+  const viewportMenus = useViewportMenus();
+
+  // Examples menu with starter templates
+  const examplesMenu = {
+    Examples: {
+      label: 'Examples',
+      items: [
+        {
+          label: 'Basic Cube',
+          action: () => {
+            const template = language === 'javascript'
+              ? `import { Shape } from 'moicad';\n\n// Simple cube example\nexport default Shape.cube(10);`
+              : 'cube(10);';
+            loadFile(template);
+            clearGeometry();
+          }
+        },
+        {
+          label: 'Sphere',
+          action: () => {
+            const template = language === 'javascript'
+              ? `import { Shape } from 'moicad';\n\n// Sphere with custom resolution\nexport default Shape.sphere(10, { $fn: 32 });`
+              : 'sphere(10, $fn=32);';
+            loadFile(template);
+            clearGeometry();
+          }
+        },
+        {
+          label: 'Cylinder',
+          action: () => {
+            const template = language === 'javascript'
+              ? `import { Shape } from 'moicad';\n\n// Cylinder: height=20, radius=5\nexport default Shape.cylinder(20, 5);`
+              : 'cylinder(h=20, r=5);';
+            loadFile(template);
+            clearGeometry();
+          }
+        },
+        { separator: true },
+        {
+          label: 'Boolean Operations',
+          action: () => {
+            const template = language === 'javascript'
+              ? `import { Shape } from 'moicad';\n\n// Cube with spherical cutout\nconst cube = Shape.cube([20, 20, 10]);\nconst sphere = Shape.sphere(8).translate([10, 10, 0]);\n\nexport default cube.subtract(sphere);`
+              : 'difference() {\n  cube([20, 20, 10]);\n  translate([10, 10, 0]) sphere(8);\n}';
+            loadFile(template);
+            clearGeometry();
+          }
+        },
+        {
+          label: 'Parametric Class',
+          action: () => {
+            const template = language === 'javascript'
+              ? `import { Shape } from 'moicad';\n\n// Parametric bolt design\nclass Bolt {\n  constructor(length, diameter) {\n    this.length = length;\n    this.diameter = diameter;\n  }\n\n  build() {\n    const shaft = Shape.cylinder(this.length, this.diameter / 2);\n    const head = Shape.cylinder(\n      this.diameter * 0.7,\n      this.diameter * 0.9,\n      { $fn: 6 }\n    ).translate([0, 0, this.length]);\n    \n    return shaft.union(head);\n  }\n}\n\nexport default new Bolt(20, 5).build();`
+              : 'module bolt(length=20, diameter=5) {\n  cylinder(h=length, r=diameter/2);\n  translate([0, 0, length])\n    cylinder(h=diameter*0.7, r=diameter*0.9, $fn=6);\n}\n\nbolt();';
+            loadFile(template);
+            clearGeometry();
+          }
+        }
+      ]
+    }
+  };
+
+  const customMenus = { ...viewportMenus, ...examplesMenu };
 
   // Initialize code template based on saved language preference (on mount only)
   useEffect(() => {
-    if (language === 'javascript' && code === 'cube(10);') {
-      // User has JavaScript language saved but OpenSCAD default code
-      setCode(`import { Shape } from 'moicad';\n\nexport default Shape.cube(10);`);
+    const jsTemplate = `import { Shape } from 'moicad';\n\nexport default Shape.cube(10);`;
+    const osTemplate = 'cube(10);';
+
+    // Sync code with language if user is starting with default template
+    if (language === 'javascript' && code === osTemplate) {
+      setCode(jsTemplate);
+    } else if (language === 'openscad' && code === jsTemplate) {
+      setCode(osTemplate);
     }
   }, []); // Empty deps - run only on mount
 
@@ -123,7 +193,11 @@ function HomeContent() {
   };
 
   const handleNew = () => {
-    loadFile('cube(10);');
+    // Create new file with template matching current language
+    const template = language === 'javascript'
+      ? `import { Shape } from 'moicad';\n\nexport default Shape.cube(10);`
+      : 'cube(10);';
+    loadFile(template);
     clearGeometry();
   };
 
