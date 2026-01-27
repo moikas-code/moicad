@@ -827,9 +827,26 @@ export class SceneManager {
     };
 
     const pos = positions[position] || positions.front;
-    this.camera.position.set(...pos);
-    this.camera.lookAt(0, 0, 0);
-    this.controls.target.set(0, 0, 0);
+    let target = new THREE.Vector3(
+      this.printerSize.width / 2,
+      0,
+      this.printerSize.depth / 2,
+    );
+
+    if (this.lastGeometryBounds) {
+      const offset = new THREE.Vector3(
+        this.printerSize.width / 2,
+        0,
+        this.printerSize.depth / 2,
+      );
+      const min = new THREE.Vector3(...this.lastGeometryBounds.min).add(offset);
+      const max = new THREE.Vector3(...this.lastGeometryBounds.max).add(offset);
+      target = new THREE.Vector3().addVectors(min, max).multiplyScalar(0.5);
+    }
+    
+    this.camera.position.set(target.x + pos[0], target.y + pos[1], target.z + pos[2]);
+    this.camera.lookAt(target);
+    this.controls.target.copy(target);
     this.controls.update();
   }
 
@@ -876,7 +893,13 @@ export class SceneManager {
   public zoomIn(): void {
     const zoomFactor = 0.9;
     if (this.camera instanceof THREE.PerspectiveCamera) {
-      this.camera.position.multiplyScalar(zoomFactor);
+      // Move camera towards the target
+      const offset = new THREE.Vector3().subVectors(
+        this.camera.position,
+        this.controls.target,
+      );
+      offset.multiplyScalar(zoomFactor);
+      this.camera.position.copy(this.controls.target).add(offset);
     } else {
       // For orthographic camera, adjust frustum size
       const currentZoom = this.camera.zoom;
@@ -892,7 +915,13 @@ export class SceneManager {
   public zoomOut(): void {
     const zoomFactor = 1.1;
     if (this.camera instanceof THREE.PerspectiveCamera) {
-      this.camera.position.multiplyScalar(zoomFactor);
+      // Move camera away from the target
+      const offset = new THREE.Vector3().subVectors(
+        this.camera.position,
+        this.controls.target,
+      );
+      offset.multiplyScalar(zoomFactor);
+      this.camera.position.copy(this.controls.target).add(offset);
     } else {
       // For orthographic camera, adjust frustum size
       const currentZoom = this.camera.zoom;
@@ -906,24 +935,8 @@ export class SceneManager {
    * Zoom to fit
    */
   public zoomToFit(): void {
-    if (this.mesh) {
-      // Calculate bounding box
-      const box = new THREE.Box3().setFromObject(this.mesh);
-      const size = box.getSize(new THREE.Vector3());
-      const center = box.getCenter(new THREE.Vector3());
-
-      // Calculate distance based on size
-      const maxDim = Math.max(size.x, size.y, size.z);
-      const distance = maxDim * 2;
-
-      // Position camera
-      this.camera.position.copy(center);
-      this.camera.position.z += distance;
-      this.camera.lookAt(center);
-
-      // Update controls
-      this.controls.target.copy(center);
-      this.controls.update();
+    if (this.lastGeometryBounds) {
+      this.fitViewToGeometry(this.lastGeometryBounds);
     }
   }
 

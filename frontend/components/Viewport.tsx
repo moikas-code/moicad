@@ -175,9 +175,5 @@ function ViewportInner({ geometry, printerSize }: ViewportProps) {
 
 export default function Viewport({ geometry, printerSize }: ViewportProps) {
   // Three.js renderer - works great with manifold-3d clean geometry
-  return (
-    <ViewportControlsProvider>
-      <ViewportInner geometry={geometry} printerSize={printerSize} />
-    </ViewportControlsProvider>
-  );
+  return <ViewportInner geometry={geometry} printerSize={printerSize} />;
 }

@@ -5,13 +5,15 @@ import Editor from '@monaco-editor/react';
 import { evaluateCode } from '@/lib/api-client';
 import type { editor } from 'monaco-editor';
 
+import { RenderProgress } from '../../shared/types';
+
 interface EditorProps {
   code: string;
   onChange: (code: string) => void;
   onErrors?: (errors: string[]) => void;
   onGeometry?: (geometry: any) => void;
   onLoading?: (loading: boolean) => void;
-  onProgress?: (progress: { stage: string; percentage?: number; time?: number }) => void;
+  onProgress?: (progress: RenderProgress) => void;
   onRenderRequest?: () => void;
 }
 
