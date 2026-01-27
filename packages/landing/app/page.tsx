@@ -4,7 +4,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
       {/* Hero Section */}
-      <section className="relative overflow-hidden">
+      <section className="relative">
         <div className="container mx-auto px-4 py-20">
           <div className="text-center">
             <h1 className="text-5xl md:text-7xl font-bold text-white mb-6">
@@ -31,7 +31,7 @@ export default function HomePage() {
                 📚 Documentation
               </Link>
               <Link
-                href="https://github.com/moikas/moicad"
+                href="https://github.com/moikas-code/moicad"
                 className="px-8 py-4 border-2 border-gray-400 text-gray-300 hover:border-gray-200 hover:text-white font-semibold rounded-lg transition-colors text-lg"
               >
                 💻 GitHub

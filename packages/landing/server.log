@@ -1,0 +1,90 @@
+$ next dev
+▲ Next.js 16.1.6 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://74.136.100.52:3000
+
+✓ Starting...
+✓ Ready in 593ms
+⨯ ./packages/landing/components/demo/Editor.tsx:5:1
+Module not found: Can't resolve '../../../lib/api-client'
+[0m [90m 3 |[39m [36mimport[39m { useEffect[33m,[39m useRef[33m,[39m forwardRef[33m,[39m useImperativeHandle } [36mfrom[39m [32m'react'[39m[33m;[39m
+ [90m 4 |[39m [36mimport[39m [33mEditor[39m [36mfrom[39m [32m'@monaco-editor/react'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 5 |[39m [36mimport[39m { evaluateCode } [36mfrom[39m [32m'../../../lib/api-client'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 6 |[39m [36mimport[39m type { editor } [36mfrom[39m [32m'monaco-editor'[39m[33m;[39m
+ [90m 7 |[39m
+ [90m 8 |[39m [90m// Local type definitions for demo[39m[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./packages/landing/components/demo/Editor.tsx [Client Component Browser]
+    ./packages/landing/app/demo/page.tsx [Client Component Browser]
+    ./packages/landing/app/demo/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./packages/landing/components/demo/Editor.tsx [Client Component SSR]
+    ./packages/landing/app/demo/page.tsx [Client Component SSR]
+    ./packages/landing/app/demo/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+ HEAD /demo 500 in 1070ms (compile: 933ms, render: 138ms)
+⨯ ./packages/landing/components/demo/Editor.tsx:5:1
+Module not found: Can't resolve '../../../lib/api-client'
+[0m [90m 3 |[39m [36mimport[39m { useEffect[33m,[39m useRef[33m,[39m forwardRef[33m,[39m useImperativeHandle } [36mfrom[39m [32m'react'[39m[33m;[39m
+ [90m 4 |[39m [36mimport[39m [33mEditor[39m [36mfrom[39m [32m'@monaco-editor/react'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 5 |[39m [36mimport[39m { evaluateCode } [36mfrom[39m [32m'../../../lib/api-client'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 6 |[39m [36mimport[39m type { editor } [36mfrom[39m [32m'monaco-editor'[39m[33m;[39m
+ [90m 7 |[39m
+ [90m 8 |[39m [90m// Local type definitions for demo[39m[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./packages/landing/components/demo/Editor.tsx [Client Component Browser]
+    ./packages/landing/app/demo/page.tsx [Client Component Browser]
+    ./packages/landing/app/demo/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./packages/landing/components/demo/Editor.tsx [Client Component SSR]
+    ./packages/landing/app/demo/page.tsx [Client Component SSR]
+    ./packages/landing/app/demo/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+ GET /demo 500 in 28ms (compile: 13ms, render: 14ms)
+⨯ ./packages/landing/components/demo/Editor.tsx:5:1
+Module not found: Can't resolve '../../../lib/api-client'
+[0m [90m 3 |[39m [36mimport[39m { useEffect[33m,[39m useRef[33m,[39m forwardRef[33m,[39m useImperativeHandle } [36mfrom[39m [32m'react'[39m[33m;[39m
+ [90m 4 |[39m [36mimport[39m [33mEditor[39m [36mfrom[39m [32m'@monaco-editor/react'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 5 |[39m [36mimport[39m { evaluateCode } [36mfrom[39m [32m'../../../lib/api-client'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 6 |[39m [36mimport[39m type { editor } [36mfrom[39m [32m'monaco-editor'[39m[33m;[39m
+ [90m 7 |[39m
+ [90m 8 |[39m [90m// Local type definitions for demo[39m[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./packages/landing/components/demo/Editor.tsx [Client Component Browser]
+    ./packages/landing/app/demo/page.tsx [Client Component Browser]
+    ./packages/landing/app/demo/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./packages/landing/components/demo/Editor.tsx [Client Component SSR]
+    ./packages/landing/app/demo/page.tsx [Client Component SSR]
+    ./packages/landing/app/demo/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+ GET /demo 500 in 26ms (compile: 14ms, render: 12ms)
+ GET / 500 in 30ms (compile: 23ms, render: 7ms)
+[?25h

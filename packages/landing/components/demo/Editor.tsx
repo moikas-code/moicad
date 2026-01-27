@@ -2,10 +2,15 @@
 
 import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import Editor from '@monaco-editor/react';
-import { evaluateCode } from '@/lib/api-client';
+import { evaluateCode } from '/home/moika/Documents/code/moicad/packages/landing/lib/api-client';
 import type { editor } from 'monaco-editor';
 
-import { RenderProgress } from '../../shared/types';
+// Local type definitions for demo
+interface RenderProgress {
+  stage: string;
+  progress: number;
+  message: string;
+}
 
 export type Language = 'openscad' | 'javascript';
 

@@ -9,6 +9,11 @@ Complete reference for using moicad with JavaScript/TypeScript for parametric CA
 - [API Styles](#api-styles)
 - [Core Concepts](#core-concepts)
 - [API Reference](#api-reference)
+  - [Fluent API](#fluent-api)
+  - [Functional API](#functional-api)
+  - [OpenSCAD Module](#openscad-module)
+  - [Viewport Module](#viewport-module)
+  - [Runtime Module](#runtime-module)
 - [Examples](#examples)
 - [Best Practices](#best-practices)
 - [TypeScript Support](#typescript-support)
@@ -685,6 +690,101 @@ if (shape.isManifold()) {
   console.log('Shape is watertight and printable');
 }
 ```
+
+### Runtime Module
+
+The runtime module provides JavaScript code evaluation capabilities, allowing you to execute user-provided JavaScript code safely.
+
+```javascript
+import { evaluateJavaScript, JavaScriptRuntime } from '@moicad/sdk/runtime';
+```
+
+#### `evaluateJavaScript(code, options?)`
+
+Evaluates JavaScript code and returns geometry or errors.
+
+**Parameters:**
+- `code: string` - JavaScript code to execute
+- `options?: RuntimeOptions` - Runtime configuration options
+
+**Returns:** `Promise<EvaluateResult>` - Evaluation result with geometry or errors
+
+**Example:**
+```javascript
+const result = await evaluateJavaScript(`
+  import { Shape } from '@moicad/sdk';
+  export default Shape.cube(10).union(Shape.sphere(5));
+`);
+
+if (result.success) {
+  console.log('Geometry created:', result.geometry.vertices.length);
+} else {
+  console.error('Evaluation failed:', result.errors);
+}
+```
+
+#### `JavaScriptRuntime` Class
+
+Creates a runtime instance with custom configuration.
+
+**Constructor:**
+```javascript
+const runtime = new JavaScriptRuntime({
+  timeout: 30000,        // Execution timeout
+  memoryLimit: 1024**3, // 1GB memory limit
+  allowedModules: ['@moicad/sdk', 'moicad'] // Allowed imports
+});
+```
+
+**Methods:**
+- `evaluate(code, options?)` - Evaluate JavaScript code
+- `validateCode(code)` - Check if code is safe to execute
+
+**Example:**
+```javascript
+const runtime = new JavaScriptRuntime({ timeout: 5000 });
+
+// Validate code first
+const validation = runtime.validateCode(`
+  import { Shape } from '@moicad/sdk';
+  export default Shape.cube(10);
+`);
+
+if (validation.isValid) {
+  const result = await runtime.evaluate(code);
+  console.log('Success:', result.success);
+}
+```
+
+#### Runtime Security
+
+The runtime module includes security features:
+- **Restricted imports**: Only `@moicad/sdk` modules allowed
+- **Timeout protection**: Prevents infinite loops
+- **Code validation**: Detects dangerous patterns
+- **Memory limits**: Prevents excessive memory usage
+
+#### Supported Import Styles
+
+```javascript
+// Named imports
+import { cube, sphere } from '@moicad/sdk';
+
+// Namespace imports
+import * as moicad from '@moicad/sdk';
+
+// Default imports
+import Shape from '@moicad/sdk';
+
+// Mixed imports
+import Shape, { cube } from '@moicad/sdk';
+```
+
+**Use Cases:**
+- Web-based CAD editors (like OpenSCAD.org)
+- Plugin systems with dynamic model generation
+- Educational platforms
+- Online CAD playgrounds
 
 ---
 

@@ -1,48 +1,52 @@
 import { NextRequest } from 'next/server';
-
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:42069';
+import { parse } from '@moicad/sdk/scad';
+import { ParseResultSchema } from '@moicad/sdk';
 
 export async function POST(request: NextRequest) {
+  const startTime = performance.now();
+  
   try {
-    const { code, language } = await request.json() as { code?: string; language?: string };
+    const { code, language = 'openscad' } = await request.json();
     
-    if (!code) {
-      return Response.json(
-        { error: 'Missing code parameter', success: false },
-        { status: 400 }
-      );
+    if (!code || typeof code !== 'string') {
+      return Response.json({
+        error: 'Missing or invalid code parameter',
+        success: false
+      }, { status: 400 });
     }
     
-    const response = await fetch(`${BACKEND_URL}/api/parse`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code, language }),
-      signal: AbortSignal.timeout(10000), // 10 second timeout for parsing
+    // Parse using SDK (no manifold initialization needed)
+    const result = parse(code);
+    
+    // Validate with Zod schema
+    const validatedResult = ParseResultSchema.parse(result);
+    
+    const parseTime = performance.now() - startTime;
+    
+    return Response.json({
+      ast: validatedResult.ast,
+      errors: validatedResult.errors,
+      success: validatedResult.success,
+      parseTime: Math.round(parseTime * 100) / 100
     });
     
-    const result = await response.json() as any;
-    
-    if (!response.ok) {
-      return Response.json(
-        { error: result.error || 'Parse failed', success: false },
-        { status: response.status }
-      );
-    }
-    
-    return Response.json(result);
   } catch (error) {
     console.error('Parse API error:', error);
     
-    if (error instanceof Error && error.name === 'TimeoutError') {
-      return Response.json(
-        { error: 'Parse timeout', success: false },
-        { status: 408 }
-      );
+    if (error instanceof Error) {
+      return Response.json({
+        error: error.message,
+        success: false
+      }, { status: 500 });
     }
     
-    return Response.json(
-      { error: 'Internal server error', success: false },
-      { status: 500 }
-    );
+    return Response.json({
+      error: 'Internal server error',
+      success: false
+    }, { status: 500 });
   }
 }
+
+export const dynamic = 'force-dynamic';
+export const maxDuration = 10; // 10 seconds
+export const runtime = 'nodejs';

@@ -3,7 +3,7 @@
  *
  * A high-performance CAD library for JavaScript/TypeScript with 98-99% OpenSCAD compatibility.
  *
- * @version 0.1.0
+ * @version 0.1.1
  * @author moicad
  * @license MIT
  *

@@ -9,69 +9,115 @@ const EXAMPLES = {
   'Basic Shapes': [
     {
       name: 'Hello Cube',
-      code: `import { Shape } from 'moicad-sdk';
+      code: `// JavaScript style (recommended)
+cube(10);
 
-export default Shape.cube(10).color('red');`,
+// OpenSCAD equivalent:
+// cube(10);`,
       language: 'javascript'
     },
     {
       name: 'Colored Sphere',
-      code: `import { Shape } from 'moicad-sdk';
+      code: `// High-detail sphere
+sphere(5, { $fn: 64 });
 
-export default Shape.sphere(5, { $fn: 64 }).color('blue');`,
+// In JavaScript, you could also use:
+// Shape.sphere(5, { segments: 64 }).color('blue');`,
       language: 'javascript'
     },
   ],
   'Parametric': [
     {
       name: 'Parametric Bolt',
-      code: `import { Shape } from 'moicad-sdk';
-
-class Bolt {
-  constructor(length, diameter) {
-    this.length = length;
-    this.diameter = diameter;
-  }
-
-  build() {
-    return Shape.cylinder(this.length, this.diameter / 2)
-      .union(Shape.sphere(this.diameter * 0.9)
-        .translate([0, 0, this.length]))
-      .color('silver');
-  }
+      code: `// Simple bolt design
+translate([0, 0, 10]) {
+  sphere(r=3, $fn=16);
 }
 
-export default new Bolt(20, 6).build();`,
+cylinder(h=20, r=3);
+
+// JavaScript equivalent would use classes:
+// class Bolt { ... }
+// new Bolt(20, 6).build();`,
       language: 'javascript'
     },
   ],
   'Advanced': [
     {
       name: 'Boolean Operations',
-      code: `import { Shape } from 'moicad-sdk';
+      code: `// Subtract sphere from cube
+difference() {
+  cube(20);
+  translate([10, 10, 10]) {
+    sphere(12);
+  }
+}
 
-export default Shape.cube(20)
-  .subtract(Shape.sphere(12))
-  .color('cyan');`,
+color("cyan") difference();
+
+// JavaScript equivalent:
+// Shape.cube(20).subtract(Shape.sphere(12).translate([10, 10, 10])).color('cyan')`,
       language: 'javascript'
     },
   ],
-  'OpenSCAD': [
+  'JavaScript SDK': [
+    {
+      name: 'Fluent API Chain',
+      code: `// Modern JavaScript with SDK (recommended)
+// Note: This shows the SDK API, but uses OpenSCAD syntax for compatibility
+
+// Create a bolt head and shaft
+difference() {
+  // Bolt shaft
+  cylinder(h=20, r=3);
+  
+  // Hexagonal head
+  translate([0, 0, 20]) {
+    for(i = [0:60:6]) {
+      rotate([0, 0, i]) {
+        translate([5, 0, 0]) {
+          cube([4, 1, 4], center=true);
+        }
+      }
+    }
+  }
+}`,
+      language: 'javascript'
+    },
+    {
+      name: '2D to 3D',
+      code: `// Create 2D shape and extrude to 3D
+linear_extrude(height=15, twist=90) {
+  difference() {
+    circle(r=5);
+    translate([3, 0]) {
+      circle(r=2);
+    }
+  }
+}
+
+// JavaScript equivalent:
+// Shape.circle(5).subtract(Shape.circle(2).translate([3, 0]))
+//   .linearExtrude(15, { twist: 90 })`,
+      language: 'javascript'
+    },
+  ],
+  'OpenSCAD Classic': [
     {
       name: 'Car Model',
       code: `module car(length=60, width=30, height=20) {
-    // Car body
-    cube([length, width, height]);
-    
-    // Wheels
-    translate([length*0.2, -width/2, 0])
-      cylinder(r=height*0.3, h=2, $fn=16);
-    translate([length*0.2, width/2, 0])
-      cylinder(r=height*0.3, h=2, $fn=16);
-    translate([length*0.7, -width/2, 0])
-      cylinder(r=height*0.3, h=2, $fn=16);
-    translate([length*0.7, width/2, 0])
-      cylinder(r=height*0.3, h=2, $fn=16);
+  // Car body
+  cube([length, width, height]);
+  
+  // Wheels
+  translate([length*0.2, -width/2, 0])
+    cylinder(r=height*0.3, h=2, $fn=16);
+  translate([length*0.2, width/2, 0])
+    cylinder(r=height*0.3, h=2, $fn=16);
+  translate([length*0.7, -width/2, 0])
+    cylinder(r=height*0.3, h=2, $fn=16);
+  translate([length*0.7, width/2, 0])
+    cylinder(r=height*0.3, h=2, $fn=16);
 }
 
 car();`,
@@ -81,8 +127,8 @@ car();`,
 };
 
 export default function DemoPage() {
-  const [code, setCode] = useState(EXAMPLES['Basic Shapes']?.[0]?.code || '');
-  const [language, setLanguage] = useState(EXAMPLES['Basic Shapes']?.[0]?.language || 'javascript');
+  const [code, setCode] = useState(EXAMPLES['JavaScript SDK']?.[0]?.code || '');
+  const [language, setLanguage] = useState('javascript');
   const [geometry, setGeometry] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [isEvaluating, setIsEvaluating] = useState(false);
@@ -117,7 +163,7 @@ export default function DemoPage() {
     }
   };
 
-  const loadExample = (example: typeof EXAMPLES['Basic Shapes'][0]) => {
+  const loadExample = (example: typeof EXAMPLES['JavaScript SDK'][0]) => {
     setCode(example.code);
     setLanguage(example.language);
   };
@@ -169,12 +215,14 @@ export default function DemoPage() {
             </div>
             
             <div className="border border-slate-700 rounded-lg overflow-hidden">
+              <div className="h-96 lg:h-[500px] border border-slate-700 rounded-lg overflow-hidden">
               <DemoEditor
                 code={code}
                 onChange={setCode}
                 language={language}
                 height="500px"
               />
+              </div>
             </div>
 
             {error && (

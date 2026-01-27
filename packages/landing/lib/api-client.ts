@@ -1,17 +1,7 @@
-import { RenderStage } from '../../shared/types';
 /**
- * API Client for moicad Backend Communication
- * Handles REST API calls to the Bun backend server
+ * API Client for moicad Frontend Demo
+ * Handles REST API calls to the SDK-powered API routes
  */
-
-// Detect if running in Tauri desktop environment
-const isTauri = typeof window !== "undefined" && "__TAURI__" in window;
-
-// In Tauri, the backend always runs on localhost:42069
-// In web mode, use environment variable or default
-const API_BASE = isTauri
-  ? "http://localhost:42069"
-  : process.env.NEXT_PUBLIC_API_URL || "http://localhost:42069";
 
 export interface GeometryResponse {
   vertices: number[];
@@ -24,6 +14,7 @@ export interface GeometryResponse {
   stats: {
     vertexCount: number;
     faceCount: number;
+    volume?: number;
   };
   color?: {
     r: number;
@@ -61,14 +52,61 @@ export interface ParseResult {
 }
 
 /**
+ * Evaluate JavaScript or OpenSCAD code to geometry with SDK
+ */
+export async function evaluateCode(
+  code: string,
+  language: string,
+  onProgress?: (progress: any) => void
+): Promise<EvaluateResult> {
+  try {
+    onProgress?.({ 
+      stage: 'evaluating' as any,
+      progress: 50,
+      message: 'Processing code with SDK...'
+    });
+
+    const response = await fetch('/api/evaluate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ code, language }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Evaluation failed: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    onProgress?.({
+      stage: 'complete' as any,
+      progress: 90,
+      message: 'Geometry ready for display',
+    });
+
+    return data;
+  } catch (error) {
+    console.error('Evaluation error:', error);
+    return {
+      geometry: null,
+      errors: [{ message: error instanceof Error ? error.message : 'Network error' }],
+      success: false,
+      executionTime: 0,
+    };
+  }
+}
+
+/**
  * Parse OpenSCAD code to AST
  */
 export async function parseCode(code: string): Promise<ParseResult> {
   try {
-    const response = await fetch(`${API_BASE}/api/parse`, {
-      method: "POST",
+    const response = await fetch('/api/parse', {
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({ code }),
     });
@@ -80,86 +118,13 @@ export async function parseCode(code: string): Promise<ParseResult> {
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error("Parse error:", error);
-    const message =
-      error instanceof Error && error.message.includes("Failed to fetch")
-        ? `Could not connect to backend at ${API_BASE}. Is the server running?`
-        : `Failed to connect to parser: ${error instanceof Error ? error.message : "Unknown error"}`;
-
+    console.error('Parse error:', error);
     return {
       ast: null,
-      errors: [{ message }],
+      errors: [{ message: error instanceof Error ? error.message : 'Unknown error' }],
       success: false,
     };
   }
-}
-
-/**
- * Evaluate OpenSCAD code to geometry with progress tracking
- */
-export async function evaluateCode(
-  code: string,
-  onProgress?: (progress: {
-    stage: RenderStage;
-    progress: number; // Changed to required number
-    message: string;
-    time?: number;
-  }) => void,
-): Promise<EvaluateResult> {
-  const startTime = Date.now();
-
-  try {
-    onProgress?.({ stage: "initializing", progress: 10, message: "Connecting to backend server." });
-
-    const response = await fetch(`${API_BASE}/api/evaluate`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ code }),
-    });
-
-    onProgress?.({ stage: "parsing", progress: 30, message: "Parsing your OpenSCAD code." });
-
-    if (!response.ok) {
-      throw new Error(`Evaluation failed: ${response.statusText}`);
-    }
-
-    onProgress?.({ stage: "evaluating", progress: 60, message: "Generating 3D geometry from code." });
-
-    const data = await response.json();
-
-    onProgress?.({
-      stage: "complete",
-      progress: 90,
-      message: "Finalizing geometry and preparing for display.",
-      time: Date.now() - startTime,
-    });
-
-    return data;
-  } catch (error) {
-    console.error("Evaluation error:", error);
-    const message =
-      error instanceof Error && error.message.includes("Failed to fetch")
-        ? `Could not connect to backend at ${API_BASE}. Is the server running?`
-        : `Failed to evaluate code: ${error instanceof Error ? error.message : "Unknown error"}`;
-
-    return {
-      geometry: null,
-      errors: [{ message }],
-      success: false,
-      executionTime: 0,
-    };
-  }
-}
-
-/**
- * Evaluate OpenSCAD code to geometry (legacy version without progress)
- */
-export async function evaluateCodeLegacy(
-  code: string,
-): Promise<EvaluateResult> {
-  return evaluateCode(code);
 }
 
 /**
@@ -167,20 +132,15 @@ export async function evaluateCodeLegacy(
  */
 export async function exportGeometry(
   geometry: GeometryResponse,
-  format: "stl" | "obj",
-  binary: boolean = true,
+  format: 'stl' | 'obj',
 ): Promise<Blob> {
   try {
-    const response = await fetch(`${API_BASE}/api/export`, {
-      method: "POST",
+    const response = await fetch('/api/export', {
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        geometry,
-        format,
-        binary,
-      }),
+      body: JSON.stringify({ geometry, format }),
     });
 
     if (!response.ok) {
@@ -189,12 +149,7 @@ export async function exportGeometry(
 
     return await response.blob();
   } catch (error) {
-    console.error("Export error:", error);
-    if (error instanceof Error && error.message.includes("Failed to fetch")) {
-      throw new Error(
-        `Could not connect to backend at ${API_BASE}. Is the server running?`,
-      );
-    }
+    console.error('Export error:', error);
     throw error;
   }
 }
@@ -204,25 +159,11 @@ export async function exportGeometry(
  */
 export function downloadFile(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
+  const link = document.createElement('a');
   link.href = url;
   link.download = filename;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
-}
-
-/**
- * Check server health
- */
-export async function checkHealth(): Promise<boolean> {
-  try {
-    const response = await fetch(`${API_BASE}/health`, {
-      method: "GET",
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
 }
