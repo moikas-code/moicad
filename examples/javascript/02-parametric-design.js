@@ -24,12 +24,13 @@ class Bolt {
   }
 
   build() {
-    // Shaft
-    const shaft = Shape.cylinder(this.length, this.diameter / 2);
+    // Shaft - starts at Z=0 and extends upward
+    const shaft = Shape.cylinder(this.length, this.diameter / 2)
+      .translate([0, 0, this.length / 2]);
 
-    // Hexagonal head
+    // Hexagonal head - positioned on top of shaft
     const head = Shape.cylinder(this.headHeight, this.headDiameter / 2, { $fn: 6 })
-      .translate([0, 0, this.length]);
+      .translate([0, 0, this.length + this.headHeight / 2]);
 
     // Combine shaft and head
     return shaft.union(head);
