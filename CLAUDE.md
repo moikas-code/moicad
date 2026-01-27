@@ -13,6 +13,12 @@ moicad is a high-performance OpenSCAD clone built as a clean Bun monorepo with:
 
 ---
 
+## Rules
+
+1. AED Method: Automate, Delete,Delegate
+2. Before Optimize ask why does this exist
+3. Don't Optimize something that shouldn't exit
+
 ## Architecture Overview
 
 ### Core Pipeline: Code → AST → Geometry
