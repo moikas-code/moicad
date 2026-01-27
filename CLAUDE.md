@@ -2,296 +2,270 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project: moicad - Homebrew CAD TOOL
+## Project: moicad - Modern OpenSCAD CAD Engine
 
-moicad is a high-performance OpenSCAD clone built as a clean Bun monorepo with:
+moicad is a high-performance OpenSCAD clone built as a clean Bun monorepo:
 - **Runtime**: Bun (TypeScript/JavaScript)
-- **CSG Engine**: manifold-3d (WebAssembly)
+- **CSG Engine**: manifold-3d (WebAssembly npm package)
 - **Backend**: REST API + WebSocket + MCP server
 - **Frontend**: Next.js 16 + React + Three.js
 - **Desktop**: Tauri (optional)
 
 ---
 
-## Rules
+## Development Philosophy
 
-1. AED Method: Automate, Delete,Delegate
-2. Before Optimize ask why does this exist
-3. Don't Optimize something that shouldn't exit
+**AED Method**: Automate, Eliminate, Delegate
+- Before optimizing: Ask "Why does this exist?"
+- Don't optimize something that shouldn't exist
+
+---
 
 ## Architecture Overview
 
 ### Core Pipeline: Code → AST → Geometry
 
 ```
-OpenSCAD Code (string)
+OpenSCAD Code
     ↓
-Parser (backend/scad-parser.ts)
+Parser (scad-parser.ts) → AST
     ↓
-AST (Abstract Syntax Tree)
+Evaluator (scad-evaluator.ts)
     ↓
-Evaluator (backend/scad-evaluator.ts)
-    ↓
-Manifold-3d CSG Engine (manifold-3d npm package)
+manifold-3d CSG Engine (npm package)
     ↓
 Geometry (vertices, indices, normals)
     ↓
-Three.js Viewport (frontend)
+Three.js Viewport / STL Export
 ```
 
 ### Three Layers
 
-1. **Frontend (Next.js + React)** - ✅ **FULLY IMPLEMENTED**
-   - Monaco editor with OpenSCAD syntax highlighting
-   - Three.js canvas for 3D visualization
-   - WebSocket connection for real-time updates
-   - File management UI with export functionality
-   - Interactive features: hover, selection, multi-select
-   - Professional Blender-style dark theme
+**Backend (Bun Server)**
+- REST API: `/api/parse`, `/api/evaluate`, `/api/export`
+- WebSocket: `/ws` for real-time updates
+- MCP Server: `/ws/mcp` for AI integration
+- Single-threaded job queue for evaluations
 
-2. **Backend (Bun Server)** - ✅ **FULLY IMPLEMENTED**
-   - REST API: `/api/parse`, `/api/evaluate`, `/api/export`
-   - WebSocket: `/ws` for real-time updates
-   - MCP Server: `/ws/mcp` for AI integration
-   - Parser: Full OpenSCAD syntax support
-   - Evaluator: Executes AST using manifold-3d
-   - Export: STL (binary/ASCII) and OBJ formats
+**Frontend (Next.js + React)**
+- Monaco editor with OpenSCAD syntax highlighting
+- Three.js viewport with interactive highlighting
+- WebSocket connection for real-time updates
+- File management and export UI
 
-3. **CSG Engine (manifold-3d)** - ✅ **FULLY IMPLEMENTED**
-   - Primitives: cube, sphere, cylinder, cone, circle, square, polygon, polyhedron, text, surface
-   - Transformations: translate, rotate, scale, mirror, multmatrix
-   - CSG operations: union, difference, intersection, hull, minkowski
-   - 2D operations: linear_extrude, rotate_extrude, offset, projection
-   - Guaranteed manifold output (no topology errors!)
+**CSG Engine (manifold-3d)**
+- Guaranteed manifold output (no topology errors)
+- Robust Boolean operations (replaces custom BSP tree)
+- All geometry operations delegated to manifold-3d
+- No custom Rust WASM - pure npm package integration
 
 ---
 
-## Common Development Tasks
+## Common Commands
 
-### Build & Run
+### Development
 
 ```bash
 # Install dependencies
 bun install
 cd frontend && npm install && cd ..
 
-# Start backend server (http://localhost:42069)
+# Start backend (http://localhost:42069)
 bun run dev
 
-# Start frontend (http://localhost:3002) - in another terminal
+# Start frontend (http://localhost:3002) - separate terminal
 bun run dev:frontend
 
-# Or run both concurrently
+# Run both concurrently
 bun run dev:all
-
-# Test API endpoints
-curl -X POST http://localhost:42069/api/evaluate \
-  -H "Content-Type: application/json" \
-  -d '{"code":"cube(10);"}'
-
-# Check server health
-curl http://localhost:42069/health
 ```
 
 ### Testing
 
 ```bash
-# Quick test
+# Quick validation
 bun run test:quick
 
-# Run all tests
+# All tests
 bun run test:all
 
-# Unit tests by category
+# By category
 bun run test:unit
 bun run test:integration
 bun run test:performance
-
-# Comprehensive validation
 bun run test:validation
+
+# Single test file
+bun test tests/unit/primitives/cube.test.ts
 ```
 
-### MCP Server Integration
+### API Testing
 
-moicad exposes an MCP server for AI integration. Claude Desktop can connect to moicad to evaluate OpenSCAD code.
+```bash
+# Test evaluation
+curl -X POST http://localhost:42069/api/evaluate \
+  -H "Content-Type: application/json" \
+  -d '{"code":"cube(10);"}'
 
-**Claude Desktop Configuration** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
-```json
-{
-  "mcpServers": {
-    "moicad": {
-      "command": "bun",
-      "args": ["run", "/path/to/moicad/backend/index.ts"],
-      "env": {
-        "MCP_ENABLED": "true"
-      }
-    }
-  }
-}
+# Test parsing
+curl -X POST http://localhost:42069/api/parse \
+  -H "Content-Type: application/json" \
+  -d '{"code":"sphere(5);"}'
+
+# Health check
+curl http://localhost:42069/health
 ```
 
-**MCP Tools Available**:
-- `evaluate_scad`: Evaluate OpenSCAD code to geometry
-- `parse_scad`: Parse code to AST
-- `export_geometry`: Export to STL/OBJ
-- `list_examples`: Get example OpenSCAD files
-- `get_documentation`: Get OpenSCAD documentation
+### Tauri Desktop App
+
+```bash
+# Development mode
+bun run tauri:dev
+
+# Build executable
+bun run tauri:build
+
+# Platform-specific builds
+bun run tauri:build:mac
+bun run tauri:build:linux
+bun run tauri:build:win
+```
 
 ---
 
-## File Organization & Key Concepts
+## Critical Architecture Details
 
-### Backend Structure (Bun Runtime)
+### Backend Structure (29 files, ~7500 lines)
 
-- **`backend/index.ts`** - Main server entry point
-  - Bun.serve() with REST + WebSocket + MCP
-  - Routes: `/api/parse`, `/api/evaluate`, `/api/export`
-  - WebSocket handlers: `/ws` (real-time), `/ws/mcp` (AI integration)
-  - STL/OBJ export functions
-  - Single-threaded job queue for OpenSCAD evaluations
+**Core Server** (`backend/index.ts`)
+- Bun.serve() with REST + WebSocket + MCP
+- Single-threaded job queue (OpenSCAD-like)
+- 30-second timeout per evaluation
+- Memory management with --expose-gc
 
-- **`backend/scad-parser.ts`** - Tokenizer + Parser
-  - `Tokenizer` class: Lexical analysis
-  - `Parser` class: Recursive descent parser
-  - `parseOpenSCAD()`: Public entry point
-  - Returns: `ParseResult` with AST, errors, success flag
-  - **Full OpenSCAD support**: variables, functions, modules, expressions
+**Parser** (`backend/scad-parser.ts`)
+- Tokenizer: Lexical analysis of OpenSCAD syntax
+- Parser: Recursive descent parser with full expression support
+- Returns: `ParseResult { ast, errors, success }`
 
-- **`backend/scad-evaluator.ts`** - AST Execution
-  - `evaluateAST()`: Main evaluation function
-  - Evaluates all node types using manifold-3d
-  - **Full scope management**: Variables, functions, modules
-  - Built-in functions: abs, ceil, floor, round, sqrt, sin, cos, tan, min, max, pow, len, etc.
-  - Expression evaluation: arithmetic, logical, comparison, ternary
-  - Returns: `EvaluateResult` with geometry, errors, success, executionTime
+**Evaluator** (`backend/scad-evaluator.ts`)
+- Executes AST nodes using manifold-3d
+- Scope management: variables, functions, modules
+- Built-in functions: math, array, string operations
+- Returns: `EvaluateResult { geometry, errors, success, executionTime }`
 
-- **`backend/manifold-*.ts`** - Manifold-3d Integration
-  - `manifold-engine.ts`: Initialize manifold WASM module
-  - `manifold-primitives.ts`: Cube, sphere, cylinder, etc.
-  - `manifold-csg.ts`: Union, difference, intersection, hull, minkowski
-  - `manifold-transforms.ts`: Translate, rotate, scale, mirror
-  - `manifold-geometry.ts`: Conversion utilities (manifold ↔ Geometry)
-  - `manifold-2d.ts`: 2D operations (offset, projection)
-  - `manifold-extrude.ts`: linear_extrude, rotate_extrude
-  - `manifold-text.ts`: Text rendering with bitmap font
-  - `manifold-surface.ts`: Heightmap surface generation
+**Manifold Integration** (11 files)
+- `manifold-engine.ts`: WASM module initialization
+- `manifold-primitives.ts`: cube, sphere, cylinder, cone, polygon, polyhedron, text, surface
+- `manifold-csg.ts`: union, difference, intersection, hull, minkowski
+- `manifold-transforms.ts`: translate, rotate, scale, mirror, multmatrix
+- `manifold-geometry.ts`: Conversion between manifold ↔ Geometry format
+- `manifold-2d.ts`: offset, projection
+- `manifold-extrude.ts`: linear_extrude, rotate_extrude
+- `manifold-text.ts`: ASCII text rendering with bitmap font
+- `manifold-surface.ts`: Heightmap surface generation
 
-- **`backend/mcp-server.ts`** - MCP Server
-  - Model Context Protocol implementation
-  - Exposes moicad to AI agents (Claude Desktop, etc.)
-  - Tools for code evaluation, parsing, export
-  - Session management for collaborative design
+**CRITICAL: TypedArray Serialization**
+- manifold-3d returns Float32Array/Uint32Array
+- JSON.stringify() serializes these as objects `{"0": val, "1": val}`
+- MUST convert to regular arrays: `Array.from(typedArray)`
+- See `manifold-geometry.ts` lines 34-39 for implementation
 
-### Frontend Structure (Next.js + React)
+**MCP Server** (`backend/mcp-server.ts`)
+- Model Context Protocol for AI integration
+- Exposes tools: evaluate_scad, parse_scad, export_geometry
+- Used by Claude Desktop and other AI agents
 
-- **`frontend/app/page.tsx`** - Main page component
-  - Editor + Viewport layout
-  - WebSocket integration
-  - File management
-  - Top menu and settings
+### Frontend Structure
 
-- **`frontend/components/Editor.tsx`** - Monaco editor
-  - OpenSCAD syntax highlighting
-  - Real-time parsing
-  - Error display
-  - Alt+R keyboard shortcut for render
+**Main Page** (`frontend/app/page.tsx`)
+- Editor + Viewport split layout
+- WebSocket integration for real-time updates
+- File management (open, save, export)
 
-- **`frontend/components/Viewport.tsx`** - Three.js viewport
-  - SceneManager for 3D rendering
-  - Interactive highlighting (hover, selection)
-  - Camera controls (orbit, pan, zoom)
-  - Grid and printer bed visualization
+**Editor** (`frontend/components/Editor.tsx`)
+- Monaco editor with OpenSCAD syntax highlighting
+- Real-time parsing and error display
+- Alt+R shortcut for render
 
-- **`frontend/lib/three-utils.ts`** - SceneManager
-  - Three.js scene setup
-  - Geometry rendering from vertices/indices/normals
-  - Interactive raycasting for object selection
-  - Lighting, shadows, materials
+**Viewport** (`frontend/components/Viewport.tsx`)
+- Three.js SceneManager for 3D rendering
+- Interactive highlighting: hover, click selection, multi-select
+- Camera controls: orbit, pan, zoom
+- Printer bed visualization
 
-- **`frontend/lib/api-client.ts`** - API client
-  - REST API calls: parseCode, evaluateCode, exportGeometry
-  - Error handling and progress tracking
-  - Type-safe requests/responses
+**Three.js Utils** (`frontend/lib/three-utils.ts`)
+- SceneManager: Scene setup, lighting, rendering
+- Geometry rendering from vertices/indices/normals
+- Raycasting for interactive object selection
+- Material management with modifier support
 
-### Shared Types
+**API Client** (`frontend/lib/api-client.ts`)
+- Type-safe REST API calls
+- Error handling and progress tracking
+- WebSocket connection management
 
-- **`shared/types.ts`** - TypeScript interfaces
-  - `ScadNode`: AST node types (primitive, transform, boolean, etc.)
-  - `Geometry`: Vertices, indices, normals, bounds, stats
-  - `ParseResult`: AST + errors + success flag
-  - `EvaluateResult`: Geometry + errors + success + executionTime
-  - `WsMessage`: WebSocket message types
+### Shared Types (`shared/`)
 
-- **`shared/constants.ts`** - Configuration
-  - `SCAD_KEYWORDS`: OpenSCAD reserved words
-  - `PRIMITIVES`, `TRANSFORMS`, `BOOLEAN_OPS`: Available operations
-  - `DEFAULT_PARAMS`: Default parameter values
-  - `API_ENDPOINTS`: REST and WebSocket URLs
-  - `THREE_JS_CONFIG`, `UI_CONFIG`
+**types.ts**
+- `ScadNode`: AST node types (primitive, transform, boolean, module, etc.)
+- `Geometry`: Vertices (number[]), indices (number[]), normals (number[]), bounds, stats
+- `ParseResult`: AST + errors + success
+- `EvaluateResult`: Geometry + errors + success + executionTime
+- `WsMessage`: WebSocket message types
+
+**constants.ts**
+- `SCAD_KEYWORDS`: OpenSCAD reserved words
+- `PRIMITIVES`, `TRANSFORMS`, `BOOLEAN_OPS`: Available operations
+- `DEFAULT_PARAMS`: Default values (e.g., cube size=10, sphere detail=20)
+- `API_ENDPOINTS`: URLs for REST and WebSocket
 
 ---
 
-## Supported OpenSCAD Features - 98-99% Compatible! 🎉
+## OpenSCAD Compatibility (98-99%)
 
-### Primitives ✅
-- cube, sphere, cylinder, cone
-- circle, square, polygon, polyhedron
-- text (ASCII, basic Latin)
-- surface (heightmap import)
+### Fully Supported ✅
 
-### Transformations ✅
-- translate, rotate, scale, mirror
-- multmatrix (4x4 custom transforms)
+**Primitives**: cube, sphere, cylinder, cone, circle, square, polygon, polyhedron, text, surface
 
-### CSG Operations ✅
-- union, difference, intersection
-- hull (convex hull)
-- minkowski (Minkowski sum)
+**Transformations**: translate, rotate, scale, mirror, multmatrix
 
-### 2D Operations ✅
-- linear_extrude, rotate_extrude
-- offset (expand/contract)
-- projection (3D → 2D)
+**CSG Operations**: union, difference, intersection, hull, minkowski
 
-### Language Features ✅
+**2D Operations**: linear_extrude, rotate_extrude, offset, projection
+
+**Language Features**:
 - Variables, functions, modules
 - Conditionals (if/else), loops (for)
-- Expressions, operators (arithmetic, logical, ternary)
+- Expressions: arithmetic, logical, comparison, ternary
 - List comprehensions
-- Built-in functions (math, array, string)
-- File imports (include, use)
-- Special variables ($fn, $fa, $fs, $t, $vpr, $vpt, $preview, etc.)
-- OpenSCAD modifiers (#, %, !, *)
+- Built-in functions: abs, ceil, floor, round, sqrt, pow, sin, cos, tan, min, max, len, norm, cross, concat, str
+- File imports: include, use (with library path resolution)
+- Special variables: $fn, $fa, $fs, $t, $vpr, $vpt, $vpd, $vpf, $preview
+- OpenSCAD modifiers: # (debug), % (transparent), ! (root), * (disable)
+- Debug utilities: echo(), assert()
 
-### Interactive Features ✅
-- Real-time hover highlighting
-- Click selection, multi-select
-- Code-to-geometry mapping
-- Visual feedback with status overlay
+**Interactive Features**: Real-time hover highlighting, click selection, multi-select, code-to-geometry mapping
 
 ---
 
 ## API Specification
 
-### REST Endpoints
-
-#### POST `/api/parse`
-Parse OpenSCAD code to AST.
+### POST /api/parse
 ```json
 Request: { "code": "cube(10);" }
 Response: { "ast": [...], "errors": [], "success": true }
 ```
 
-#### POST `/api/evaluate`
-Parse and evaluate to 3D geometry.
+### POST /api/evaluate
 ```json
 Request: { "code": "sphere(10);" }
 Response: {
   "geometry": {
-    "vertices": [...],  // Array of numbers (not TypedArray!)
-    "indices": [...],   // Array of numbers
-    "normals": [...],   // Array of numbers
-    "bounds": { "min": [...], "max": [...] },
+    "vertices": [...],  // number[] (NOT TypedArray!)
+    "indices": [...],   // number[]
+    "normals": [...],   // number[]
+    "bounds": { "min": [x,y,z], "max": [x,y,z] },
     "stats": { "vertexCount": N, "faceCount": N, "volume": V }
   },
   "errors": [],
@@ -300,123 +274,337 @@ Response: {
 }
 ```
 
-#### POST `/api/export`
-Export geometry to STL or OBJ.
+### POST /api/export
 ```json
 Request: { "geometry": {...}, "format": "stl" }
-Response: Binary STL file with MIME type application/octet-stream
+Response: Binary STL file (application/octet-stream)
 ```
 
-### WebSocket `/ws`
-
-Real-time code evaluation. Client sends:
+### WebSocket /ws
 ```json
-{
-  "type": "evaluate",
-  "code": "cube(10);",
-  "requestId": "abc123"
+Client → Server: { "type": "evaluate", "code": "cube(10);", "requestId": "abc" }
+Server → Client: { "type": "evaluate_response", "requestId": "abc", "geometry": {...}, "executionTime": 42 }
+```
+
+### MCP WebSocket /ws/mcp
+
+Model Context Protocol for AI integration. Claude Desktop connects here.
+
+---
+
+## Key Implementation Details
+
+### Single-Threaded Job Queue
+
+Backend processes one OpenSCAD evaluation at a time (like OpenSCAD):
+- Jobs queued with `evaluationQueue.enqueue()`
+- 30-second timeout per job
+- Memory limit: 1GB per job
+- Prevents concurrent manifold-3d operations (not thread-safe)
+
+### EvaluateResult vs Geometry
+
+**CRITICAL BUG FIXED (backend/index.ts line 434)**:
+```typescript
+// WRONG: Double-nesting
+const geometry = await evaluateAST(parseResult.ast);
+return { geometry, errors: [], success: true }; // geometry is already EvaluateResult!
+
+// CORRECT: Extract fields
+const evalResult = await evaluateAST(parseResult.ast);
+return {
+  geometry: evalResult.geometry,  // Just the Geometry object
+  errors: evalResult.errors,
+  success: evalResult.success,
+  executionTime
+};
+```
+
+`evaluateAST()` returns `EvaluateResult`, not `Geometry`. Don't wrap it again!
+
+### TypedArray Serialization
+
+**CRITICAL BUG FIXED (manifold-geometry.ts lines 34-39)**:
+```typescript
+// WRONG: Float32Array serializes as object
+return { vertices, indices, normals };
+
+// CORRECT: Convert to regular arrays
+return {
+  vertices: Array.from(vertices),
+  indices: Array.from(indices),
+  normals: Array.from(normals)
+};
+```
+
+Three.js expects number[], not TypedArray. JSON.stringify() breaks TypedArrays.
+
+### Manifold WASM Initialization
+
+```typescript
+// manifold-engine.ts
+let manifoldWasm: any = null;
+let Manifold: any = null;
+
+export async function initManifold() {
+  if (!manifoldWasm) {
+    manifoldWasm = await Module();  // Import from manifold-3d
+    manifoldWasm.setup();
+    Manifold = manifoldWasm.Manifold;
+  }
+  return { manifoldWasm, Manifold };
 }
 ```
 
-Server responds:
-```json
-{
-  "type": "evaluate_response",
-  "requestId": "abc123",
-  "geometry": {...},
-  "errors": [],
-  "executionTime": 42.1
-}
-```
+Call `initManifold()` once at server start, reuse throughout.
 
-### MCP WebSocket `/ws/mcp`
+### File Import Security
 
-Model Context Protocol for AI integration. Used by Claude Desktop and other AI tools.
+File imports (include/use) have security sandboxing:
+- Path traversal protection (blocks `../../../etc/passwd`)
+- File extension filtering (only `.scad`, `.csg`)
+- File size limits (1MB max)
+- Circular dependency detection
+- Library path resolution (current dir → lib/ → modules/ → OPENSCADPATH)
 
 ---
 
-## Known Limitations & TODOs
-
-### Fully Implemented ✅
-- **Language Core**: Variables, functions, modules, conditionals
-- **CSG Operations**: union, difference, intersection, hull, minkowski
-- **All Primitives**: Including text and surface
-- **All Transformations**: Including multmatrix
-- **2D Operations**: linear_extrude, rotate_extrude, offset, projection
-- **Interactive Highlighting**: Real-time hover, selection, multi-select
-- **OpenSCAD Modifiers**: Debug (#), Transparent (%), Root (!), Disable (*)
-
-### Future Enhancements
-- **Tauri Desktop App**: Native executable with better performance
-- **Advanced Text**: Full Unicode support, custom fonts
-- **Animation**: $t variable animation timeline
-- **Collaborative Design**: Multi-user editing via MCP
-
-### Current Compatibility: ~100% OpenSCAD compatible
-
----
-
-## Bun-Specific Conventions
-
-This project uses Bun runtime exclusively:
-
-- **`bun --hot ./backend/index.ts`** - Auto-reload server on file changes
-- **`Bun.serve()`** - Server with WebSocket support (not Express)
-- **Dynamic imports** - Manifold-3d loaded at runtime
-- **TypeScript support** - Bun runs .ts files directly
-- **Fast package manager** - `bun install` instead of npm
-
----
-
-## Key Files to Understand
-
-**For parsing changes**: `backend/scad-parser.ts`
-**For evaluation logic**: `backend/scad-evaluator.ts`
-**For geometry**: `backend/manifold-geometry.ts` + `backend/manifold-primitives.ts`
-**For CSG operations**: `backend/manifold-csg.ts`
-**For 3D rendering**: `frontend/lib/three-utils.ts`
-**For MCP integration**: `backend/mcp-server.ts`
-
----
-
-## Development Notes
+## Development Workflows
 
 ### Adding New Primitives
 
-1. Add to `backend/manifold-primitives.ts`
-2. Add case in `backend/scad-evaluator.ts` `evaluatePrimitive()`
-3. Update `shared/constants.ts` `PRIMITIVES`
-4. Add tests in `tests/unit/primitives/`
+1. Add to `backend/manifold-primitives.ts`:
+```typescript
+export async function createMyShape(params) {
+  const { Manifold } = await initManifold();
+  // Use manifold API
+  return Manifold.myOperation(...);
+}
+```
 
-### Adding New Transformations
+2. Add case in `backend/scad-evaluator.ts` `evaluatePrimitive()`:
+```typescript
+case 'myshape':
+  const params = evaluateParams(node.params, scope);
+  return await createMyShape(params);
+```
 
-1. Add to `backend/manifold-transforms.ts`
-2. Add case in `backend/scad-evaluator.ts` `evaluateTransform()`
-3. Update `shared/constants.ts` `TRANSFORMS`
-4. Add tests in `tests/unit/transformations/`
+3. Update `shared/constants.ts` `PRIMITIVES` array
+
+4. Add tests in `tests/unit/primitives/myshape.test.ts`
+
+### Adding New CSG Operations
+
+1. Add to `backend/manifold-csg.ts`:
+```typescript
+export async function myOperation(manifoldA, manifoldB) {
+  // Use manifold API: add, subtract, intersect, hull, etc.
+  return manifoldA.myOp(manifoldB);
+}
+```
+
+2. Add case in `backend/scad-evaluator.ts` `evaluateBoolean()`:
+```typescript
+case 'myoperation':
+  const children = await evaluateChildren(node.children, scope);
+  return children.reduce((acc, curr) => myOperation(acc, curr));
+```
+
+3. Update `shared/constants.ts` `BOOLEAN_OPS` array
+
+4. Add tests in `tests/unit/boolean-ops/myoperation.test.ts`
 
 ### Debugging Parser Issues
 
-1. Check tokenizer output: Add logging in `Tokenizer.tokenize()`
-2. Check AST structure: Use `/api/parse` endpoint
-3. Verify error position: Line/column info in error object
-4. Test with simpler code incrementally
+1. Add logging in `scad-parser.ts` Tokenizer:
+```typescript
+const tokens = this.tokenize(code);
+console.log('Tokens:', tokens); // Inspect token stream
+```
+
+2. Use `/api/parse` endpoint to inspect AST:
+```bash
+curl -X POST http://localhost:42069/api/parse \
+  -H "Content-Type: application/json" \
+  -d '{"code":"YOUR CODE"}' | jq '.ast'
+```
+
+3. Check error positions (line/column) in ParseResult
+
+4. Test with progressively simpler code to isolate issue
 
 ### Debugging Geometry Issues
 
-1. Check vertex/index counts: Available in `stats` object
-2. Verify bounds: Check `bounds.min` and `bounds.max`
-3. Export to STL: Verify with slicing software (Cura, Prusaslicer)
+1. Check stats: `geometry.stats.vertexCount`, `geometry.stats.faceCount`
+
+2. Verify bounds: `geometry.bounds.min`, `geometry.bounds.max`
+
+3. Export to STL and open in slicer (Cura, Prusaslicer):
+```bash
+curl -X POST http://localhost:42069/api/export \
+  -H "Content-Type: application/json" \
+  -d '{"geometry":{...},"format":"stl"}' > model.stl
+```
+
 4. Check normals: Should be normalized (length ~1.0)
+
+5. Inspect manifold-3d errors in backend logs
+
+---
+
+## MCP Integration
+
+### Claude Desktop Configuration
+
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "moicad": {
+      "command": "bun",
+      "args": ["run", "/absolute/path/to/moicad/backend/index.ts"],
+      "env": {
+        "MCP_ENABLED": "true"
+      }
+    }
+  }
+}
+```
+
+Restart Claude Desktop. Now Claude can evaluate OpenSCAD code via natural language!
+
+### MCP Tools Available
+
+- **evaluate_scad**: Evaluate OpenSCAD code to geometry
+- **parse_scad**: Parse code to AST (for syntax checking)
+- **export_geometry**: Export geometry to STL/OBJ
+- **list_examples**: Get example OpenSCAD files
+- **get_documentation**: Get OpenSCAD language documentation
+
+---
+
+## Test Suite Organization
+
+```
+tests/
+├── unit/                # Unit tests by feature
+│   ├── primitives/     # Cube, sphere, cylinder, etc.
+│   ├── transformations/# Translate, rotate, scale, etc.
+│   ├── boolean-ops/    # Union, difference, intersection, hull
+│   ├── language/       # Variables, functions, modules
+│   └── advanced/       # Text, surface, special variables
+├── integration/        # API and workflow tests
+│   ├── api/           # REST endpoints
+│   ├── imports/       # File import tests
+│   └── complex-workflows/
+├── performance/        # Benchmarks
+├── e2e/               # End-to-end UI tests
+├── fixtures/          # Test assets
+├── validation/        # OpenSCAD compatibility tests
+└── utils/             # Test helpers
+```
+
+Run with: `bun run test:unit`, `bun run test:integration`, etc.
+
+---
+
+## Performance Characteristics
+
+- **Parse**: ~10-30ms (typical)
+- **Evaluate**: ~20-100ms (typical)
+- **Memory**: ~50-200MB per job
+- **Job timeout**: 30 seconds
+- **WebSocket latency**: <50ms
+- **Three.js FPS**: 60 FPS
+
+---
+
+## Known Patterns
+
+### Bun Server with WebSocket
+
+```typescript
+Bun.serve({
+  port: 42069,
+  fetch(req, server) {
+    if (server.upgrade(req)) return; // WebSocket upgrade
+    // Handle HTTP requests
+  },
+  websocket: {
+    open(ws) { /* connection opened */ },
+    message(ws, message) { /* handle message */ },
+    close(ws) { /* connection closed */ }
+  }
+});
+```
+
+### Manifold-3d Usage Pattern
+
+```typescript
+const { Manifold } = await initManifold();
+
+// Create primitives
+const cube = Manifold.cube([10, 10, 10], true);
+const sphere = Manifold.sphere(5, 32);
+
+// CSG operations
+const result = cube.add(sphere);        // union
+const diff = cube.subtract(sphere);     // difference
+const inter = cube.intersect(sphere);   // intersection
+
+// Transform
+const moved = result.translate([5, 0, 0]);
+const rotated = moved.rotate([45, 0, 0]);
+
+// Extract mesh
+const mesh = result.getMesh();
+const vertices = mesh.vertProperties;  // Float32Array
+const indices = mesh.triVerts;         // Uint32Array
+```
+
+### Three.js SceneManager Pattern
+
+```typescript
+class SceneManager {
+  scene: THREE.Scene;
+  camera: THREE.PerspectiveCamera;
+  renderer: THREE.WebGLRenderer;
+  
+  updateGeometry(geometry: Geometry) {
+    const bufferGeometry = new THREE.BufferGeometry();
+    bufferGeometry.setAttribute('position', 
+      new THREE.Float32BufferAttribute(geometry.vertices, 3));
+    bufferGeometry.setIndex(geometry.indices);
+    bufferGeometry.setAttribute('normal',
+      new THREE.Float32BufferAttribute(geometry.normals, 3));
+    
+    const mesh = new THREE.Mesh(bufferGeometry, material);
+    this.scene.add(mesh);
+  }
+}
+```
 
 ---
 
 ## Documentation Files
 
-- **`README.md`** - Project overview, quick start, API reference
-- **`BUILD_GUIDE.md`** - Detailed build instructions
-- **`IMPLEMENTATION_STATUS.md`** - Feature implementation status
-- **`MANIFOLD_MIGRATION_COMPLETE.md`** - Manifold-3d migration details
-- **`BUG_FIX_DOUBLE_NESTING.md`** - Bug fix: API response structure
-- **`BUG_FIX_TYPEDARRAY_SERIALIZATION.md`** - Bug fix: TypedArray → Array conversion
-- **`COLLABORATION_GUIDE.md`** - Contributing guidelines
+- **README.md**: Project overview, quick start
+- **ARCHITECTURE.md**: Complete system architecture
+- **BUILD_GUIDE.md**: Detailed build instructions
+- **IMPLEMENTATION_STATUS.md**: Feature implementation status
+- **MCP_INTEGRATION_GUIDE.md**: Claude Desktop integration
+- **BACKEND_STRUCTURE.md**: Backend file organization
+- **FINAL_CLEANUP_STATUS.md**: Codebase cleanup summary
+
+---
+
+## Important Notes
+
+- **No Rust WASM**: Entire `wasm/` directory removed, replaced by manifold-3d npm package
+- **No custom WebGL**: Use Three.js standard renderer (manifold guarantees clean geometry)
+- **Bun exclusive**: Don't use Node.js commands (npm, node), use Bun equivalents
+- **TypedArray conversion**: Always convert to regular arrays before JSON serialization
+- **Single-threaded queue**: One evaluation at a time (OpenSCAD-like behavior)
+- **Memory management**: Use --expose-gc flag for garbage collection
+- **MCP local only**: Don't expose MCP server to internet (security risk)
