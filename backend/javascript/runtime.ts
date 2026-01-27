@@ -18,6 +18,7 @@
  */
 
 import type { Geometry, EvaluateResult } from '../../shared/types';
+import { initManifold } from '../manifold/engine';
 import { Shape } from './shape';
 import * as functional from './functional';
 import logger from '../core/logger';
@@ -37,6 +38,9 @@ export async function evaluateJavaScript(
   const errors: any[] = [];
 
   try {
+    // Initialize manifold WASM module before evaluation
+    await initManifold();
+
     // Create sandboxed module scope with both Shape (fluent API) and functional API
     const moicadModule = {
       Shape,
