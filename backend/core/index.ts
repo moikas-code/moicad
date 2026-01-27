@@ -284,13 +284,15 @@ const workerPool = null as any; // Disabled for now
 // ============================================
 
 interface QueuedJob {
-  id: string;
-  code: string;
-  timestamp: number;
-  resolve: (result: EvaluateResult) => void;
-  reject: (error: Error) => void;
-  progressCallback?: (progress: import("../../shared/types").RenderProgress) => void;
-}
+    id: string;
+    code: string;
+    timestamp: number;
+    resolve: (result: EvaluateResult) => void;
+    reject: (error: Error) => void;
+    progressCallback?: (progress: import("../../shared/types").RenderProgress) => void;
+    connectionId?: string;
+    cancelRequested?: boolean;
+  }
 
 /**
  * Single-threaded job queue for OpenSCAD evaluations
@@ -314,10 +316,12 @@ class EvaluationQueue {
    */
   async enqueue(
     code: string,
+    connectionId?: string,
     progressCallback?: (progress: import("../../shared/types").RenderProgress) => void
   ): Promise<EvaluateResult> {
     return new Promise((resolve, reject) => {
       const job: QueuedJob = {
+        connectionId,
         id: Math.random().toString(36).substring(7),
         code,
         timestamp: Date.now(),
@@ -806,7 +810,7 @@ const server = Bun.serve<WebSocketData>({
               }));
             };
             
-            const result = await handleEvaluateWs(data, progressCallback);
+            const result = await handleEvaluateWs(data, ws.data.connectionId, progressCallback);
             ws.send(JSON.stringify(result));
           } else if (data.type === "parse") {
             const result = handleParseWs(data);
@@ -1076,9 +1080,10 @@ function handleParseWs(data: any): any {
 }
 
 async function handleEvaluateWs(
-  data: EvaluateMessage,
-  progressCallback?: (progress: import("../../shared/types").RenderProgress) => void
-): Promise<EvaluateResponse> {
+    data: EvaluateMessage,
+    connectionId?: string,
+    progressCallback?: (progress: import("../../shared/types").RenderProgress) => void
+  ): Promise<EvaluateResponse> {
   // Use evaluation queue with progress callback instead of worker pool
   // Worker pool doesn't support progress callbacks yet
   const result = progressCallback 
