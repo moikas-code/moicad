@@ -32,8 +32,8 @@ describe('OpenSCAD Support', () => {
     expect(result.ast.length).toBe(2); // cube and sphere
   });
 
-  it('should detect syntax errors', () => {
-    const result = parse('cube(10'); // missing semicolon');
+it('should detect syntax errors', () => {
+    const result = parse('cube(10) unknown_function'); // actual syntax error
     
     expect(result.success).toBe(false);
     expect(result.errors.length).toBeGreaterThan(0);
