@@ -1,3 +1,4 @@
+import { RenderStage } from '../../shared/types';
 /**
  * API Client for moicad Backend Communication
  * Handles REST API calls to the Bun backend server
@@ -99,15 +100,16 @@ export async function parseCode(code: string): Promise<ParseResult> {
 export async function evaluateCode(
   code: string,
   onProgress?: (progress: {
-    stage: string;
-    percentage?: number;
+    stage: RenderStage;
+    progress: number; // Changed to required number
+    message: string;
     time?: number;
   }) => void,
 ): Promise<EvaluateResult> {
   const startTime = Date.now();
 
   try {
-    onProgress?.({ stage: "Connecting to server...", percentage: 10 });
+    onProgress?.({ stage: "initializing", progress: 10, message: "Connecting to backend server." });
 
     const response = await fetch(`${API_BASE}/api/evaluate`, {
       method: "POST",
@@ -117,19 +119,20 @@ export async function evaluateCode(
       body: JSON.stringify({ code }),
     });
 
-    onProgress?.({ stage: "Parsing code...", percentage: 30 });
+    onProgress?.({ stage: "parsing", progress: 30, message: "Parsing your OpenSCAD code." });
 
     if (!response.ok) {
       throw new Error(`Evaluation failed: ${response.statusText}`);
     }
 
-    onProgress?.({ stage: "Generating geometry...", percentage: 60 });
+    onProgress?.({ stage: "evaluating", progress: 60, message: "Generating 3D geometry from code." });
 
     const data = await response.json();
 
     onProgress?.({
-      stage: "Finalizing...",
-      percentage: 90,
+      stage: "complete",
+      progress: 90,
+      message: "Finalizing geometry and preparing for display.",
       time: Date.now() - startTime,
     });
 

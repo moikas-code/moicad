@@ -717,6 +717,11 @@ export class SceneManager {
       // Create scale markers
       this.scaleMarkersGroup = new THREE.Group();
       this.scaleMarkersGroup.name = "scaleMarkers";
+      this.scaleMarkersGroup.position.set(
+        this.printerSize.width / 2,
+        0,
+        this.printerSize.depth / 2,
+      );
 
       // Create axis lines with measurements
       const materials = {
