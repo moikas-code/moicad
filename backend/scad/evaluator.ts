@@ -7,6 +7,8 @@ import type {
 } from "../../shared/types";
 import { readTextFile, readTextFileSync, parseSurfaceData } from "../utils/file-utils";
 import logger, { logWarn, logInfo, logDebug, logError } from "../core/logger";
+import { MemoryMonitor } from "../core/memory-monitor";
+import { bufferPool } from "../utils/buffer-pool";
 
 // Import manifold-based evaluator (replaces WASM CSG engine)
 import {
@@ -271,11 +273,34 @@ export async function evaluateAST(
           }
         }
       } else {
-        // Sequential evaluation for simple scenes
-        for (const node of executableNodes) {
+        // Sequential evaluation with memory checkpoints
+        const memoryMonitor = new MemoryMonitor();
+        memoryMonitor.setBaseline();
+
+        for (let i = 0; i < executableNodes.length; i++) {
+          const node = executableNodes[i];
           const result = await evaluateNode(node, context);
           if (result) {
             geometries.push(result);
+          }
+
+          // OPTIMIZATION: Check memory every 10 nodes
+          if (i > 0 && i % 10 === 0) {
+            const pressure = memoryMonitor.analyzePressure();
+
+            if (pressure.shouldOptimize) {
+              logWarn("Memory pressure during AST evaluation", {
+                nodeIndex: i,
+                totalNodes: executableNodes.length,
+                pressureLevel: pressure.level,
+                heapUsedMB: memoryMonitor.getUsageMB(),
+              });
+
+              // Force cleanup if needed
+              if (pressure.shouldChunk) {
+                await memoryMonitor.forceCleanup();
+              }
+            }
           }
         }
       }

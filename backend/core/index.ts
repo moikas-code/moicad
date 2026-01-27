@@ -34,6 +34,10 @@ import {
 } from "../middleware/health";
 import { config, validateEnvironment } from "./config";
 
+// Memory optimization imports
+import { MemoryMonitor } from "./memory-monitor";
+import { bufferPool } from "../utils/buffer-pool";
+
 // MCP imports
 import { mcpStore } from "../mcp/store";
 import { wsManager } from "../mcp/middleware";
@@ -296,6 +300,12 @@ class EvaluationQueue {
   private processing: boolean = false;
   private currentJob: QueuedJob | null = null;
   private readonly defaultTimeout: number = 30000; // 30 seconds (OpenSCAD-like)
+  private readonly memoryMonitor: MemoryMonitor = new MemoryMonitor();
+
+  constructor() {
+    // Start memory monitoring
+    this.memoryMonitor.startMonitoring(5000); // Check every 5 seconds
+  }
 
   /**
    * Enqueue a new evaluation job
@@ -342,20 +352,34 @@ class EvaluationQueue {
     });
 
     try {
-      // Check memory before evaluation
-      const memBefore = process.memoryUsage();
-      const heapUsedMB = Math.round(memBefore.heapUsed / 1024 / 1024);
-      const heapTotalMB = Math.round(memBefore.heapTotal / 1024 / 1024);
+      // Set baseline and check memory before evaluation
+      this.memoryMonitor.setBaseline();
+      const memorySnapshot = this.memoryMonitor.takeSnapshot();
+      const pressure = memorySnapshot.pressure;
 
-      if (heapUsedMB > 500) {
-        logWarn(`High memory usage before job ${id}`, {
-          heapUsed: `${heapUsedMB}MB`,
-          heapTotal: `${heapTotalMB}MB`,
-        });
+      // Log pressure level
+      logInfo(`Memory pressure before job ${id}: ${pressure.level}`, {
+        heapUsedMB: this.memoryMonitor.getUsageMB(),
+        pressureLevel: pressure.level,
+        recommendation: pressure.recommendation,
+      });
+
+      // Check if we should abort due to memory limits
+      if (this.memoryMonitor.isLimitExceeded()) {
+        throw new Error(
+          `Memory limit exceeded: ${this.memoryMonitor.getUsageMB()}MB. ${pressure.recommendation}`
+        );
       }
 
-      if (heapUsedMB > 1000) {
-        throw new Error(`Memory limit exceeded: ${heapUsedMB}MB (limit: 1GB)`);
+      // Warn if we should optimize
+      if (this.memoryMonitor.shouldOptimize()) {
+        logWarn(`Memory optimization recommended for job ${id}`, {
+          heapUsedMB: this.memoryMonitor.getUsageMB(),
+          recommendation: pressure.recommendation,
+        });
+
+        // Force cleanup before proceeding
+        await this.memoryMonitor.forceCleanup();
       }
 
       // Create timeout promise
@@ -391,23 +415,49 @@ class EvaluationQueue {
       this.currentJob = null;
       this.processing = false;
 
-      // Force garbage collection if available
-      if (global.gc) {
-        const memBefore = process.memoryUsage();
-        global.gc();
-        const memAfter = process.memoryUsage();
-        const freed = Math.round(
-          (memBefore.heapUsed - memAfter.heapUsed) / 1024 / 1024,
-        );
-
-        if (freed > 10) {
-          logInfo(`GC freed ${freed}MB after job completion`);
-        }
-      }
+      // Enhanced cleanup with buffer pool and memory monitoring
+      await this.performCleanup(id);
 
       // Process next job
       setImmediate(() => this.processNext());
     }
+  }
+
+  /**
+   * Perform comprehensive memory cleanup after job completion
+   */
+  private async performCleanup(jobId: string): Promise<void> {
+    // Clean buffer pools
+    const poolStats = bufferPool.getStats();
+    if (poolStats.memoryUsageBytes > 50 * 1024 * 1024) {
+      // > 50MB
+      bufferPool.cleanupLargeBuffers();
+      logInfo(`Buffer pool cleaned after job ${jobId}`, {
+        freedMB: Math.round(poolStats.memoryUsageBytes / 1024 / 1024),
+      });
+    }
+
+    // Force garbage collection if available
+    const gcSuccess = this.memoryMonitor.forceGC();
+
+    // Check for memory leaks
+    const leakDetection = this.memoryMonitor.detectLeaks();
+    if (leakDetection.isLeak) {
+      logWarn(`Memory leak detected after job ${jobId}`, {
+        growthRate: leakDetection.growthRate.toFixed(2) + "MB/s",
+        confidence: (leakDetection.confidence * 100).toFixed(1) + "%",
+        recommendation: leakDetection.recommendation,
+      });
+    }
+
+    // Log final memory stats
+    const summary = this.memoryMonitor.getSummary();
+    logInfo(`Cleanup completed for job ${jobId}`, {
+      heapUsedMB: Math.round(summary.current.heapUsed / 1024 / 1024),
+      growthSinceBaselineMB: summary.growth,
+      pressureLevel: summary.pressure.level,
+      gcPerformed: gcSuccess,
+    });
   }
 
   /**
@@ -454,13 +504,20 @@ class EvaluationQueue {
   }
 
   /**
-   * Get queue status for monitoring
+   * Get queue status for monitoring (includes memory stats)
    */
   getStatus() {
+    const memoryStats = this.memoryMonitor.getSummary();
     return {
       pending: this.queue.length,
       isProcessing: this.processing,
       currentJobId: this.currentJob?.id || null,
+      memory: {
+        heapUsedMB: Math.round(memoryStats.current.heapUsed / 1024 / 1024),
+        pressureLevel: memoryStats.pressure.level,
+        shouldOptimize: memoryStats.pressure.shouldOptimize,
+        shouldChunk: memoryStats.pressure.shouldChunk,
+      },
     };
   }
 }

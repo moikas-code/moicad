@@ -152,11 +152,33 @@ export function minkowski(
       ? samplePoints(positions, maxPositions)
       : positions;
 
-  // Translate A to each sampled position and collect
+  // OPTIMIZATION: Process translations in chunks with memory cleanup
+  // This prevents memory spikes when processing many translations
+  const chunkSize = 10; // Process 10 translations at a time
   const translatedCopies: ManifoldObject[] = [];
-  for (const [x, y, z] of sampledPositions) {
-    const translated = manifoldA.translate([x, y, z]);
-    translatedCopies.push(translated);
+
+  for (let i = 0; i < sampledPositions.length; i += chunkSize) {
+    const chunk = sampledPositions.slice(i, i + chunkSize);
+    const chunkResults: ManifoldObject[] = [];
+
+    // Process chunk
+    for (const [x, y, z] of chunk) {
+      const translated = manifoldA.translate([x, y, z]);
+      chunkResults.push(translated);
+    }
+
+    // Union chunk results immediately to reduce memory
+    if (chunkResults.length > 1) {
+      const chunkUnion = unionMultiple(chunkResults);
+      translatedCopies.push(chunkUnion);
+    } else if (chunkResults.length === 1) {
+      translatedCopies.push(chunkResults[0]);
+    }
+
+    // Force GC between chunks to prevent memory buildup
+    if (global.gc && i % (chunkSize * 2) === 0) {
+      global.gc();
+    }
   }
 
   // Union all copies, then take hull for convex approximation

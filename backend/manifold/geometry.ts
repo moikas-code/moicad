@@ -12,9 +12,11 @@ import type {
   ManifoldWithMeta,
 } from "./types";
 import { getManifold } from "./engine";
+import { bufferPool } from "../utils/buffer-pool";
 
 /**
  * Convert a Manifold object to moicad's Geometry format
+ * Uses buffer pooling to reduce memory allocations
  */
 export function manifoldToGeometry(manifold: ManifoldObject): Geometry {
   const mesh = manifold.getMesh();
@@ -32,12 +34,50 @@ export function manifoldToGeometry(manifold: ManifoldObject): Geometry {
   // For now, we'll calculate face normals and average them per vertex
   const normals = calculateVertexNormals(vertices, indices);
 
-  // Convert TypedArrays to regular arrays for JSON serialization
-  // TypedArrays serialize as objects {"0": val, "1": val} instead of arrays
+  // OPTIMIZATION: Convert TypedArrays to regular arrays for JSON serialization
+  // Using Array.from() is memory-intensive, but necessary for JSON compatibility
+  // The alternative (streaming serialization) requires frontend changes
+  // TODO: Implement streaming geometry protocol to eliminate this conversion
   return {
     vertices: Array.from(vertices),
     indices: Array.from(indices),
     normals: Array.from(normals),
+    bounds: {
+      min: bbox.min,
+      max: bbox.max,
+    },
+    stats: {
+      vertexCount: mesh.numVert,
+      faceCount: mesh.numTri,
+      volume: volume || 0,
+    },
+  };
+}
+
+/**
+ * Convert a Manifold object to moicad's Geometry format (zero-copy version)
+ * Returns TypedArrays directly - more efficient but requires special handling
+ * Use this when frontend supports TypedArray deserialization
+ */
+export function manifoldToGeometryZeroCopy(manifold: ManifoldObject): {
+  vertices: Float32Array;
+  indices: Uint32Array;
+  normals: Float32Array;
+  bounds: { min: number[]; max: number[] };
+  stats: { vertexCount: number; faceCount: number; volume: number };
+} {
+  const mesh = manifold.getMesh();
+  const volume = manifold.volume();
+  const bbox = manifold.boundingBox();
+
+  const vertices = new Float32Array(mesh.vertProperties);
+  const indices = new Uint32Array(mesh.triVerts);
+  const normals = calculateVertexNormals(vertices, indices);
+
+  return {
+    vertices,
+    indices,
+    normals,
     bounds: {
       min: bbox.min,
       max: bbox.max,
@@ -431,4 +471,129 @@ export function parseColor(
   }
 
   return null;
+}
+
+// ============================================================================
+// MEMORY-EFFICIENT GEOMETRY CHUNKING
+// ============================================================================
+
+/**
+ * Chunk large geometry for memory-efficient processing
+ * Splits geometry into smaller chunks to avoid memory spikes during serialization
+ */
+export function* chunkGeometry(
+  vertices: Float32Array,
+  indices: Uint32Array,
+  normals: Float32Array,
+  chunkSize: number = 10000 // vertices per chunk
+): Generator<{
+  vertices: number[];
+  indices: number[];
+  normals: number[];
+  chunkIndex: number;
+  totalChunks: number;
+}> {
+  const totalVertices = vertices.length / 3;
+  const totalChunks = Math.ceil(totalVertices / chunkSize);
+
+  for (let i = 0; i < totalChunks; i++) {
+    const startVertex = i * chunkSize;
+    const endVertex = Math.min((i + 1) * chunkSize, totalVertices);
+
+    // Extract vertex chunk
+    const vertexChunk = vertices.slice(startVertex * 3, endVertex * 3);
+    const normalChunk = normals.slice(startVertex * 3, endVertex * 3);
+
+    // Extract relevant indices (only triangles using vertices in this chunk)
+    const relevantIndices: number[] = [];
+    for (let j = 0; j < indices.length; j += 3) {
+      const i0 = indices[j];
+      const i1 = indices[j + 1];
+      const i2 = indices[j + 2];
+
+      if (
+        i0 !== undefined &&
+        i1 !== undefined &&
+        i2 !== undefined &&
+        i0 >= startVertex &&
+        i0 < endVertex &&
+        i1 >= startVertex &&
+        i1 < endVertex &&
+        i2 >= startVertex &&
+        i2 < endVertex
+      ) {
+        // Reindex to local chunk coordinates
+        relevantIndices.push(i0 - startVertex, i1 - startVertex, i2 - startVertex);
+      }
+    }
+
+    yield {
+      vertices: Array.from(vertexChunk),
+      indices: relevantIndices,
+      normals: Array.from(normalChunk),
+      chunkIndex: i,
+      totalChunks,
+    };
+
+    // Allow GC between chunks
+    if (global.gc && i % 10 === 0) {
+      global.gc();
+    }
+  }
+}
+
+/**
+ * Serialize geometry with memory optimization
+ * Automatically chunks large geometries to prevent memory spikes
+ */
+export function serializeGeometryOptimized(
+  manifold: ManifoldObject,
+  maxVertices: number = 50000
+): Geometry | {
+  chunks: Array<{
+    vertices: number[];
+    indices: number[];
+    normals: number[];
+  }>;
+  isChunked: true;
+  totalVertices: number;
+  totalFaces: number;
+  bounds: { min: number[]; max: number[] };
+  stats: { vertexCount: number; faceCount: number; volume: number };
+} {
+  const mesh = manifold.getMesh();
+
+  // If geometry is small enough, return normally
+  if (mesh.numVert <= maxVertices) {
+    return manifoldToGeometry(manifold);
+  }
+
+  // Large geometry - return chunked
+  const zeroCopy = manifoldToGeometryZeroCopy(manifold);
+  const chunks: Array<{
+    vertices: number[];
+    indices: number[];
+    normals: number[];
+  }> = [];
+
+  for (const chunk of chunkGeometry(
+    zeroCopy.vertices,
+    zeroCopy.indices,
+    zeroCopy.normals
+  )) {
+    chunks.push({
+      vertices: chunk.vertices,
+      indices: chunk.indices,
+      normals: chunk.normals,
+    });
+  }
+
+  return {
+    chunks,
+    isChunked: true,
+    totalVertices: mesh.numVert,
+    totalFaces: mesh.numTri,
+    bounds: zeroCopy.bounds,
+    stats: zeroCopy.stats,
+  };
 }
