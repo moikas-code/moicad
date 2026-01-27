@@ -16,10 +16,12 @@ import { useViewportMenus } from '@/hooks/useViewportMenus';
 import type { EditorRef } from '@/components/Editor';
 import PrinterSettings from '@/components/PrinterSettings';
 import { getDefaultPrinter, PrinterPreset } from '@/lib/printer-presets';
+import RenderProgressBar from '@/components/RenderProgressBar';
+import type { RenderProgress } from '../../shared/types';
 
 function HomeContent() {
   // State management
-  const { code, setCode, hasUnsavedChanges, save } = useEditor();
+  const { code, setCode, loadFile, hasUnsavedChanges, save } = useEditor();
   const {
     geometry,
     loading,
@@ -30,11 +32,7 @@ function HomeContent() {
     clearGeometry,
   } = useGeometry();
 
-  const [renderProgress, setRenderProgress] = useState<{
-    stage: string;
-    percentage?: number;
-    time?: number;
-  } | null>(null);
+  const [renderProgress, setRenderProgress] = useState<RenderProgress | null>(null);
 
   const [printerSize, setPrinterSize] = useState<PrinterPreset>(getDefaultPrinter());
   const { connected: wsConnected } = useWebSocket();
@@ -80,23 +78,28 @@ function HomeContent() {
 
   const handleRender = async () => {
     if (editorRef.current) {
-      setRenderProgress({ stage: 'Starting render...', percentage: 0 });
+      setRenderProgress({
+        stage: 'initializing',
+        progress: 0,
+        message: 'Starting render...'
+      });
       await editorRef.current.render();
       setRenderProgress(null);
     }
   };
 
-  const handleRenderProgress = (progress: { stage: string; percentage?: number; time?: number }) => {
+  const handleRenderProgress = (progress: RenderProgress) => {
     setRenderProgress(progress);
   };
 
   const handleNew = () => {
-    setCode('cube(10);');
+    loadFile('cube(10);');
     clearGeometry();
   };
 
   const handleOpen = (loadedCode: string) => {
-    setCode(loadedCode);
+    loadFile(loadedCode);
+    clearGeometry();
   };
 
   const handleOpenFileManager = () => {
@@ -134,27 +137,8 @@ function HomeContent() {
           />
         </div>
       </div>
-      {renderProgress && (
-        <div className="mt-2 p-3 bg-[#3D3D3D] rounded">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-xs text-[#B0B0B0]">{renderProgress.stage}</span>
-            {renderProgress.percentage !== undefined && (
-              <span className="text-xs text-[#4772B3] font-semibold">{renderProgress.percentage}%</span>
-            )}
-          </div>
-          <div className="w-full h-2 bg-[#1D1D1D] rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-gradient-to-r from-[#4772B3] to-[#5A8BC7] transition-all duration-300 ease-out"
-              style={{ width: `${renderProgress.percentage || 0}%` }}
-            />
-          </div>
-          {renderProgress.time && (
-            <div className="mt-1 text-xs text-[#888888]">
-              {renderProgress.time}ms elapsed
-            </div>
-          )}
-        </div>
-      )}
+      {/* Use the new RenderProgressBar component */}
+      <RenderProgressBar progress={renderProgress} show={renderProgress !== null} />
       {error && (
         <div className="mt-2">
           <ErrorDisplay errors={error} />

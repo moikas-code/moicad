@@ -291,7 +291,7 @@ export interface CodeGeometryMap {
  * WebSocket message types
  */
 export interface WsMessage {
-  type: 'parse' | 'evaluate' | 'export' | 'error' | 'highlight' | 'select' | 'clear_highlight';
+  type: 'parse' | 'evaluate' | 'export' | 'error' | 'highlight' | 'select' | 'clear_highlight' | 'progress_update';
   payload: any;
 }
 
@@ -322,4 +322,70 @@ export interface ExportResult {
   data: ArrayBuffer | string;
   format: string;
   filename: string;
+}
+
+// ============================================================================
+// PROGRESSIVE RENDERING & PROGRESS TRACKING
+// ============================================================================
+
+/**
+ * Render progress stages
+ */
+export type RenderStage = 
+  | "initializing"
+  | "parsing"
+  | "analyzing"
+  | "evaluating"
+  | "chunking"
+  | "optimizing"
+  | "combining"
+  | "serializing"
+  | "complete"
+  | "error";
+
+/**
+ * Progress update for long-running renders
+ */
+export interface RenderProgress {
+  stage: RenderStage;
+  progress: number; // 0-1 (0% to 100%)
+  message: string;
+  details?: {
+    memoryUsageMB?: number;
+    currentChunk?: number;
+    totalChunks?: number;
+    verticesProcessed?: number;
+    totalVertices?: number;
+    nodesProcessed?: number;
+    totalNodes?: number;
+    estimatedTimeRemainingMs?: number;
+  };
+}
+
+/**
+ * WebSocket message for progress updates
+ */
+export interface ProgressMessage {
+  type: "progress_update";
+  requestId: string;
+  progress: RenderProgress;
+  timestamp: number;
+}
+
+/**
+ * Chunked evaluation result (partial geometry)
+ */
+export interface ChunkedGeometry {
+  chunks: Array<{
+    vertices: number[];
+    indices: number[];
+    normals: number[];
+    chunkIndex: number;
+  }>;
+  isChunked: true;
+  totalChunks: number;
+  totalVertices: number;
+  totalFaces: number;
+  bounds: { min: number[]; max: number[] };
+  stats: { vertexCount: number; faceCount: number; volume: number };
 }

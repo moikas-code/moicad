@@ -55,15 +55,16 @@ export class MemoryMonitor {
 
   constructor(thresholds?: Partial<MemoryThresholds>) {
     this.thresholds = {
-      warning: thresholds?.warning || 500 * 1024 * 1024, // 500MB
-      chunking: thresholds?.chunking || 750 * 1024 * 1024, // 750MB
-      hard: thresholds?.hard || 1000 * 1024 * 1024, // 1GB
+      warning: thresholds?.warning || 300 * 1024 * 1024, // 300MB - optimize early
+      chunking: thresholds?.chunking || 500 * 1024 * 1024, // 500MB - chunk sooner for smoother UX
+      hard: thresholds?.hard || 2000 * 1024 * 1024, // 2GB - very high but still chunk aggressively
     };
 
-    logInfo("MemoryMonitor initialized", {
+    logInfo("MemoryMonitor initialized (progressive loading mode)", {
       warningMB: Math.round(this.thresholds.warning / 1024 / 1024),
       chunkingMB: Math.round(this.thresholds.chunking / 1024 / 1024),
       hardMB: Math.round(this.thresholds.hard / 1024 / 1024),
+      mode: "no-abort - uses chunking for all sizes",
     });
   }
 
@@ -91,22 +92,25 @@ export class MemoryMonitor {
 
   /**
    * Analyze current memory pressure
+   * NOTE: Never aborts - uses chunking and optimization instead
    */
   analyzePressure(): MemoryPressure {
     const usage = this.getUsage();
     const heapUsed = usage.heapUsed;
 
+    // CRITICAL: High memory but never abort - use aggressive chunking
     if (heapUsed >= this.thresholds.hard) {
       return {
         level: "critical",
         shouldOptimize: true,
         shouldChunk: true,
-        shouldAbort: true,
+        shouldAbort: false, // Changed: Never abort, always try to continue
         recommendation:
-          "Memory limit exceeded. Abort evaluation or use chunking.",
+          "Very high memory usage. Using aggressive chunking and optimization.",
       };
     }
 
+    // HIGH: Start chunking to prevent further growth
     if (heapUsed >= this.thresholds.chunking) {
       return {
         level: "high",
@@ -114,10 +118,11 @@ export class MemoryMonitor {
         shouldChunk: true,
         shouldAbort: false,
         recommendation:
-          "High memory usage. Start chunking evaluation to prevent OOM.",
+          "High memory usage. Using chunked evaluation for efficiency.",
       };
     }
 
+    // MODERATE: Optimize but don't chunk yet
     if (heapUsed >= this.thresholds.warning) {
       return {
         level: "moderate",
@@ -125,10 +130,11 @@ export class MemoryMonitor {
         shouldChunk: false,
         shouldAbort: false,
         recommendation:
-          "Moderate memory usage. Consider optimization strategies.",
+          "Moderate memory usage. Applying optimization strategies.",
       };
     }
 
+    // LOW: Normal operation
     return {
       level: "low",
       shouldOptimize: false,

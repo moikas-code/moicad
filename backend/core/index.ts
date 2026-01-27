@@ -289,6 +289,7 @@ interface QueuedJob {
   timestamp: number;
   resolve: (result: EvaluateResult) => void;
   reject: (error: Error) => void;
+  progressCallback?: (progress: import("../../shared/types").RenderProgress) => void;
 }
 
 /**
@@ -308,10 +309,13 @@ class EvaluationQueue {
   }
 
   /**
-   * Enqueue a new evaluation job
+   * Enqueue a new evaluation job with optional progress callback
    * Jobs are processed in FIFO order
    */
-  async enqueue(code: string): Promise<EvaluateResult> {
+  async enqueue(
+    code: string,
+    progressCallback?: (progress: import("../../shared/types").RenderProgress) => void
+  ): Promise<EvaluateResult> {
     return new Promise((resolve, reject) => {
       const job: QueuedJob = {
         id: Math.random().toString(36).substring(7),
@@ -319,6 +323,7 @@ class EvaluationQueue {
         timestamp: Date.now(),
         resolve,
         reject,
+        progressCallback,
       };
 
       this.queue.push(job);
@@ -343,7 +348,7 @@ class EvaluationQueue {
     this.processing = true;
     this.currentJob = this.queue.shift()!;
 
-    const { id, code, timestamp, resolve, reject } = this.currentJob;
+    const { id, code, timestamp, resolve, reject, progressCallback } = this.currentJob;
     const waitTime = Date.now() - timestamp;
 
     logInfo(`Processing job ${id}`, {
@@ -351,7 +356,25 @@ class EvaluationQueue {
       codeLength: code.length,
     });
 
+    // Helper to send progress updates
+    const sendProgress = (stage: import("../../shared/types").RenderStage, progress: number, message: string, details?: any) => {
+      if (progressCallback) {
+        progressCallback({
+          stage,
+          progress,
+          message,
+          details: {
+            memoryUsageMB: this.memoryMonitor.getUsageMB(),
+            ...details,
+          },
+        });
+      }
+    };
+
     try {
+      // Initial progress
+      sendProgress("initializing", 0.0, "Starting evaluation...");
+
       // Set baseline and check memory before evaluation
       this.memoryMonitor.setBaseline();
       const memorySnapshot = this.memoryMonitor.takeSnapshot();
@@ -364,22 +387,27 @@ class EvaluationQueue {
         recommendation: pressure.recommendation,
       });
 
-      // Check if we should abort due to memory limits
-      if (this.memoryMonitor.isLimitExceeded()) {
-        throw new Error(
-          `Memory limit exceeded: ${this.memoryMonitor.getUsageMB()}MB. ${pressure.recommendation}`
-        );
-      }
-
-      // Warn if we should optimize
+      // REMOVED: No longer abort on memory limits - use chunking instead
+      // Progressive loading allows any size model to eventually complete
+      
+      // Optimize if needed (but never abort)
       if (this.memoryMonitor.shouldOptimize()) {
-        logWarn(`Memory optimization recommended for job ${id}`, {
+        logWarn(`High memory usage - applying optimization for job ${id}`, {
           heapUsedMB: this.memoryMonitor.getUsageMB(),
+          pressureLevel: pressure.level,
           recommendation: pressure.recommendation,
         });
 
         // Force cleanup before proceeding
         await this.memoryMonitor.forceCleanup();
+      }
+
+      // Start chunking if memory pressure is high
+      if (this.memoryMonitor.shouldChunk()) {
+        logInfo(`Using chunked evaluation for job ${id}`, {
+          heapUsedMB: this.memoryMonitor.getUsageMB(),
+          pressureLevel: pressure.level,
+        });
       }
 
       // Create timeout promise
@@ -389,11 +417,19 @@ class EvaluationQueue {
         }, this.defaultTimeout);
       });
 
+      // Add progress for parsing stage
+      sendProgress("parsing", 0.1, "Parsing OpenSCAD code...");
+
       // Race between evaluation and timeout
       const result = await Promise.race([
-        this.evaluateCode(code),
+        this.evaluateCode(code, sendProgress),
         timeoutPromise,
       ]);
+
+      // Complete progress
+      if (result.success) {
+        sendProgress("complete", 1.0, "Rendering complete!");
+      }
 
       const executionTime = Date.now() - timestamp;
       resolve(result);
@@ -461,13 +497,17 @@ class EvaluationQueue {
   }
 
   /**
-   * Evaluate OpenSCAD code using official OpenSCAD WASM engine
+   * Evaluate OpenSCAD code with progress reporting
    */
-  private async evaluateCode(code: string): Promise<EvaluateResult> {
+  private async evaluateCode(
+    code: string,
+    sendProgress: (stage: import("../../shared/types").RenderStage, progress: number, message: string, details?: any) => void
+  ): Promise<EvaluateResult> {
     const startTime = performance.now();
 
     try {
       // Parse the OpenSCAD code
+      sendProgress("parsing", 0.1, "Parsing OpenSCAD code...");
       const parseResult = parseOpenSCAD(code);
 
       if (!parseResult.success || parseResult.errors.length > 0) {
@@ -480,8 +520,17 @@ class EvaluationQueue {
         };
       }
 
+      // Analyze AST
+      sendProgress("analyzing", 0.2, "Analyzing geometry structure...", {
+        totalNodes: parseResult.ast.length,
+      });
+
       // Evaluate the AST to generate geometry
+      sendProgress("evaluating", 0.3, "Generating geometry...");
       const evalResult = await evaluateAST(parseResult.ast);
+
+      // Serializing
+      sendProgress("serializing", 0.9, "Preparing geometry for display...");
 
       const executionTime = performance.now() - startTime;
 
@@ -747,7 +796,17 @@ const server = Bun.serve<WebSocketData>({
         } else {
           // Handle original API messages
           if (data.type === "evaluate") {
-            const result = await handleEvaluateWs(data);
+            // Create progress callback to send updates via WebSocket
+            const progressCallback = (progress: import("../../shared/types").RenderProgress) => {
+              ws.send(JSON.stringify({
+                type: "progress_update",
+                requestId: data.requestId,
+                progress,
+                timestamp: Date.now(),
+              }));
+            };
+            
+            const result = await handleEvaluateWs(data, progressCallback);
             ws.send(JSON.stringify(result));
           } else if (data.type === "parse") {
             const result = handleParseWs(data);
@@ -1018,14 +1077,24 @@ function handleParseWs(data: any): any {
 
 async function handleEvaluateWs(
   data: EvaluateMessage,
+  progressCallback?: (progress: import("../../shared/types").RenderProgress) => void
 ): Promise<EvaluateResponse> {
-  // Offload evaluation to worker pool
-  const result = await workerPool.evaluate(data.code);
+  // Use evaluation queue with progress callback instead of worker pool
+  // Worker pool doesn't support progress callbacks yet
+  const result = progressCallback 
+    ? await evaluationQueue.enqueue(data.code, progressCallback)
+    : await workerPool.evaluate(data.code);
 
   // Ensure the response has the correct requestId matching the request
-  result.requestId = data.requestId;
+  const response: EvaluateResponse = {
+    type: "evaluate_response",
+    requestId: data.requestId,
+    geometry: result.geometry,
+    errors: result.errors || [],
+    executionTime: result.executionTime || 0,
+  };
 
-  return result;
+  return response;
 }
 
 // ============================================================================

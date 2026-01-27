@@ -21,10 +21,17 @@ export function useEditor(initialCode: string = 'cube(10);') {
     }
   }, []);
 
-  // Update code
+  // Update code (marks as unsaved)
   const updateCode = useCallback((newCode: string) => {
     setCode(newCode);
     setHasUnsavedChanges(true);
+  }, []);
+
+  // Load file (doesn't mark as unsaved)
+  const loadFile = useCallback((newCode: string, fileId?: string) => {
+    setCode(newCode);
+    setSavedFileId(fileId || null);
+    setHasUnsavedChanges(false);
   }, []);
 
   // Save file
@@ -48,6 +55,7 @@ export function useEditor(initialCode: string = 'cube(10);') {
   return {
     code,
     setCode: updateCode,
+    loadFile,
     hasUnsavedChanges,
     cursorPosition,
     setCursorPosition,
