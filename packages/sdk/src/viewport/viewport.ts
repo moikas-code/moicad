@@ -215,7 +215,9 @@ export class Viewport {
    */
   dispose(): void {
     if (this.animationId) {
-      cancelAnimationFrame(this.animationId);
+      if (typeof cancelAnimationFrame !== 'undefined') {
+        cancelAnimationFrame(this.animationId);
+      }
     }
 
     if (this.mesh) {

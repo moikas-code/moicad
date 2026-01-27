@@ -1,0 +1,13 @@
+{
+  "name": "@moicad/sdk-tests",
+  "type": "module",
+  "scripts": {
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@moicad/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "bun-types": "latest"
+  }
+}
