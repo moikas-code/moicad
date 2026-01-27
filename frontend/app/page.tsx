@@ -108,8 +108,8 @@ function HomeContent() {
           label: 'Boolean Operations',
           action: () => {
             const template = language === 'javascript'
-              ? `import { Shape } from 'moicad';\n\n// Cube with spherical cutout\nconst cube = Shape.cube([20, 20, 10]);\nconst sphere = Shape.sphere(8).translate([10, 10, 0]);\n\nexport default cube.subtract(sphere);`
-              : 'difference() {\n  cube([20, 20, 10]);\n  translate([10, 10, 0]) sphere(8);\n}';
+              ? `import { Shape } from 'moicad';\n\n// Cube with spherical cutout\nconst cube = Shape.cube([20, 20, 10]);\nconst sphere = Shape.sphere(8).translate([10, 10, 5]);\n\nexport default cube.subtract(sphere);`
+              : 'difference() {\n  cube([20, 20, 10]);\n  translate([10, 10, 5]) sphere(8);\n}';
             loadFile(template);
             clearGeometry();
           }
