@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
-import { parseOpenSCAD } from './backend/scad-parser.ts';
-import { evaluateAST } from './backend/scad-evaluator.ts';
+import { parseOpenSCAD } from '../backend/scad/parser.ts';
+import { evaluateAST } from '../backend/scad/evaluator.ts';
 import * as wasmModule from './wasm/pkg/moicad_wasm.js';
 
 // Wait for WASM module to initialize

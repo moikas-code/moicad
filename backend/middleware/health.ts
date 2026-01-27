@@ -1,4 +1,4 @@
-import logger, { logInfo, logError } from './logger';
+import logger, { logInfo, logError } from '../core/logger';
 
 // Health check endpoint handler
 export function healthCheck(): Response {

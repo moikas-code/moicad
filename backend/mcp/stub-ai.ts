@@ -17,9 +17,9 @@ import type {
   ValidationResult,
   ValidationContext,
   StubTemplate
-} from '../shared/ai-types';
+} from '../../shared/ai-types';
 
-import { AIProviderError } from '../shared/ai-types';
+import { AIProviderError } from '../../shared/ai-types';
 
 // =============================================================================
 // STUB AI PROVIDER

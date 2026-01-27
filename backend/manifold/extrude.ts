@@ -5,9 +5,9 @@
  * These replace the Rust WASM extrusion implementations.
  */
 
-import type { ManifoldObject } from "./manifold-types";
-import { getManifold, getManifoldWasm } from "./manifold-engine";
-import * as Ops2D from "./manifold-2d";
+import type { ManifoldObject } from "./types";
+import { getManifold, getManifoldWasm } from "./engine";
+import * as Ops2D from "./2d";
 
 /**
  * Linear extrude - Extrude a 2D shape along the Z-axis

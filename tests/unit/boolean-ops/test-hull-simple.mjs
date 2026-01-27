@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 
-import { parseOpenSCAD } from './backend/scad-parser.js';
-import { evaluateAST } from './backend/scad-evaluator.js';
-import { initializeWASM } from './backend/index.js';
+import { parseOpenSCAD } from '../backend/scad/parser.js';
+import { evaluateAST } from '../backend/scad/evaluator.js';
+import { initializeWASM } from '../backend/core/index.js';
 
 // Initialize WASM module
 const wasmModule = await initializeWASM();

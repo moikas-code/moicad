@@ -5,8 +5,8 @@
  * These replace the Rust WASM primitive generators.
  */
 
-import { getManifold } from './manifold-engine';
-import type { ManifoldObject } from './manifold-types';
+import { getManifold } from './engine';
+import type { ManifoldObject } from './types';
 
 /**
  * Create a cube/box

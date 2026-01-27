@@ -16,9 +16,9 @@ import type {
   ValidationWarning,
   RiskLevel,
   CodeContext
-} from '../shared/ai-types';
+} from '../../shared/ai-types';
 
-import type { ScadNode } from '../shared/types';
+import type { ScadNode } from '../../shared/types';
 
 // =============================================================================
 // CORE SUGGESTION ENGINE

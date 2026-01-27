@@ -5,8 +5,8 @@
 import type { 
   User, Session, Project, MCPMessage, 
   APIResponse, APIError, JoinSessionRequest 
-} from '../shared/mcp-types';
-import { mcpStore } from './mcp-store';
+} from '../../shared/mcp-types';
+import { mcpStore } from './store';
 
 // =============================================================================
 // AUTHENTICATION MIDDLEWARE

@@ -12,8 +12,8 @@ import type {
   Suggestion,
   ChatMessage,
   Invitation,
-} from "../shared/mcp-types";
-import { mcpStore } from "./mcp-store";
+} from "../../shared/mcp-types";
+import { mcpStore } from "./store";
 import {
   createAuthMiddleware,
   createSessionMiddleware,
@@ -30,7 +30,7 @@ import {
   checkProjectPermission,
   checkSessionPermission,
   ValidationError,
-} from "./mcp-middleware";
+} from "./middleware";
 
 const authMiddleware = createAuthMiddleware();
 const sessionMiddleware = createSessionMiddleware();

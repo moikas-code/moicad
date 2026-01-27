@@ -1,5 +1,5 @@
-import { parseOpenSCAD } from './backend/scad-parser.ts';
-import { evaluateAST, initWasm } from './backend/scad-evaluator.ts';
+import { parseOpenSCAD } from '../backend/scad/parser.ts';
+import { evaluateAST, initWasm } from '../backend/scad/evaluator.ts';
 
 async function testEvaluation() {
   console.log('Testing children() evaluation...');

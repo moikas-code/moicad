@@ -1,5 +1,5 @@
-import { parseOpenSCAD } from './backend/scad-parser.ts';
-import { evaluateAST, initWasm } from './backend/scad-evaluator.ts';
+import { parseOpenSCAD } from '../backend/scad/parser.ts';
+import { evaluateAST, initWasm } from '../backend/scad/evaluator.ts';
 import * as wasmModule from './wasm/pkg/moicad_wasm.js';
 
 interface TestResult {

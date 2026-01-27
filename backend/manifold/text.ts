@@ -5,9 +5,9 @@
  * Creates extruded text from basic geometric shapes representing characters.
  */
 
-import { getManifold, initManifold } from "./manifold-engine";
-import type { ManifoldObject } from "./manifold-types";
-import * as Ops2D from "./manifold-2d";
+import { getManifold, initManifold } from "./engine";
+import type { ManifoldObject } from "./types";
+import * as Ops2D from "./2d";
 
 // Simple bitmap font data for ASCII characters
 // Each character is represented as a list of rectangular regions [x, y, width, height]
@@ -549,7 +549,7 @@ export async function createText2D(
   } = {},
 ): Promise<any> {
   await initManifold();
-  const { getManifoldWasm } = await import("./manifold-engine");
+  const { getManifoldWasm } = await import("./engine");
   const wasm = getManifoldWasm();
 
   const {

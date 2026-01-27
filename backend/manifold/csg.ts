@@ -5,8 +5,8 @@
  * These replace the Rust BSP-tree implementations.
  */
 
-import type { ManifoldObject } from "./manifold-types";
-import { getManifold } from "./manifold-engine";
+import type { ManifoldObject } from "./types";
+import { getManifold } from "./engine";
 
 /**
  * Union (Boolean OR) - Combine two manifolds

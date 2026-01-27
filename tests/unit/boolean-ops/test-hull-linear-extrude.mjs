@@ -5,8 +5,8 @@
  * This is the specific failing case that was reported
  */
 
-import { parseOpenSCAD } from "./backend/scad-parser.ts";
-import { evaluateAST, setWasmModule } from "./backend/scad-evaluator.ts";
+import { parseOpenSCAD } from "../backend/scad/parser";
+import { evaluateAST, setWasmModule } from "../backend/scad/evaluator";
 import * as wasmModule from "./wasm/pkg/moicad_wasm.js";
 
 // Initialize WASM module

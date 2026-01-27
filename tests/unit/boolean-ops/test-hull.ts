@@ -4,8 +4,8 @@
  * Tests various edge cases to identify potential degradation scenarios
  */
 
-import { parseAndEvaluate } from './backend/scad-evaluator';
-import { initializeWASM } from './backend/index';
+import { parseAndEvaluate } from '../backend/scad/evaluator';
+import { initializeWASM } from '../backend/core/index';
 
 // Initialize WASM first
 await initializeWASM();

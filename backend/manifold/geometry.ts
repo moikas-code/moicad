@@ -5,13 +5,13 @@
  * Handles metadata preservation through CSG operations.
  */
 
-import type { Geometry } from "../shared/types";
+import type { Geometry } from "../../shared/types";
 import type {
   ManifoldObject,
   ManifoldMesh,
   ManifoldWithMeta,
-} from "./manifold-types";
-import { getManifold } from "./manifold-engine";
+} from "./types";
+import { getManifold } from "./engine";
 
 /**
  * Convert a Manifold object to moicad's Geometry format

@@ -4,9 +4,9 @@ import type {
   EvaluateResult,
   EvaluationError,
   ModifierInfo,
-} from "../shared/types";
-import { readTextFile, readTextFileSync, parseSurfaceData } from "./file-utils";
-import logger, { logWarn, logInfo, logDebug, logError } from "./logger";
+} from "../../shared/types";
+import { readTextFile, readTextFileSync, parseSurfaceData } from "../utils/file-utils";
+import logger, { logWarn, logInfo, logDebug, logError } from "../core/logger";
 
 // Import manifold-based evaluator (replaces WASM CSG engine)
 import {
@@ -23,14 +23,14 @@ import {
   updateContext,
   type EvalContext,
   type EvalParams,
-} from "./manifold-evaluator";
-import type { ManifoldObject } from "./manifold-types";
-import * as CSG from "./manifold-csg";
-import * as Transforms from "./manifold-transforms";
-import * as Extrude from "./manifold-extrude";
-import { manifoldToGeometry, parseColor } from "./manifold-geometry";
-import * as Ops2D from "./manifold-2d";
-import * as Surface from "./manifold-surface";
+} from "../manifold/evaluator";
+import type { ManifoldObject } from "../manifold/types";
+import * as CSG from "../manifold/csg";
+import * as Transforms from "../manifold/transforms";
+import * as Extrude from "../manifold/extrude";
+import { manifoldToGeometry, parseColor } from "../manifold/geometry";
+import * as Ops2D from "../manifold/2d";
+import * as Surface from "../manifold/surface";
 
 /**
  * OpenSCAD Evaluator - Executes AST using Manifold CSG engine
@@ -495,7 +495,7 @@ async function evaluatePrimitive(
         const text_font = params.font ?? "Liberation Sans";
 
         try {
-          const Text = await import("./manifold-text");
+          const Text = await import("../manifold/text");
           geometry = await Text.createText(text_content, {
             size: text_size,
             halign: text_halign,
@@ -2393,7 +2393,7 @@ async function evaluateImport(
     const fileContent = await Bun.file(filePath).text();
 
     // Parse the imported file
-    const { parseOpenSCAD } = await import("./scad-parser.ts");
+    const { parseOpenSCAD } = await import("./parser");
     const parseResult = parseOpenSCAD(fileContent);
 
     if (!parseResult.success) {

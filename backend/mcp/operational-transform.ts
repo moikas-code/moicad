@@ -3,7 +3,7 @@
  * Implements conflict-free collaborative editing with comprehensive OT algorithms
  */
 
-import type { ChangeDelta, CursorPosition, SelectionRange } from '../shared/mcp-types';
+import type { ChangeDelta, CursorPosition, SelectionRange } from '../../shared/mcp-types';
 
 // =============================================================================
 // CORE OT OPERATIONS

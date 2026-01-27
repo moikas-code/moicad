@@ -16,12 +16,12 @@ import type {
   VersionEntry,
   ProjectSnapshot,
   SessionParticipant,
-} from "../shared/mcp-types";
+} from "../../shared/mcp-types";
 import {
   OTSessionManager,
   OTDocumentState,
   generateOperationId,
-} from "./mcp-operational-transform";
+} from "./operational-transform";
 
 // =============================================================================
 // STORES

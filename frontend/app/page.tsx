@@ -8,7 +8,7 @@ import ErrorBoundary from '@/components/ErrorBoundary';
 import Editor from '@/components/Editor';
 import Viewport from '@/components/Viewport';
 import TopMenu from '@/components/TopMenu';
-import FileManager from '@/components/FileManager';
+import FileManager, { FileManagerRef } from '@/components/FileManager';
 import ErrorDisplay from '@/components/ErrorDisplay';
 import ResizablePanel from '@/components/ResizablePanel';
 import { ViewportControlsProvider } from '@/components/ViewportControlsContext';
@@ -40,7 +40,7 @@ function HomeContent() {
   const { connected: wsConnected } = useWebSocket();
 
   // File manager and editor refs
-  const fileManagerRef = React.useRef<any>(null);
+  const fileManagerRef = React.useRef<FileManagerRef>(null);
   const editorRef = React.useRef<any>(null);
 
   const customMenus = useViewportMenus();
@@ -100,7 +100,7 @@ function HomeContent() {
   };
 
   const handleOpenFileManager = () => {
-    fileManagerRef.current?.openFileManager?.();
+    fileManagerRef.current?.openFileManager();
   };
 
   // Build left (Editor) and right (Viewport) content for resizable panel
@@ -208,9 +208,7 @@ function HomeContent() {
       </div>
 
       {/* File Manager */}
-      <div ref={fileManagerRef}>
-        <FileManager onOpen={handleOpen} onNew={handleNew} />
-      </div>
+      <FileManager ref={fileManagerRef} onOpen={handleOpen} onNew={handleNew} />
     </div>
   );
 }

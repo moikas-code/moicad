@@ -18,17 +18,17 @@ import type {
   ProviderRegistryEntry,
   SuggestionCacheEntry,
   ValidationContext as SuggestionValidationContext,
-} from "../shared/ai-types";
+} from "../../shared/ai-types";
 
 import {
   AISuggestionError,
   AIProviderError,
   AIValidationError,
-} from "../shared/ai-types";
+} from "../../shared/ai-types";
 
-import type { MCPMessage } from "../shared/mcp-types";
-import { mcpStore } from "./mcp-store";
-import { suggestionEngine } from "./mcp-suggestion-engine";
+import type { MCPMessage } from "../../shared/mcp-types";
+import { mcpStore } from "./store";
+import { suggestionEngine } from "./suggestion-engine";
 
 // =============================================================================
 // MAIN AI MANAGER CLASS
@@ -516,7 +516,7 @@ export class MCPAIManager implements IAIManager {
   private async initializeDefaultProviders(): Promise<void> {
     try {
       // Import and register stub provider
-      const { stubProvider } = await import("./mcp-stub-ai");
+      const { stubProvider } = await import("./stub-ai");
       await this.registerProvider(stubProvider);
 
       console.log("Default AI providers initialized");

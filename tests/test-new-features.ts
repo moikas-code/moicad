@@ -2,8 +2,8 @@
  * Test new manifold features: surface, text, projection, minkowski, offset
  */
 
-import { evaluateAST, initManifoldEngine } from '../backend/scad-evaluator';
-import { parseOpenSCAD } from '../backend/scad-parser';
+import { evaluateAST, initManifoldEngine } from '../backend/scad/evaluator';
+import { parseOpenSCAD } from '../backend/scad/parser';
 
 async function runTest(name: string, code: string) {
   console.log(`\n--- Testing: ${name} ---`);

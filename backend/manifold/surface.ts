@@ -4,8 +4,8 @@
  * Creates 3D surfaces from heightmap data using manifold's levelSet function.
  */
 
-import { getManifold, getWasm } from './manifold-engine';
-import type { ManifoldObject } from './manifold-types';
+import { getManifold, getWasm } from './engine';
+import type { ManifoldObject } from './types';
 
 /**
  * Create a surface from heightmap data

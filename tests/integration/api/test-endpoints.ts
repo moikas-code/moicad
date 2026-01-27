@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { parseOpenSCAD } from "./backend/scad-parser.ts";
+import { parseOpenSCAD } from "../backend/scad/parser";
 
 interface TestResult {
   name: string;

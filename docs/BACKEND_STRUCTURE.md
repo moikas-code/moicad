@@ -1,56 +1,53 @@
 # Backend Structure - moicad
 
-Clean backend architecture with 29 active TypeScript files.
+Clean backend architecture with 29 active TypeScript files organized in a domain-driven structure.
 
 ## File Organization
 
-### Core Server (4 files)
-```
-index.ts                    # Main Bun server (REST + WebSocket + MCP)
-config.ts                   # Environment configuration
-logger.ts                   # Winston logging
-health-monitoring.ts        # Health checks and monitoring
-```
+### Domain-Driven Directory Structure
 
-### OpenSCAD Parser & Evaluator (2 files)
 ```
-scad-parser.ts              # Tokenizer + Parser → AST
-scad-evaluator.ts           # AST evaluator with manifold-3d
-```
-
-### Manifold-3d Integration (10 files)
-```
-manifold-engine.ts          # WASM module initialization
-manifold-types.ts           # TypeScript type definitions
-manifold-evaluator.ts       # High-level evaluator helpers
-manifold-primitives.ts      # cube, sphere, cylinder, cone, etc.
-manifold-csg.ts             # union, difference, intersection, hull, minkowski
-manifold-transforms.ts      # translate, rotate, scale, mirror, multmatrix
-manifold-geometry.ts        # Geometry conversion (manifold ↔ moicad format)
-manifold-2d.ts              # 2D operations (offset, projection)
-manifold-extrude.ts         # linear_extrude, rotate_extrude
-manifold-text.ts            # Text rendering with bitmap font
-manifold-surface.ts         # Heightmap surface generation
-```
-
-### MCP Server (Real-time Collaboration) (8 files)
-```
-mcp-server.ts               # WebSocket collaboration server
-mcp-api.ts                  # REST API for MCP features
-mcp-store.ts                # In-memory data store (users, sessions, projects)
-mcp-middleware.ts           # Authentication and WebSocket management
-mcp-ai-adapter.ts           # AI provider integration
-mcp-stub-ai.ts              # Stub AI provider for testing
-mcp-suggestion-engine.ts    # Code suggestions
-mcp-operational-transform.ts # OT for concurrent editing
-mcp-session-recorder.ts     # Session recording/playback
-```
-
-### Security & Utilities (3 files)
-```
-security-middleware.ts      # Input validation, sanitization, CORS
-rate-limiter.ts             # API rate limiting
-file-utils.ts               # File I/O for OpenSCAD includes
+backend/
+├── core/                   # Core server infrastructure
+│   ├── index.ts           # Main Bun server (REST + WebSocket + MCP)
+│   ├── config.ts          # Environment configuration
+│   ├── logger.ts          # Winston logging
+│   └── rate-limiter.ts    # API rate limiting
+│
+├── scad/                   # OpenSCAD language implementation
+│   ├── parser.ts          # Tokenizer + Parser → AST
+│   └── evaluator.ts       # AST evaluator with manifold-3d
+│
+├── manifold/               # Manifold-3d CSG engine integration
+│   ├── engine.ts          # WASM module initialization
+│   ├── types.ts           # TypeScript type definitions
+│   ├── evaluator.ts       # High-level evaluator helpers
+│   ├── geometry.ts        # Geometry conversion (manifold ↔ moicad)
+│   ├── primitives.ts      # cube, sphere, cylinder, cone, etc.
+│   ├── csg.ts             # union, difference, intersection, hull
+│   ├── transforms.ts      # translate, rotate, scale, mirror
+│   ├── 2d.ts              # 2D operations (offset, projection)
+│   ├── extrude.ts         # linear_extrude, rotate_extrude
+│   ├── text.ts            # Text rendering with bitmap font
+│   └── surface.ts         # Heightmap surface generation
+│
+├── mcp/                    # Model Context Protocol (collaboration)
+│   ├── server.ts          # WebSocket collaboration server
+│   ├── api.ts             # REST API for MCP features
+│   ├── store.ts           # In-memory data store
+│   ├── middleware.ts      # Authentication and validation
+│   ├── ai-adapter.ts      # AI provider integration
+│   ├── stub-ai.ts         # Stub AI provider for testing
+│   ├── suggestion-engine.ts # Code suggestions
+│   ├── operational-transform.ts # OT for concurrent editing
+│   └── session-recorder.ts # Session recording/playback
+│
+├── middleware/             # HTTP middleware
+│   ├── security.ts        # Input validation, CORS, headers
+│   └── health.ts          # Health checks and monitoring
+│
+└── utils/                  # Shared utilities
+    └── file-utils.ts      # File I/O for OpenSCAD includes
 ```
 
 ## Removed Files (10 files - 3078 lines)
@@ -79,36 +76,32 @@ file-utils.ts               # File I/O for OpenSCAD includes
 ## Architecture Overview
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                   index.ts (Main Server)                │
+┌──────────────────────────────────────────────────────────┐
+│              backend/core/index.ts (Main Server)         │
 │  • REST API: /api/parse, /api/evaluate, /api/export    │
 │  • WebSocket: /ws (real-time)                          │
 │  • MCP: /ws/mcp (collaboration)                        │
 │  • Health: /health                                     │
-└───────────┬──────────────────┬────────────────┬────────┘
+└───────────┬──────────────────┬────────────────┬─────────┘
             │                  │                │
-    ┌───────▼────────┐  ┌──────▼──────┐  ┌────▼────────┐
-    │  scad-parser   │  │ mcp-server  │  │ middleware  │
-    │   (Tokenizer   │  │(Collaboration)│ │(Security &  │
-    │    + Parser)   │  └─────────────┘  │Rate Limiting)│
-    └───────┬────────┘                   └─────────────┘
+    ┌───────▼────────┐  ┌──────▼──────┐  ┌────▼──────────┐
+    │  backend/scad/ │  │backend/mcp/ │  │backend/       │
+    │  • parser.ts   │  │• server.ts  │  │middleware/    │
+    │  • evaluator.ts│  │• api.ts     │  │• security.ts  │
+    └───────┬────────┘  │• store.ts   │  │• health.ts    │
+            │           └─────────────┘  └───────────────┘
             │
-    ┌───────▼────────┐
-    │ scad-evaluator │
-    │  (AST → CSG)   │
-    └───────┬────────┘
-            │
-    ┌───────▼─────────────────────────────────┐
-    │        manifold-3d Integration          │
-    │  • manifold-engine (WASM init)         │
-    │  • manifold-primitives (shapes)         │
-    │  • manifold-csg (Boolean ops)           │
-    │  • manifold-transforms (moves)          │
-    │  • manifold-geometry (conversion)       │
-    │  • manifold-2d (2D ops)                 │
-    │  • manifold-extrude (extrusions)        │
-    │  • manifold-text (text rendering)       │
-    │  • manifold-surface (heightmaps)        │
+    ┌───────▼──────────────────────────────────┐
+    │        backend/manifold/ (CSG Engine)    │
+    │  • engine.ts (WASM init)                │
+    │  • primitives.ts (shapes)               │
+    │  • csg.ts (Boolean ops)                 │
+    │  • transforms.ts (movements)            │
+    │  • geometry.ts (conversion)             │
+    │  • 2d.ts (2D operations)                │
+    │  • extrude.ts (extrusions)              │
+    │  • text.ts (text rendering)             │
+    │  • surface.ts (heightmaps)              │
     └─────────────────────────────────────────┘
 ```
 
@@ -116,29 +109,31 @@ file-utils.ts               # File I/O for OpenSCAD includes
 
 ### Core Flow
 ```
-index.ts
- ├─→ scad-parser.ts
- ├─→ scad-evaluator.ts
- │    ├─→ manifold-engine.ts
- │    ├─→ manifold-primitives.ts
- │    ├─→ manifold-csg.ts
- │    ├─→ manifold-transforms.ts
- │    ├─→ manifold-geometry.ts
- │    ├─→ manifold-2d.ts
- │    ├─→ manifold-extrude.ts
- │    ├─→ manifold-text.ts
- │    └─→ manifold-surface.ts
- ├─→ mcp-server.ts
- │    ├─→ mcp-api.ts
- │    ├─→ mcp-store.ts
- │    ├─→ mcp-middleware.ts
- │    ├─→ mcp-ai-adapter.ts
- │    ├─→ mcp-operational-transform.ts
- │    └─→ mcp-session-recorder.ts
- ├─→ security-middleware.ts
- ├─→ rate-limiter.ts
- ├─→ logger.ts
- └─→ config.ts
+backend/core/index.ts
+ ├─→ backend/scad/parser.ts
+ ├─→ backend/scad/evaluator.ts
+ │    ├─→ backend/manifold/engine.ts
+ │    ├─→ backend/manifold/primitives.ts
+ │    ├─→ backend/manifold/csg.ts
+ │    ├─→ backend/manifold/transforms.ts
+ │    ├─→ backend/manifold/geometry.ts
+ │    ├─→ backend/manifold/2d.ts
+ │    ├─→ backend/manifold/extrude.ts
+ │    ├─→ backend/manifold/text.ts
+ │    └─→ backend/manifold/surface.ts
+ ├─→ backend/mcp/server.ts
+ │    ├─→ backend/mcp/api.ts
+ │    ├─→ backend/mcp/store.ts
+ │    ├─→ backend/mcp/middleware.ts
+ │    ├─→ backend/mcp/ai-adapter.ts
+ │    ├─→ backend/mcp/operational-transform.ts
+ │    └─→ backend/mcp/session-recorder.ts
+ ├─→ backend/middleware/security.ts
+ ├─→ backend/middleware/health.ts
+ ├─→ backend/core/rate-limiter.ts
+ ├─→ backend/core/logger.ts
+ ├─→ backend/core/config.ts
+ └─→ backend/utils/file-utils.ts
 ```
 
 ## File Size Overview
@@ -152,30 +147,44 @@ index.ts
 - **Server & Utilities**: ~1000 lines (13%)
 
 ### Largest Files
-1. `scad-evaluator.ts` - ~1800 lines (AST evaluation logic)
-2. `mcp-server.ts` - ~1200 lines (WebSocket collaboration)
-3. `scad-parser.ts` - ~800 lines (Tokenizer + Parser)
-4. `mcp-operational-transform.ts` - ~600 lines (OT algorithm)
-5. `manifold-text.ts` - ~400 lines (Bitmap font rendering)
+1. `backend/scad/evaluator.ts` - ~2600 lines (AST evaluation logic)
+2. `backend/mcp/server.ts` - ~1800 lines (WebSocket collaboration)
+3. `backend/scad/parser.ts` - ~1500 lines (Tokenizer + Parser)
+4. `backend/mcp/store.ts` - ~845 lines (Data stores)
+5. `backend/mcp/operational-transform.ts` - ~800 lines (OT algorithm)
 
 ## Key Design Patterns
 
-### 1. Separation of Concerns
+### 1. Domain-Driven Organization
+- **Core**: Server infrastructure (config, logging, rate limiting)
+- **SCAD**: OpenSCAD language implementation (parser, evaluator)
+- **Manifold**: CSG engine integration (all geometry operations)
+- **MCP**: Collaboration features (WebSocket, AI, sessions)
+- **Middleware**: Cross-cutting concerns (security, health)
+- **Utils**: Shared utilities (file I/O)
+
+Benefits:
+- Easy to find related functionality (all manifold code in one place)
+- Clear boundaries between domains
+- Scalable as features grow
+- Intuitive for new developers
+
+### 2. Separation of Concerns
 - **Parser**: Only creates AST (no geometry)
 - **Evaluator**: Only executes AST (delegates to manifold)
 - **Manifold modules**: Single responsibility (primitives, CSG, transforms)
 
-### 2. Type Safety
-- `manifold-types.ts` provides TypeScript definitions
+### 3. Type Safety
+- `backend/manifold/types.ts` provides TypeScript definitions
 - All manifold functions return typed objects
 - No `any` types in core logic
 
-### 3. Error Handling
+### 4. Error Handling
 - Parser returns `ParseResult` with errors array
 - Evaluator returns `EvaluateResult` with errors array
 - Manifold operations catch and wrap exceptions
 
-### 4. Performance
+### 5. Performance
 - Single-threaded job queue (OpenSCAD-like behavior)
 - Geometry caching for common primitives
 - Garbage collection exposed for memory management

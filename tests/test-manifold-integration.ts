@@ -3,8 +3,8 @@
  * Tests that the full pipeline works: OpenSCAD code → AST → Manifold geometry
  */
 
-import { parseOpenSCAD } from '../backend/scad-parser';
-import { evaluateAST, initManifoldEngine } from '../backend/scad-evaluator';
+import { parseOpenSCAD } from '../backend/scad/parser';
+import { evaluateAST, initManifoldEngine } from '../backend/scad/evaluator';
 
 async function runTests() {
   console.log('=== Testing Manifold Integration with scad-evaluator ===\n');

@@ -28,9 +28,9 @@ moicad is a high-performance OpenSCAD clone built as a clean Bun monorepo:
 ```
 OpenSCAD Code
     ↓
-Parser (scad-parser.ts) → AST
+Parser (backend/scad/parser.ts) → AST
     ↓
-Evaluator (scad-evaluator.ts)
+Evaluator (backend/scad/evaluator.ts)
     ↓
 manifold-3d CSG Engine (npm package)
     ↓
@@ -135,46 +135,64 @@ bun run tauri:build:win
 
 ## Critical Architecture Details
 
-### Backend Structure (29 files, ~7500 lines)
+### Backend Structure (Domain-Driven Organization)
 
-**Core Server** (`backend/index.ts`)
-- Bun.serve() with REST + WebSocket + MCP
+The backend is organized into clear domain directories for better maintainability:
+
+**Core** (`backend/core/`)
+- `index.ts`: Main server with Bun.serve() REST + WebSocket + MCP
+- `config.ts`: Environment configuration and validation
+- `logger.ts`: Winston logging setup
+- `rate-limiter.ts`: Rate limiting middleware
 - Single-threaded job queue (OpenSCAD-like)
 - 30-second timeout per evaluation
 - Memory management with --expose-gc
 
-**Parser** (`backend/scad-parser.ts`)
-- Tokenizer: Lexical analysis of OpenSCAD syntax
-- Parser: Recursive descent parser with full expression support
-- Returns: `ParseResult { ast, errors, success }`
+**SCAD** (`backend/scad/`)
+- `parser.ts`: Tokenizer and recursive descent parser
+  - Lexical analysis of OpenSCAD syntax
+  - Returns: `ParseResult { ast, errors, success }`
+- `evaluator.ts`: AST execution engine
+  - Executes AST nodes using manifold-3d
+  - Scope management: variables, functions, modules
+  - Built-in functions: math, array, string operations
+  - Returns: `EvaluateResult { geometry, errors, success, executionTime }`
 
-**Evaluator** (`backend/scad-evaluator.ts`)
-- Executes AST nodes using manifold-3d
-- Scope management: variables, functions, modules
-- Built-in functions: math, array, string operations
-- Returns: `EvaluateResult { geometry, errors, success, executionTime }`
-
-**Manifold Integration** (11 files)
-- `manifold-engine.ts`: WASM module initialization
-- `manifold-primitives.ts`: cube, sphere, cylinder, cone, polygon, polyhedron, text, surface
-- `manifold-csg.ts`: union, difference, intersection, hull, minkowski
-- `manifold-transforms.ts`: translate, rotate, scale, mirror, multmatrix
-- `manifold-geometry.ts`: Conversion between manifold ↔ Geometry format
-- `manifold-2d.ts`: offset, projection
-- `manifold-extrude.ts`: linear_extrude, rotate_extrude
-- `manifold-text.ts`: ASCII text rendering with bitmap font
-- `manifold-surface.ts`: Heightmap surface generation
+**Manifold** (`backend/manifold/`) - CSG Engine Integration
+- `engine.ts`: manifold-3d WASM module initialization
+- `types.ts`: TypeScript type definitions for Manifold objects
+- `geometry.ts`: Conversion between manifold ↔ Geometry format
+- `primitives.ts`: cube, sphere, cylinder, cone, polygon, polyhedron
+- `csg.ts`: union, difference, intersection, hull, minkowski
+- `transforms.ts`: translate, rotate, scale, mirror, multmatrix
+- `2d.ts`: offset, projection
+- `extrude.ts`: linear_extrude, rotate_extrude
+- `text.ts`: ASCII text rendering with bitmap font
+- `surface.ts`: Heightmap surface generation
 
 **CRITICAL: TypedArray Serialization**
 - manifold-3d returns Float32Array/Uint32Array
 - JSON.stringify() serializes these as objects `{"0": val, "1": val}`
 - MUST convert to regular arrays: `Array.from(typedArray)`
-- See `manifold-geometry.ts` lines 34-39 for implementation
+- See `backend/manifold/geometry.ts` lines 34-39 for implementation
 
-**MCP Server** (`backend/mcp-server.ts`)
-- Model Context Protocol for AI integration
-- Exposes tools: evaluate_scad, parse_scad, export_geometry
-- Used by Claude Desktop and other AI agents
+**MCP** (`backend/mcp/`) - Model Context Protocol
+- `server.ts`: MCP WebSocket server for real-time collaboration
+- `api.ts`: REST API endpoints for project/session management
+- `store.ts`: In-memory data stores for users, projects, sessions
+- `ai-adapter.ts`: Pluggable AI provider system
+- `session-recorder.ts`: Session recording and playback
+- `middleware.ts`: Authentication and validation middleware
+- `operational-transform.ts`: OT algorithm for concurrent editing
+- `suggestion-engine.ts`: AI suggestion generation
+- `stub-ai.ts`: Stub AI provider for testing
+
+**Middleware** (`backend/middleware/`)
+- `security.ts`: Security headers, timeouts, size limits
+- `health.ts`: Health checks, metrics, probes
+
+**Utils** (`backend/utils/`)
+- `file-utils.ts`: File I/O utilities with security sandboxing
 
 ### Frontend Structure
 

@@ -5,7 +5,7 @@
  * These replace the Rust WASM transform implementations.
  */
 
-import type { ManifoldObject } from './manifold-types';
+import type { ManifoldObject } from './types';
 
 /**
  * Translate (move) a manifold

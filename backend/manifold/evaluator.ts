@@ -6,18 +6,18 @@
  * but uses manifold primitives and operations instead.
  */
 
-import type { ManifoldObject, ManifoldWithMeta } from './manifold-types';
-import { initManifold } from './manifold-engine';
-import * as Primitives from './manifold-primitives';
-import * as CSG from './manifold-csg';
-import * as Transforms from './manifold-transforms';
+import type { ManifoldObject, ManifoldWithMeta } from './types';
+import { initManifold } from './engine';
+import * as Primitives from './primitives';
+import * as CSG from './csg';
+import * as Transforms from './transforms';
 import {
   manifoldToGeometry,
   wrapWithMetadata,
   preserveMetadata,
   mergeMetadata
-} from './manifold-geometry';
-import type { Geometry } from '../shared/types';
+} from './geometry';
+import type { Geometry } from '../../shared/types';
 
 // ============================================================================
 // TYPES

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { loadAllFiles, deleteFile, SavedFile } from '@/lib/storage';
 
 interface FileManagerProps {
@@ -8,7 +8,11 @@ interface FileManagerProps {
   onNew: () => void;
 }
 
-export default function FileManager({ onOpen, onNew }: FileManagerProps) {
+export interface FileManagerRef {
+  openFileManager: () => void;
+}
+
+const FileManager = forwardRef<FileManagerRef, FileManagerProps>(({ onOpen, onNew }, ref) => {
   const [isOpen, setIsOpen] = useState(false);
   const [files, setFiles] = useState<SavedFile[]>([]);
 
@@ -36,6 +40,38 @@ export default function FileManager({ onOpen, onNew }: FileManagerProps) {
     setIsOpen(false);
   }, [onNew]);
 
+  const handleImportFile = useCallback(() => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.scad,.csg';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        try {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const code = event.target?.result as string;
+            onOpen(code);
+            setIsOpen(false);
+          };
+          reader.onerror = () => {
+            alert('Failed to read file');
+          };
+          reader.readAsText(file);
+        } catch (error) {
+          console.error('File import error:', error);
+          alert(`Import failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+    };
+    input.click();
+  }, [onOpen]);
+
+  // Expose openFileManager function to parent via ref
+  useImperativeHandle(ref, () => ({
+    openFileManager: handleOpen
+  }), [handleOpen]);
+
   return (
     <>
       {/* File Manager Dialog */}
@@ -44,13 +80,21 @@ export default function FileManager({ onOpen, onNew }: FileManagerProps) {
           <div className="bg-slate-800 rounded-lg border border-slate-700 p-6 max-w-lg w-full mx-4">
             <h2 className="text-lg font-bold text-white mb-4">File Manager</h2>
 
-            {/* New File Button */}
-            <button
-              onClick={handleNew}
-              className="w-full px-4 py-2 mb-4 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors font-medium"
-            >
-              New File
-            </button>
+            {/* Action Buttons */}
+            <div className="flex gap-2 mb-4">
+              <button
+                onClick={handleNew}
+                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors font-medium"
+              >
+                New File
+              </button>
+              <button
+                onClick={handleImportFile}
+                className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded transition-colors font-medium"
+              >
+                Import .scad
+              </button>
+            </div>
 
             {/* Files List */}
             <div className="max-h-96 overflow-y-auto">
@@ -95,17 +139,10 @@ export default function FileManager({ onOpen, onNew }: FileManagerProps) {
           </div>
         </div>
       )}
-
-      {/* Expose open function through component instance would be better via context/ref,
-          but for now expose via handler */}
-      <div
-        className="hidden"
-        ref={(el) => {
-          if (el) {
-            (el as any).openFileManager = handleOpen;
-          }
-        }}
-      />
     </>
   );
-}
+});
+
+FileManager.displayName = 'FileManager';
+
+export default FileManager;

@@ -7,8 +7,8 @@
 import fs from "fs";
 import path from "path";
 import net from "net";
-import { parseOpenSCAD } from "./scad-parser";
-import { evaluateAST, setWasmModule } from "./scad-evaluator";
+import { parseOpenSCAD } from "../scad/parser";
+import { evaluateAST, setWasmModule } from "../scad/evaluator";
 import type {
   EvaluateMessage,
   EvaluateResponse,
@@ -16,7 +16,7 @@ import type {
   EvaluateResult,
   Geometry,
   ExportResult,
-} from "../shared/types";
+} from "../../shared/types";
 import logger, { logInfo, logError, logWarn, logHttp } from "./logger";
 
 // Production middleware imports
@@ -25,21 +25,21 @@ import {
   securityMiddleware,
   requestTimeout,
   requestSizeLimit,
-} from "./security-middleware";
+} from "../middleware/security";
 import {
   healthCheck,
   metrics,
   readinessProbe,
   livenessProbe,
-} from "./health-monitoring";
+} from "../middleware/health";
 import { config, validateEnvironment } from "./config";
 
 // MCP imports
-import { mcpStore } from "./mcp-store";
-import { wsManager } from "./mcp-middleware";
-import { mcpWebSocketServer } from "./mcp-server";
-import * as mcpApi from "./mcp-api";
-import { aiManager } from "./mcp-ai-adapter";
+import { mcpStore } from "../mcp/store";
+import { wsManager } from "../mcp/middleware";
+import { mcpWebSocketServer } from "../mcp/server";
+import * as mcpApi from "../mcp/api";
+import { aiManager } from "../mcp/ai-adapter";
 
 // Dynamic import for WASM
 let wasmModule: any = null;

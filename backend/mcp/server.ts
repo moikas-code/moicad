@@ -17,20 +17,20 @@ import type {
   ViewportState,
   SelectionRange,
   VersionEntry,
-} from "../shared/mcp-types";
-import { mcpStore } from "./mcp-store";
-import { wsManager, auth } from "./mcp-middleware";
-import { parseOpenSCAD } from "./scad-parser";
-import { evaluateAST } from "./scad-evaluator";
-import { handleAIWebSocketMessage, aiManager } from "./mcp-ai-adapter";
+} from "../../shared/mcp-types";
+import { mcpStore } from "./store";
+import { wsManager, auth } from "./middleware";
+import { parseOpenSCAD } from "../scad/parser";
+import { evaluateAST } from "../scad/evaluator";
+import { handleAIWebSocketMessage, aiManager } from "./ai-adapter";
 import {
   OTSessionManager,
   transformCursor,
   transformSelection,
   generateOperationId,
   type Operation,
-} from "./mcp-operational-transform";
-import { sessionRecorder, playbackController } from "./mcp-session-recorder";
+} from "./operational-transform";
+import { sessionRecorder, playbackController } from "./session-recorder";
 
 // =============================================================================
 // WEBSOCKET MESSAGE HANDLERS

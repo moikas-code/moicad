@@ -5,8 +5,8 @@
  * between 2D CrossSection and 3D Manifold objects.
  */
 
-import { getManifold, getManifoldWasm } from "./manifold-engine";
-import type { ManifoldObject } from "./manifold-types";
+import { getManifold, getManifoldWasm } from "./engine";
+import type { ManifoldObject } from "./types";
 
 // Type for CrossSection objects
 export type CrossSectionObject = any;

@@ -10,7 +10,7 @@ import type {
   ChatMessage,
   SessionParticipant,
   EvaluationHistory,
-} from "../shared/mcp-types";
+} from "../../shared/mcp-types";
 
 // =============================================================================
 // RECORDING TYPES
