@@ -20,13 +20,17 @@ interface MenuSection {
   items: MenuItem[];
 }
 
+export type Language = 'openscad' | 'javascript';
+
 interface TopMenuProps {
   geometry: GeometryResponse | null;
   code: string;
+  language?: Language;
   onNew?: () => void;
   onOpenFiles?: () => void;
   onSave?: () => void;
   onExportGeometry?: () => void;
+  onLanguageChange?: (language: Language) => void;
   unsavedChanges?: boolean;
   customMenus?: Record<string, MenuSection>;
 }
@@ -34,10 +38,12 @@ interface TopMenuProps {
 export default function TopMenu({
   geometry,
   code,
+  language = 'openscad',
   onNew,
   onOpenFiles,
   onSave,
   onExportGeometry,
+  onLanguageChange,
   unsavedChanges,
   customMenus = {},
 }: TopMenuProps) {
@@ -175,9 +181,9 @@ export default function TopMenu({
         {/* Left side - Menu Bar */}
         <div className="flex items-center gap-3">
           {Object.entries(menus).map(([menuName, menuSection]) => (
-            <div 
-              key={menuName} 
-              className="relative" 
+            <div
+              key={menuName}
+              className="relative"
               ref={(el) => { menuRefs.current[menuName] = el; }}
             >
               <button
@@ -185,16 +191,16 @@ export default function TopMenu({
                 className="px-3 py-1 bg-[#454545] hover:bg-[#555555] text-white text-xs rounded transition-colors flex items-center gap-2"
               >
                 {menuName}
-                <svg 
-                  className={`w-3 h-3 transition-transform ${activeMenu === menuName ? 'rotate-180' : ''}`} 
-                  fill="none" 
-                  stroke="currentColor" 
+                <svg
+                  className={`w-3 h-3 transition-transform ${activeMenu === menuName ? 'rotate-180' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
                   viewBox="0 0 24 24"
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
-              
+
               {activeMenu === menuName && (
                 <div className="absolute top-full left-0 mt-1 bg-[#3D3D3D] border border-[#4D4D4D] rounded shadow-lg min-w-[160px] z-50">
                   {menuSection.items.map((item, index) => renderMenuItem(item, index))}
@@ -203,6 +209,19 @@ export default function TopMenu({
             </div>
           ))}
         </div>
+
+        {/* Right side - Language Selector */}
+        {onLanguageChange && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400">Language:</span>
+            <button
+              onClick={() => onLanguageChange(language === 'openscad' ? 'javascript' : 'openscad')}
+              className="px-3 py-1 bg-[#454545] hover:bg-[#555555] text-white text-xs rounded transition-colors font-medium"
+            >
+              {language === 'openscad' ? 'OpenSCAD' : 'JavaScript'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Export Dialog */}

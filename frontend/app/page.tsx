@@ -13,7 +13,7 @@ import ErrorDisplay from '@/components/ErrorDisplay';
 import ResizablePanel from '@/components/ResizablePanel';
 import { ViewportControlsProvider } from '@/components/ViewportControlsContext';
 import { useViewportMenus } from '@/hooks/useViewportMenus';
-import type { EditorRef } from '@/components/Editor';
+import type { EditorRef, Language } from '@/components/Editor';
 import PrinterSettings from '@/components/PrinterSettings';
 import { getDefaultPrinter, PrinterPreset } from '@/lib/printer-presets';
 import RenderProgressBar from '@/components/RenderProgressBar';
@@ -33,9 +33,31 @@ function HomeContent() {
   } = useGeometry();
 
   const [renderProgress, setRenderProgress] = useState<RenderProgress | null>(null);
+  const [language, setLanguage] = useState<Language>(() => {
+    // Load language preference from localStorage
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('moicad-language');
+      return (saved === 'javascript' ? 'javascript' : 'openscad') as Language;
+    }
+    return 'openscad';
+  });
 
   const [printerSize, setPrinterSize] = useState<PrinterPreset>(getDefaultPrinter());
   const { connected: wsConnected } = useWebSocket();
+
+  // Save language preference to localStorage
+  const handleLanguageChange = (newLanguage: Language) => {
+    setLanguage(newLanguage);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('moicad-language', newLanguage);
+    }
+    // Update code if switching to JavaScript for the first time
+    if (newLanguage === 'javascript' && code === 'cube(10);') {
+      setCode(`import { Shape } from 'moicad';\n\nexport default Shape.cube(10);`);
+    } else if (newLanguage === 'openscad' && code.includes('import { Shape')) {
+      setCode('cube(10);');
+    }
+  };
 
   // File manager and editor refs
   const fileManagerRef = React.useRef<FileManagerRef>(null);
@@ -128,6 +150,7 @@ function HomeContent() {
           <Editor
             ref={editorRef}
             code={code}
+            language={language}
             onChange={handleEditorChange}
             onErrors={handleEditorErrors}
             onGeometry={handleEditorGeometry}
@@ -176,12 +199,14 @@ function HomeContent() {
       <TopMenu
         geometry={geometry}
         code={code}
+        language={language}
         onNew={handleNew}
         onOpenFiles={handleOpenFileManager}
         onSave={() => save()}
         onExportGeometry={() => {
           console.log('Export geometry dialog requested');
         }}
+        onLanguageChange={handleLanguageChange}
         unsavedChanges={hasUnsavedChanges}
         customMenus={customMenus}
       />

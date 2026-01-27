@@ -7,8 +7,11 @@ import type { editor } from 'monaco-editor';
 
 import { RenderProgress } from '../../shared/types';
 
+export type Language = 'openscad' | 'javascript';
+
 interface EditorProps {
   code: string;
+  language?: Language;
   onChange: (code: string) => void;
   onErrors?: (errors: string[]) => void;
   onGeometry?: (geometry: any) => void;
@@ -23,6 +26,7 @@ export interface EditorRef {
 
 const EditorComponent = forwardRef<EditorRef, EditorProps>(function EditorComponent({
   code,
+  language = 'openscad',
   onChange,
   onErrors,
   onGeometry,
@@ -81,11 +85,15 @@ const EditorComponent = forwardRef<EditorRef, EditorProps>(function EditorCompon
     () => ({ render: renderGeometry })
   );
 
+  // Map language to Monaco editor language
+  const monacoLanguage = language === 'javascript' ? 'javascript' : 'cpp';
+
   return (
     <div className="w-full h-full">
       <Editor
         height="100%"
-        defaultLanguage="cpp"
+        defaultLanguage={monacoLanguage}
+        language={monacoLanguage}
         value={code}
         onChange={(value) => onChange(value || '')}
         onMount={handleEditorDidMount}

@@ -167,29 +167,21 @@ export function createPolyhedron(
  * @param points - Array of [x, y] points
  */
 export function createPolygon(points: number[][]): ManifoldObject {
-  // Convert 2D points to 3D (z=0) and create a very thin polyhedron
-  const points3D = points.map(([x, y]) => [x, y, 0]);
-  const pointsTop = points.map(([x, y]) => [x, y, 0.001]);
+  // Import here to avoid circular dependency
+  const { getManifoldWasm } = require('./engine');
+  const wasm = getManifoldWasm();
 
-  const allPoints = [...points3D, ...pointsTop];
+  // Use CrossSection to create a proper 2D polygon, then extrude to thin 3D
+  const points2D = points.map(([x, y]) => [x, y] as [number, number]);
 
-  // Create faces
-  const faces: number[][] = [];
-  const n = points.length;
+  // Create CrossSection from polygon points
+  const crossSection = wasm.CrossSection.ofPolygons([points2D]);
 
-  // Bottom face (reversed for correct winding)
-  faces.push([...Array(n).keys()].reverse());
+  // Extrude to a very thin manifold (0.001mm thick)
+  // This ensures the result is always a valid manifold
+  const manifold = crossSection.extrude(0.001, 1, 0, [1, 1], false);
 
-  // Top face
-  faces.push([...Array(n).keys()].map(i => i + n));
-
-  // Side faces
-  for (let i = 0; i < n; i++) {
-    const next = (i + 1) % n;
-    faces.push([i, next, next + n, i + n]);
-  }
-
-  return createPolyhedron(allPoints, faces);
+  return manifold;
 }
 
 /**

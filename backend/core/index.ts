@@ -9,6 +9,8 @@ import path from "path";
 import net from "net";
 import { parseOpenSCAD } from "../scad/parser";
 import { evaluateAST, setWasmModule } from "../scad/evaluator";
+import { evaluateJavaScript } from "../javascript/runtime";
+import { detectLanguage } from "./language-detector";
 import type {
   EvaluateMessage,
   EvaluateResponse,
@@ -501,7 +503,8 @@ class EvaluationQueue {
   }
 
   /**
-   * Evaluate OpenSCAD code with progress reporting
+   * Evaluate code (OpenSCAD or JavaScript) with progress reporting
+   * Auto-detects language and routes to appropriate evaluator
    */
   private async evaluateCode(
     code: string,
@@ -510,40 +513,61 @@ class EvaluationQueue {
     const startTime = performance.now();
 
     try {
-      // Parse the OpenSCAD code
-      sendProgress("parsing", 0.1, "Parsing OpenSCAD code...");
-      const parseResult = parseOpenSCAD(code);
+      // Detect language
+      const language = detectLanguage(code);
+      logInfo(`Code language detected: ${language}`);
 
-      if (!parseResult.success || parseResult.errors.length > 0) {
-        const executionTime = performance.now() - startTime;
+      if (language === 'javascript') {
+        // JavaScript evaluation path
+        sendProgress("parsing", 0.1, "Parsing JavaScript code...");
+        sendProgress("evaluating", 0.3, "Executing JavaScript code...");
+
+        const result = await evaluateJavaScript(code);
+
+        sendProgress("serializing", 0.9, "Preparing geometry for display...");
+
         return {
-          geometry: null,
-          errors: parseResult.errors,
-          success: false,
+          geometry: result.geometry,
+          errors: result.errors,
+          success: result.success,
+          executionTime: result.executionTime || (performance.now() - startTime),
+        };
+      } else {
+        // OpenSCAD evaluation path (original logic)
+        sendProgress("parsing", 0.1, "Parsing OpenSCAD code...");
+        const parseResult = parseOpenSCAD(code);
+
+        if (!parseResult.success || parseResult.errors.length > 0) {
+          const executionTime = performance.now() - startTime;
+          return {
+            geometry: null,
+            errors: parseResult.errors,
+            success: false,
+            executionTime,
+          };
+        }
+
+        // Analyze AST
+        sendProgress("analyzing", 0.2, "Analyzing geometry structure...", {
+          totalNodes: parseResult.ast.length,
+        });
+
+        // Evaluate the AST to generate geometry
+        sendProgress("evaluating", 0.3, "Generating geometry...");
+        const evalResult = await evaluateAST(parseResult.ast);
+
+        // Serializing
+        sendProgress("serializing", 0.9, "Preparing geometry for display...");
+
+        const executionTime = performance.now() - startTime;
+
+        return {
+          geometry: evalResult.geometry,
+          errors: evalResult.errors,
+          success: evalResult.success,
           executionTime,
         };
       }
-
-      // Analyze AST
-      sendProgress("analyzing", 0.2, "Analyzing geometry structure...", {
-        totalNodes: parseResult.ast.length,
-      });
-
-      // Evaluate the AST to generate geometry
-      sendProgress("evaluating", 0.3, "Generating geometry...");
-      const evalResult = await evaluateAST(parseResult.ast);
-
-      // Serializing
-      sendProgress("serializing", 0.9, "Preparing geometry for display...");
-
-      const executionTime = performance.now() - startTime;
-
-      return {
-        geometry: evalResult.geometry,
-        errors: evalResult.errors,
-        success: evalResult.success,
-        executionTime,
-      };
     } catch (error: any) {
       const executionTime = performance.now() - startTime;
 

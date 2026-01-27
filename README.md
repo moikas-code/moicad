@@ -1,6 +1,31 @@
 # moicad - Modern OpenSCAD CAD Engine
 
-A high-performance, web-based OpenSCAD clone built with modern JavaScript technologies and powered by manifold-3d for guaranteed manifold geometry.
+A high-performance, web-based CAD engine supporting both **OpenSCAD** and **JavaScript/TypeScript**. Built with modern technologies and powered by manifold-3d for guaranteed manifold geometry.
+
+## 🎯 Dual-Language Support
+
+**Write CAD models in your preferred language:**
+
+### OpenSCAD (Traditional)
+```openscad
+difference() {
+  cube([20, 20, 10]);
+  translate([10, 10, 0])
+    sphere(8, $fn=32);
+}
+```
+
+### JavaScript/TypeScript (NEW! ⚡ 10-20x faster)
+```javascript
+import { Shape } from 'moicad';
+
+const box = Shape.cube([20, 20, 10]);
+const hole = Shape.sphere(8, { $fn: 32 }).translate([10, 10, 0]);
+
+export default box.subtract(hole);
+```
+
+**📚 Complete JavaScript API Documentation:** See [JAVASCRIPT_API.md](./JAVASCRIPT_API.md)
 
 ## 🚀 Architecture
 
@@ -9,22 +34,27 @@ A high-performance, web-based OpenSCAD clone built with modern JavaScript techno
 ```
 moicad/
 ├── backend/              # Bun server (REST API + WebSocket + MCP)
-│   ├── index.ts         # Main server entry point
-│   ├── scad-parser.ts   # OpenSCAD parser (tokenizer + AST)
-│   ├── scad-evaluator.ts # AST evaluator
-│   ├── manifold-*.ts    # Manifold-3d CSG engine integration
-│   └── mcp-server.ts    # MCP server for AI integration
+│   ├── core/            # Server core (language detection, routing)
+│   ├── javascript/      # JavaScript/Bun API runtime ⚡ NEW
+│   ├── scad/            # OpenSCAD parser & evaluator
+│   ├── manifold/        # Manifold-3d CSG engine integration
+│   ├── mcp/             # MCP server for AI integration
+│   └── middleware/      # Security, health checks
 ├── frontend/            # Next.js React app
 │   ├── app/            # Next.js 16 app directory
-│   ├── components/     # React components
+│   ├── components/     # React components (Editor, Viewport, etc.)
 │   ├── lib/            # Three.js viewport, API client
 │   └── hooks/          # Custom React hooks
 ├── shared/             # Shared TypeScript types
+├── examples/           # Example code
+│   ├── javascript/     # JavaScript API examples ⚡ NEW
+│   └── openscad/       # OpenSCAD examples
 ├── src-tauri/          # Tauri desktop app (optional)
 └── tests/              # Comprehensive test suite
 
 Tech Stack:
 - Runtime: Bun (TypeScript/JavaScript)
+- Languages: OpenSCAD + JavaScript/TypeScript ⚡
 - CSG Engine: manifold-3d (WebAssembly)
 - Backend: REST API + WebSocket + MCP
 - Frontend: Next.js 16 + React + Three.js
@@ -32,6 +62,42 @@ Tech Stack:
 ```
 
 ## ✨ Features
+
+### 🆕 JavaScript/TypeScript API (NEW!)
+
+**Modern CAD programming with 10-20x better performance:**
+- ✅ **Full API:** All OpenSCAD features + classes, async/await, npm packages
+- ✅ **Type Safety:** Complete TypeScript definitions with IntelliSense
+- ✅ **Two Styles:** Fluent (OOP) and Functional (FP) APIs
+- ✅ **Performance:** 1.6ms vs 32ms for simple cube (20x faster!)
+- ✅ **Modern:** ES6+, imports/exports, parametric classes
+- ✅ **Documented:** 400+ line API guide + 6 working examples
+
+**Quick Example:**
+```javascript
+import { Shape } from 'moicad';
+
+class Bolt {
+  constructor(length, diameter) {
+    this.length = length;
+    this.diameter = diameter;
+  }
+
+  build() {
+    const shaft = Shape.cylinder(this.length, this.diameter / 2);
+    const head = Shape.cylinder(this.diameter * 0.7, this.diameter * 0.9, { $fn: 6 })
+      .translate([0, 0, this.length]);
+    return shaft.union(head);
+  }
+}
+
+export default new Bolt(20, 6).build();
+```
+
+**📚 Learn More:**
+- [Complete API Documentation](./JAVASCRIPT_API.md) - 400+ line reference
+- [Examples](./examples/javascript/) - 6 complete examples
+- [Status Report](./JAVASCRIPT_API_STATUS.md) - Implementation details
 
 ### OpenSCAD Compatibility (98-99%)
 
