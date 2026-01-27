@@ -35,10 +35,12 @@
   "homepage": "https://moicad.moikas.com",
   "dependencies": {
     "manifold-3d": "^3.3.2",
+    "three": "0.182.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "@types/three": "0.182.0",
     "bun-types": "latest",
     "typescript": "^5.0.0"
   },
@@ -62,6 +64,10 @@
     "./scad": {
       "import": "./dist/scad/index.js",
       "types": "./dist/scad/index.d.ts"
+    },
+    "./viewport": {
+      "import": "./dist/viewport/index.js",
+      "types": "./dist/viewport/index.d.ts"
     }
   },
   "typesVersions": {
@@ -71,6 +77,9 @@
       ],
       "scad": [
         "dist/scad/index.d.ts"
+      ],
+      "viewport": [
+        "dist/viewport/index.d.ts"
       ]
     }
   }
