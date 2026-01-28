@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import Editor from '@monaco-editor/react';
-import { evaluateCode } from '/home/moika/Documents/code/moicad/packages/landing/lib/api-client';
+import { evaluateCode } from '../../lib/api-client';
 import type { editor } from 'monaco-editor';
 
 // Local type definitions for demo
