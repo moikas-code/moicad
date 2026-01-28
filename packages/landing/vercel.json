@@ -1,0 +1,6 @@
+{
+  "buildCommand": "cd ../sdk && bun run build && cd ../landing && bun run build",
+  "installCommand": "cd ../.. && bun install",
+  "framework": "nextjs",
+  "ignoreCommand": "git diff HEAD^ HEAD --quiet ."
+}
