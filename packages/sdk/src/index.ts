@@ -3,7 +3,7 @@
  *
  * A high-performance CAD library for JavaScript/TypeScript with 98-99% OpenSCAD compatibility.
  *
- * @version 0.1.5
+ * @version 0.1.7
  * @author moicad
  * @license MIT
  *
@@ -197,21 +197,21 @@ export type { SceneConfig, ViewportConfig, ViewportEventHandlers, CameraState } 
 // PLUGIN SYSTEM
 // ============================================================================
 
-export type { 
-  PluginManager, 
-  Plugin, 
-  PluginConfig, 
+export type {
+  PluginManager,
+  Plugin,
+  PluginConfig,
   PluginHook,
   PrimitiveFunction,
   TransformFunction,
   FileHandler,
   SCADFunction,
   ViewportExtension,
-  HookName 
+  HookName
 } from './plugins';
 
-export { 
-  DefaultPluginManager, 
+export {
+  DefaultPluginManager,
   pluginManager,
   PluginDiscovery,
   PluginLoader,
@@ -225,7 +225,7 @@ export { initializePlugins as initializeFunctionalPlugins } from './functional';
 // VERSION AND METADATA
 // ============================================================================
 
-export const VERSION = '0.1.5';
+export const VERSION = '0.1.7';
 
 export function getInfo() {
   return {

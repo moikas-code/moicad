@@ -1,7 +1,6 @@
 {
   "name": "@moicad/sdk",
-  "version": "0.1.6",
-  "type": "module",
+  "version": "0.1.7",
   "description": "Modern JavaScript CAD library with OpenSCAD compatibility",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
