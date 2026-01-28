@@ -20,14 +20,14 @@ export default function DemoViewport({ geometry, width, height }: DemoViewportPr
 
     // Simple 3D to 2D projection for visualization
     // Convert typed arrays to regular arrays for mapping
-    const verticesFlat = geometry.vertices
+    const verticesFlat: number[] = geometry.vertices
       ? (Array.isArray(geometry.vertices) ? Array.from(geometry.vertices) : [])
       : [];
-    const indices = geometry.indices
+    const indices: number[] = geometry.indices
       ? (Array.isArray(geometry.indices) ? Array.from(geometry.indices) : [])
       : [];
     const bounds = geometry.bounds || { min: [0, 0, 0], max: [10, 10, 10] };
-    const normalsFlat = geometry.normals
+    const normalsFlat: number[] = geometry.normals
       ? (Array.isArray(geometry.normals) ? Array.from(geometry.normals) : [])
       : [];
 

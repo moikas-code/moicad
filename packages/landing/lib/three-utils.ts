@@ -6,7 +6,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GeometryResponse } from "./api-client";
-import { Geometry, GeometryObject, HighlightInfo } from "../../shared/types";
+import { Geometry, GeometryObject, HighlightInfo } from "../shared/types";
 
 export interface SceneConfig {
   container: HTMLElement;
