@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "cd ../sdk && bun run build && cd ../landing && next build",
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
