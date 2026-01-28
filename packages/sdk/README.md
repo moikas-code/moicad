@@ -1,4 +1,4 @@
-# moicad-sdk v0.1.3
+# @moicad/sdk
 
 Modern JavaScript CAD Library with OpenSCAD Compatibility
 

@@ -3,7 +3,7 @@
  *
  * A high-performance CAD library for JavaScript/TypeScript with 98-99% OpenSCAD compatibility.
  *
- * @version 0.1.2
+ * @version 0.1.5
  * @author moicad
  * @license MIT
  *
@@ -225,7 +225,7 @@ export { initializePlugins as initializeFunctionalPlugins } from './functional';
 // VERSION AND METADATA
 // ============================================================================
 
-export const VERSION = '0.1.3';
+export const VERSION = '0.1.5';
 
 export function getInfo() {
   return {
