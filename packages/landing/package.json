@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"fd,
+    "lint": "next lint",
     "type-check": "tsc --noEmit",
     "docs:watch": "node scripts/watch-docs.js",
     "docs:generate": "cd ../sdk && bun run docs:json",
