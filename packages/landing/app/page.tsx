@@ -132,7 +132,7 @@ export default function HomePage() {
             See the Difference
           </h2>
 
-          <div className="grid md:grid-cols-2 gap-8">
+          <div className="sm:grid md:grid-cols-2 gap-8">
             <div className="bg-slate-800 p-6 rounded-xl">
               <h3 className="text-xl font-semibold text-blue-400 mb-4">
                 JavaScript (Modern)

@@ -37,16 +37,16 @@ const DocumentationPage: NextPage = () => {
 
   // Extract modules from TypeDoc data (kind: 2 = Module)
   const modules = (docData as any).children || [];
-  
+
   // Find the main module (empty name) which contains Shape class
   const mainModule = modules.find((mod: any) => mod.name === '');
-  
+
   // Extract Shape class (kind: 128 = Class)
   const shapeClass = mainModule?.children?.find((item: any) => item.name === 'Shape');
-  
+
   // Extract Shape methods (kind: 2048 = Method)
   const allShapeMethods = (shapeClass?.children || []).filter((item: any) => item.kind === 2048);
-  
+
   // Separate static and instance methods
   const staticMethods = allShapeMethods.filter((m: any) => m.flags?.isStatic);
   const instanceMethods = allShapeMethods.filter((m: any) => !m.flags?.isStatic);
@@ -66,7 +66,7 @@ const DocumentationPage: NextPage = () => {
   // Filter items based on search
   const filterItems = (items: any[]) => {
     if (!searchTerm) return items;
-    return items.filter((item: any) => 
+    return items.filter((item: any) =>
       item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.comment?.summary?.some((s: any) => s.text.toLowerCase().includes(searchTerm.toLowerCase()))
     );
@@ -114,7 +114,7 @@ const DocumentationPage: NextPage = () => {
       </div>
 
       <div className="container mx-auto px-4 py-8">
-        <div className="grid lg:grid-cols-4 gap-8">
+        <div className="sm:grid lg:grid-cols-4 gap-8">
           {/* Sidebar Navigation */}
           <div className="lg:col-span-1">
             <div className="bg-slate-800 rounded-lg p-4 sticky top-4">
@@ -123,8 +123,8 @@ const DocumentationPage: NextPage = () => {
                 <button
                   onClick={() => setSelectedModule('overview')}
                   className={`block w-full text-left px-3 py-2 rounded transition-colors ${
-                    selectedModule === 'overview' 
-                      ? 'bg-blue-600 text-white' 
+                    selectedModule === 'overview'
+                      ? 'bg-blue-600 text-white'
                       : 'hover:bg-slate-700 text-gray-300'
                   }`}
                 >
@@ -133,8 +133,8 @@ const DocumentationPage: NextPage = () => {
                 <button
                   onClick={() => setSelectedModule('shape')}
                   className={`block w-full text-left px-3 py-2 rounded transition-colors ${
-                    selectedModule === 'shape' 
-                      ? 'bg-blue-600 text-white' 
+                    selectedModule === 'shape'
+                      ? 'bg-blue-600 text-white'
                       : 'hover:bg-slate-700 text-gray-300'
                   }`}
                 >
@@ -143,8 +143,8 @@ const DocumentationPage: NextPage = () => {
                 <button
                   onClick={() => setSelectedModule('functional')}
                   className={`block w-full text-left px-3 py-2 rounded transition-colors ${
-                    selectedModule === 'functional' 
-                      ? 'bg-blue-600 text-white' 
+                    selectedModule === 'functional'
+                      ? 'bg-blue-600 text-white'
                       : 'hover:bg-slate-700 text-gray-300'
                   }`}
                 >
@@ -153,8 +153,8 @@ const DocumentationPage: NextPage = () => {
                 <button
                   onClick={() => setSelectedModule('viewport')}
                   className={`block w-full text-left px-3 py-2 rounded transition-colors ${
-                    selectedModule === 'viewport' 
-                      ? 'bg-blue-600 text-white' 
+                    selectedModule === 'viewport'
+                      ? 'bg-blue-600 text-white'
                       : 'hover:bg-slate-700 text-gray-300'
                   }`}
                 >
@@ -163,8 +163,8 @@ const DocumentationPage: NextPage = () => {
                 <button
                   onClick={() => setSelectedModule('scad')}
                   className={`block w-full text-left px-3 py-2 rounded transition-colors ${
-                    selectedModule === 'scad' 
-                      ? 'bg-blue-600 text-white' 
+                    selectedModule === 'scad'
+                      ? 'bg-blue-600 text-white'
                       : 'hover:bg-slate-700 text-gray-300'
                   }`}
                 >
