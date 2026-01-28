@@ -1,0 +1,65 @@
+{
+  "mcpServers": {
+    "context7": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp",
+        "--api-key",
+        "ctx7sk-ca684a99-93ed-4427-b6ab-cd8fc1cb002b"
+      ]
+    },
+    "memory": {
+      "command": "bunx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-memory"
+      ],
+      "env": {}
+    },
+    "sequential-thinking": {
+      "command": "bunx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ],
+      "env": {}
+    },
+    "kb-mcp": {
+      "command": "bunx",
+      "args": [
+        "kb-mcp",
+        "serve"
+      ],
+      "env": {}
+    },
+    "idd-mcp": {
+      "command": "idd-mcp",
+      "args": [
+        "serve"
+      ],
+      "env": {}
+    },
+    "puppeteer": {
+      "command": "bunx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-puppeteer"
+      ]
+    },
+    "semantic-search": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-semantic-search"
+      ]
+    },
+    "context-chunker": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-context-chunker"
+      ]
+    }
+  }
+}

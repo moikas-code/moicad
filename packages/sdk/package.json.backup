@@ -1,0 +1,88 @@
+{
+  "name": "@moicad/sdk",
+  "version": "0.1.2",
+  "description": "Modern JavaScript CAD library with OpenSCAD compatibility",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "prebuild": "npm run clean",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "keywords": [
+    "cad",
+    "3d",
+    "modeling",
+    "geometry",
+    "csg",
+    "openscad",
+    "javascript",
+    "typescript",
+    "manifold",
+    "3d-printing"
+  ],
+  "author": "moicad",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/moikas-code/moicad"
+  },
+  "bugs": {
+    "url": "https://github.com/moikas-code/moicad/issues"
+  },
+  "homepage": "https://moicad.moikas.com",
+  "dependencies": {
+    "manifold-3d": "^3.3.2",
+    "three": "0.182.0",
+    "zod": "^3.23.0"
+  },
+"devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/three": "^0.169.0",
+    "bun-types": "latest",
+    "typescript": "^5.0.0",
+    "bun": "latest"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "bun": ">=1.0.0"
+  },
+  "files": [
+    "dist/**/*",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./functional": {
+      "import": "./dist/functional.js",
+      "types": "./dist/functional.d.ts"
+    },
+    "./scad": {
+      "import": "./dist/scad/index.js",
+      "types": "./dist/scad/index.d.ts"
+    },
+    "./viewport": {
+      "import": "./dist/viewport/index.js",
+      "types": "./dist/viewport/index.d.ts"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "functional": [
+        "dist/functional.d.ts"
+      ],
+      "scad": [
+        "dist/scad/index.d.ts"
+      ],
+      "viewport": [
+        "dist/viewport/index.d.ts"
+      ]
+    }
+  }
+}

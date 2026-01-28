@@ -67,7 +67,7 @@ const EditorComponent = forwardRef<EditorRef, EditorProps>(function EditorCompon
     
     callbacksRef.current.onLoading(true);
     try {
-      const result = await evaluateCode(code, (progress) => {
+      const result = await evaluateCode(code, language, (progress) => {
         callbacksRef.current.onProgress?.(progress);
       });
       if (result.success && result.geometry) {
