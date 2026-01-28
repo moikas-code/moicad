@@ -1,0 +1,31 @@
+{
+  "entryPoints": [
+    "src/index.ts",
+    "src/functional.ts",
+    "src/scad/index.ts",
+    "src/viewport/index.ts",
+    "src/runtime/index.ts"
+  ],
+  "out": "../packages/landing/docs-generated",
+  "name": "@moicad/sdk",
+  "readme": "README.md",
+  "includeDeclarations": true,
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "includeVersion": true,
+  "categorizeByGroup": true,
+  "sort": ["source-order"],
+  "plugin": ["typedoc-plugin-markdown"],
+  "theme": "default",
+  "gitRevision": "main",
+  "sourceLinkTemplate": "https://github.com/moikas-code/moicad/blob/{gitRevision}/packages/sdk/{path}#L{line}",
+  "navigationLinks": {
+    "GitHub": "https://github.com/moikas-code/moicad",
+    "Live Demo": "https://moicad.moikas.com/demo"
+  },
+  "markdownItOptions": {
+    "html": true,
+    "breaks": true,
+    "linkify": true
+  }
+}
