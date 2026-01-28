@@ -71,6 +71,13 @@ export const ConeParamsSchema = z.object({
   $fn: z.number().int().positive().optional(),
 });
 
+export const PyramidParamsSchema = z.object({
+  size: SizeSchema,
+  sides: z.number().int().min(3).optional(),
+  center: z.boolean().optional(),
+  $fn: z.number().int().positive().optional(),
+});
+
 export const CircleParamsSchema = z.object({
   radius: z.number().positive(),
   $fn: z.number().int().positive().optional(),
@@ -197,6 +204,7 @@ export type CubeParams = z.infer<typeof CubeParamsSchema>;
 export type SphereParams = z.infer<typeof SphereParamsSchema>;
 export type CylinderParams = z.infer<typeof CylinderParamsSchema>;
 export type ConeParams = z.infer<typeof ConeParamsSchema>;
+export type PyramidParams = z.infer<typeof PyramidParamsSchema>;
 export type CircleParams = z.infer<typeof CircleParamsSchema>;
 export type SquareParams = z.infer<typeof SquareParamsSchema>;
 export type PolygonParams = z.infer<typeof PolygonParamsSchema>;

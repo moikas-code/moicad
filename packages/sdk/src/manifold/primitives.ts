@@ -77,6 +77,47 @@ export function createCone(
 }
 
 /**
+ * Create a pyramid with N-sided polygonal base
+ * @param size - Single number or [baseWidth, baseDepth, height]
+ * @param sides - Number of base sides (3=triangular, 4=square, 5=pentagonal, etc.)
+ * @param center - If true, pyramid is centered vertically (default: false)
+ */
+export function createPyramid(
+  size: number | [number, number, number],
+  sides: number = 4,
+  center: boolean = false
+): ManifoldObject {
+  // Validate sides
+  if (sides < 3) {
+    throw new Error(`Pyramid must have at least 3 sides, got ${sides}`);
+  }
+
+  // Parse dimensions
+  const [baseWidth, baseDepth, height] = parseSize(size);
+
+  // Validate dimensions
+  if (baseWidth <= 0 || baseDepth <= 0 || height <= 0) {
+    throw new Error(`Pyramid dimensions must be positive, got [${baseWidth}, ${baseDepth}, ${height}]`);
+  }
+
+  // Use cone approach with cylinder (very small top radius)
+  // This is reliable with manifold-3d for all pyramid types
+  const Manifold = getManifold();
+
+  // Create base pyramid with unit radius
+  const radius = 1.0;
+  const pyramid = Manifold.cylinder(height, radius, 0.0001, sides, center);
+
+  // Scale X and Y to match desired base dimensions
+  // For regular pyramids, scaleX = scaleY = baseWidth/2
+  // For rectangular, scaleX = baseWidth/2, scaleY = baseDepth/2
+  const scaleX = baseWidth / 2;
+  const scaleY = baseDepth / 2;
+
+  return pyramid.scale([scaleX, scaleY, 1.0]);
+}
+
+/**
  * Create a tetrahedron (4-sided polyhedron)
  */
 export function createTetrahedron(): ManifoldObject {

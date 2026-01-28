@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { RenderProgress } from "../../shared/types";
+import type { RenderProgress } from "@moicad/sdk";
 
 interface RenderProgressBarProps {
   progress: RenderProgress | null;

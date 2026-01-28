@@ -2,10 +2,10 @@
 
 import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import Editor from '@monaco-editor/react';
-import { evaluateCode } from '@/lib/api-client';
+import { evaluateCodeWithSDK } from '@/lib/sdk-client';
 import type { editor } from 'monaco-editor';
 
-import { RenderProgress } from '../../shared/types';
+import type { RenderProgress } from '@moicad/sdk';
 
 export type Language = 'openscad' | 'javascript';
 
@@ -22,6 +22,7 @@ interface EditorProps {
 
 export interface EditorRef {
   render: () => Promise<void>;
+  insertAtCursor: (text: string) => void;
 }
 
 const EditorComponent = forwardRef<EditorRef, EditorProps>(function EditorComponent({
@@ -59,18 +60,18 @@ const EditorComponent = forwardRef<EditorRef, EditorProps>(function EditorCompon
     if (!callbacksRef.current.onLoading || !callbacksRef.current.onGeometry || !callbacksRef.current.onErrors) {
       return;
     }
-    
+
     callbacksRef.current.onLoading(true);
     try {
-      const result = await evaluateCode(code, (progress) => {
+      const result = await evaluateCodeWithSDK(code, (progress: RenderProgress) => {
         callbacksRef.current.onProgress?.(progress);
       });
       if (result.success && result.geometry) {
         callbacksRef.current.onGeometry(result.geometry);
-        callbacksRef.current.onErrors(result.errors.map((e) => e.message));
+        callbacksRef.current.onErrors(result.errors.map((e: any) => e.message));
       } else {
         callbacksRef.current.onGeometry(null);
-        callbacksRef.current.onErrors(result.errors.map((e) => e.message));
+        callbacksRef.current.onErrors(result.errors.map((e: any) => e.message));
       }
     } catch (error) {
       callbacksRef.current.onErrors([`Error: ${error instanceof Error ? error.message : 'Unknown error'}`]);
@@ -79,10 +80,33 @@ const EditorComponent = forwardRef<EditorRef, EditorProps>(function EditorCompon
     }
   };
 
-  // Expose render function to parent via ref
+  // Insert text at current cursor position
+  const insertAtCursor = (text: string) => {
+    if (!editorRef.current) return;
+
+    const selection = editorRef.current.getSelection();
+    if (selection) {
+      // Insert text at cursor position
+      editorRef.current.executeEdits('', [
+        {
+          range: selection,
+          text: text,
+          forceMoveMarkers: true,
+        },
+      ]);
+
+      // Focus editor after insertion
+      editorRef.current.focus();
+    }
+  };
+
+  // Expose render and insertAtCursor functions to parent via ref
   useImperativeHandle(
     ref,
-    () => ({ render: renderGeometry })
+    () => ({
+      render: renderGeometry,
+      insertAtCursor,
+    })
   );
 
   // Map language to Monaco editor language

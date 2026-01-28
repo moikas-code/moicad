@@ -212,6 +212,24 @@ export declare class Shape {
   ): Shape;
 
   /**
+   * Create a pyramid with N-sided polygonal base.
+   *
+   * @param size - Single number for square pyramid, or [baseWidth, baseDepth, height]
+   * @param options - Optional settings (sides, center, $fn)
+   *
+   * @example
+   * Shape.pyramid(20)                        // 20×20×20 square pyramid
+   * Shape.pyramid([30, 20, 15])              // Rectangular pyramid
+   * Shape.pyramid(20, { center: true })      // Centered pyramid
+   * Shape.pyramid(20, { sides: 3 })          // Triangular pyramid (tetrahedron)
+   * Shape.pyramid(20, { sides: 6 })          // Hexagonal pyramid
+   */
+  static pyramid(
+    size: number | Vector3,
+    options?: PrimitiveOptions & { sides?: number }
+  ): Shape;
+
+  /**
    * Create a polyhedron from vertices and faces.
    *
    * @param points - Array of [x, y, z] vertices

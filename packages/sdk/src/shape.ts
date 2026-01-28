@@ -25,6 +25,7 @@ import {
   createSphere,
   createCylinder,
   createCone,
+  createPyramid,
   createPolyhedron,
   createCircle,
   createSquare,
@@ -181,6 +182,32 @@ export class Shape {
     const center = options?.center ?? false;
     const segments = options?.$fn ?? 32;
     const manifold = createCone(height, radius, segments, center);
+    return new Shape(manifold);
+  }
+
+  /**
+   * Create a pyramid with N-sided polygonal base.
+   *
+   * @param size - Single number for square pyramid, or [baseWidth, baseDepth, height]
+   * @param options - Optional settings
+   * @param options.sides - Number of base sides: 3=triangular, 4=square (default), 5=pentagonal, etc.
+   * @param options.center - Center vertically (default: false, sits on Z=0)
+   * @param options.$fn - Fragment count (for compatibility, pyramids have flat sides)
+   *
+   * @example
+   * Shape.pyramid(20)                        // 20×20×20 square pyramid
+   * Shape.pyramid([30, 20, 15])              // Rectangular pyramid
+   * Shape.pyramid(20, { center: true })      // Centered pyramid
+   * Shape.pyramid(20, { sides: 3 })          // Triangular pyramid (tetrahedron)
+   * Shape.pyramid(20, { sides: 6 })          // Hexagonal pyramid
+   */
+  static pyramid(
+    size: number | [number, number, number],
+    options?: { sides?: number; center?: boolean; $fn?: number }
+  ): Shape {
+    const sides = options?.sides ?? 4;
+    const center = options?.center ?? false;
+    const manifold = createPyramid(size, sides, center);
     return new Shape(manifold);
   }
 

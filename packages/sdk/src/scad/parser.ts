@@ -52,6 +52,7 @@ class Tokenizer {
     "import",
     "include",
     "use",
+    "ai_import",
     // Note: true/false/undef are NOT keywords - they're literals handled in parseValue()
   ]);
 
@@ -562,6 +563,11 @@ class Parser {
       return this.parseImport();
     }
 
+    // Check for ai_import statement
+    if (token.value === "ai_import") {
+      return this.parseAIImport();
+    }
+
     // Check for for loop
     if (token.value === "for") {
       return this.parseForLoop();
@@ -713,6 +719,27 @@ class Parser {
       type: "import",
       op,
       filename,
+      line,
+    };
+  }
+
+  private parseAIImport(): ScadNode {
+    const line = this.current().line;
+    this.advance(); // consume 'ai_import'
+
+    // Expect: ai_import("model-id")
+    this.expect("(");
+    const modelId = this.expect("string").value;
+    this.expect(")");
+
+    if (this.current().value === ";") {
+      this.advance();
+    }
+
+    return {
+      type: "ai_import",
+      modelId,
+      params: {},
       line,
     };
   }
@@ -1351,6 +1378,7 @@ const range = this.parseRange() as [number, number] | [number, number, number];
       "sphere",
       "cylinder",
       "cone",
+      "pyramid",
       "circle",
       "square",
       "polygon",

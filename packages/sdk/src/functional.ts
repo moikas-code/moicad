@@ -95,6 +95,22 @@ export function cone(
 }
 
 /**
+ * Create a pyramid with N-sided polygonal base.
+ *
+ * @example
+ * pyramid(20)                        // Square pyramid
+ * pyramid([30, 20, 15])              // Rectangular pyramid
+ * pyramid(20, { sides: 3 })          // Triangular pyramid
+ * pyramid(20, { sides: 6, center: true }) // Centered hexagonal pyramid
+ */
+export function pyramid(
+  size: number | Vector3,
+  options?: PrimitiveOptions & { sides?: number }
+): Shape {
+  return Shape.pyramid(size, options);
+}
+
+/**
  * Create a polyhedron from vertices and faces.
  *
  * @example

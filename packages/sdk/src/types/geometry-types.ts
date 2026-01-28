@@ -23,11 +23,12 @@ export type ScadNode =
   | ModifierNode
   | ListComprehensionNode
   | ImportNode
+  | AIImportNode
   | IntersectionForNode;
 
 export interface PrimitiveNode {
   type: 'primitive';
-  op: 'cube' | 'sphere' | 'cylinder' | 'cone' | 'circle' | 'square' | 'polygon' | 'polyhedron' | 'text';
+  op: 'cube' | 'sphere' | 'cylinder' | 'cone' | 'pyramid' | 'circle' | 'square' | 'polygon' | 'polyhedron' | 'text';
   params: Record<string, any>;
   line?: number;
 }
@@ -172,6 +173,13 @@ export interface ImportNode {
   type: 'import';
   op: 'import' | 'include' | 'use';
   filename: string;
+  line?: number;
+}
+
+export interface AIImportNode {
+  type: 'ai_import';
+  modelId: string;
+  params: Record<string, any>;
   line?: number;
 }
 

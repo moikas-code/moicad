@@ -153,6 +153,13 @@ const primitiveEvaluators: Record<string, PrimitiveEvaluator> = {
     return Primitives.createCone(height, radius, segments, center);
   },
 
+  pyramid: (params, ctx) => {
+    const size = extractSize(params, 1);
+    const sides = getParam(params, ['sides'], 4);
+    const center = getParam(params, ['center'], false);
+    return Primitives.createPyramid(size, sides, center);
+  },
+
   circle: (params, ctx) => {
     const radius = extractRadius(params, 1);
     const fn = getParam(params, ['$fn'], ctx.$fn);

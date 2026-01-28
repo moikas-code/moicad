@@ -17,7 +17,8 @@ import type { EditorRef, Language } from '@/components/Editor';
 import PrinterSettings from '@/components/PrinterSettings';
 import { getDefaultPrinter, PrinterPreset } from '@/lib/printer-presets';
 import RenderProgressBar from '@/components/RenderProgressBar';
-import type { RenderProgress } from '../../shared/types';
+import type { RenderProgress } from '@moicad/sdk';
+import { AIGenerationDialog } from '@/components/AIGenerationDialog';
 
 function HomeContent() {
   // State management
@@ -47,6 +48,7 @@ function HomeContent() {
 
   const [printerSize, setPrinterSize] = useState<PrinterPreset>(getDefaultPrinter());
   const { connected: wsConnected } = useWebSocket();
+  const [showAIDialog, setShowAIDialog] = useState(false);
 
   // Save language preference to localStorage
   const handleLanguageChange = (newLanguage: Language) => {
@@ -210,6 +212,16 @@ function HomeContent() {
     fileManagerRef.current?.openFileManager();
   };
 
+  const handleInsertAICode = (aiCode: string) => {
+    // Insert the ai_import code at the current cursor position
+    if (editorRef.current?.insertAtCursor) {
+      editorRef.current.insertAtCursor(aiCode);
+    } else {
+      // Fallback: append to end of code
+      setCode(code + '\n\n' + aiCode);
+    }
+  };
+
   // Build left (Editor) and right (Viewport) content for resizable panel
   const leftContent = (
     <div className="flex-1 flex flex-col">
@@ -217,6 +229,13 @@ function HomeContent() {
         <div className="px-4 py-2 border-b border-[#3D3D3D] flex justify-between items-center">
           <h2 className="text-sm font-semibold text-[#E5E5E5]">Code Editor</h2>
           <div className="flex gap-2 items-center">
+            <button
+              onClick={() => setShowAIDialog(true)}
+              className="px-3 py-1 text-xs font-medium text-white bg-purple-600 hover:bg-purple-700 rounded transition-colors"
+              title="AI 3D Generation"
+            >
+              ✨ AI Generate
+            </button>
             <button
               onClick={handleRender}
               disabled={loading}
@@ -300,6 +319,13 @@ function HomeContent() {
 
       {/* File Manager */}
       <FileManager ref={fileManagerRef} onOpen={handleOpen} onNew={handleNew} />
+
+      {/* AI Generation Dialog */}
+      <AIGenerationDialog
+        open={showAIDialog}
+        onClose={() => setShowAIDialog(false)}
+        onInsertCode={handleInsertAICode}
+      />
     </div>
   );
 }

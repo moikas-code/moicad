@@ -175,6 +175,7 @@ interface EvaluationContext {
   children?: ScadNode[];
   includedFiles?: Set<string>;
   evaluationDepth?: number; // Track recursion depth to prevent stack overflow
+  aiGenerator?: any; // Optional AIGenerator instance for ai_import support
 }
 
 /**
@@ -428,6 +429,9 @@ async function evaluateNode(
     case "import":
       return evaluateImport(node as any, context);
 
+    case "ai_import":
+      return await evaluateAIImport(node as any, context);
+
     case "children":
       return await evaluateChildren(node as any, context);
 
@@ -473,6 +477,7 @@ async function evaluatePrimitive(
       case "sphere":
       case "cylinder":
       case "cone":
+      case "pyramid":
       case "circle":
       case "square":
       case "polygon":
@@ -2532,6 +2537,85 @@ async function evaluateImport(
     context.includedFiles?.delete(normalizedFilename);
     context.errors.push({
       message: `Failed to import ${node.filename}: ${error.message}`,
+      line: node.line,
+    });
+    return null;
+  }
+}
+
+/**
+ * Convert moicad Geometry to Manifold object
+ */
+async function geometryToManifold(geometry: Geometry): Promise<ManifoldObject> {
+  // Ensure manifold is initialized
+  await ensureManifoldReady();
+
+  const { getManifold } = await import("../manifold/engine");
+  const Manifold = getManifold();
+
+  // Create mesh from geometry data
+  const mesh = {
+    numVert: geometry.stats.vertexCount,
+    numTri: geometry.stats.faceCount,
+    vertProperties: new Float32Array(geometry.vertices),
+    triVerts: new Uint32Array(geometry.indices),
+  };
+
+  // Create Manifold from mesh
+  const manifold = new Manifold(mesh);
+  return manifold;
+}
+
+/**
+ * Evaluate ai_import node - loads AI-generated models
+ */
+async function evaluateAIImport(
+  node: any,
+  context: EvaluationContext,
+): Promise<ManifoldObject | null> {
+  const modelId = node.modelId;
+
+  if (!modelId) {
+    context.errors.push({
+      message: "ai_import() requires model ID",
+      line: node.line,
+    });
+    return null;
+  }
+
+  try {
+    // Get AI generator from context
+    const aiGenerator = context.aiGenerator;
+
+    if (!aiGenerator) {
+      context.errors.push({
+        message:
+          "AI generator not configured. Initialize AIGenerator and pass to evaluator context.",
+        line: node.line,
+      });
+      return null;
+    }
+
+    // Load model from storage
+    const result = await aiGenerator.loadModel(modelId);
+
+    if (!result) {
+      context.errors.push({
+        message: `AI model not found: ${modelId}`,
+        line: node.line,
+      });
+      return null;
+    }
+
+    // Convert Geometry to Manifold
+    const manifold = await geometryToManifold(result.geometry);
+
+    logInfo(`Loaded AI model: ${modelId} (${result.geometry.stats.vertexCount} vertices)`);
+
+    return manifold;
+  } catch (error: any) {
+    context.errors.push({
+      message: `Failed to load AI model: ${error.message}`,
       line: node.line,
     });
     return null;

@@ -49,6 +49,7 @@ export {
   sphere,
   cylinder,
   cone,
+  pyramid,
   polyhedron,
   // 2D Primitives
   circle,
@@ -134,6 +135,7 @@ export {
   SphereParamsSchema,
   CylinderParamsSchema,
   ConeParamsSchema,
+  PyramidParamsSchema,
   CircleParamsSchema,
   SquareParamsSchema,
   PolygonParamsSchema,
@@ -163,6 +165,7 @@ export type {
   SphereParams,
   CylinderParams,
   ConeParams,
+  PyramidParams,
   CircleParams,
   SquareParams,
   PolygonParams,
@@ -220,6 +223,21 @@ export {
 } from './plugins';
 
 export { initializePlugins as initializeFunctionalPlugins } from './functional';
+
+// ============================================================================
+// AI GENERATION (fal.ai integration)
+// ============================================================================
+
+export { AIGenerator, GLBLoader, MemoryModelStorage, FileModelStorage, decomposeMesh, mergeMeshes } from './ai';
+export type {
+  AIGeneratorConfig,
+  TextTo3DParams,
+  ImageTo3DParams,
+  UltrashapeParams,
+  AIModelMetadata,
+  ModelStorage,
+  GenerationResult
+} from './ai/types';
 
 // ============================================================================
 // VERSION AND METADATA

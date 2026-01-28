@@ -1,4 +1,4 @@
-import { RenderStage } from '../../shared/types';
+import type { RenderStage } from '@moicad/sdk';
 /**
  * API Client for moicad Backend Communication
  * Handles REST API calls to the Bun backend server
