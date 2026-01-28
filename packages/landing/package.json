@@ -13,7 +13,7 @@
     "dev:docs": "node scripts/dev-with-docs.js"
   },
   "dependencies": {
-    "@moicad/sdk": "0.1.1",
+    "@moicad/sdk": "0.1.4",
     "@monaco-editor/react": "4.7.0",
     "@vercel/analytics": "1.6.1",
     "autoprefixer": "10.4.23",
