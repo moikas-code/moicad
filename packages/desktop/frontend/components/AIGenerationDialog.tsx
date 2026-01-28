@@ -9,7 +9,8 @@
 
 import { useState, useEffect } from 'react';
 import { useAIGeneration } from '@/hooks/useAIGeneration';
-import { hasAPIKey } from '@/lib/api-key-storage';
+import { hasAPIKey, saveAPIKey, clearAPIKey } from '@/lib/api-key-storage';
+import { AIModelLibrary } from '@/components/AIModelLibrary';
 
 interface AIGenerationDialogProps {
   open: boolean;
@@ -23,6 +24,11 @@ export function AIGenerationDialog({ open, onClose, onInsertCode }: AIGeneration
   const [imageUrl, setImageUrl] = useState('');
   const [mode, setMode] = useState<'preview' | 'full'>('full');
   const [hasKey, setHasKey] = useState(false);
+
+  // API key settings state
+  const [apiKey, setApiKey] = useState('');
+  const [showKey, setShowKey] = useState(false);
+  const [keySaved, setKeySaved] = useState(false);
 
   const { loading, progress, stage, error, generateFromText, generateFromImage, reset } = useAIGeneration();
 
@@ -68,6 +74,25 @@ export function AIGenerationDialog({ open, onClose, onInsertCode }: AIGeneration
     } catch (err) {
       console.error('Generation failed:', err);
     }
+  };
+
+  const handleSaveAPIKey = async () => {
+    try {
+      await saveAPIKey('fal.ai', apiKey);
+      setApiKey(''); // Clear input
+      setKeySaved(true);
+      setHasKey(true);
+      setTimeout(() => setKeySaved(false), 3000); // Hide message after 3s
+    } catch (error) {
+      console.error('Failed to save API key:', error);
+    }
+  };
+
+  const handleClearAPIKey = async () => {
+    clearAPIKey('fal.ai');
+    setApiKey('');
+    setKeySaved(false);
+    setHasKey(false);
   };
 
   if (!open) return null;
@@ -125,6 +150,16 @@ export function AIGenerationDialog({ open, onClose, onInsertCode }: AIGeneration
                   }`}
                 >
                   Image-to-3D
+                </button>
+                <button
+                  onClick={() => setActiveTab('library')}
+                  className={`pb-2 px-1 font-medium ${
+                    activeTab === 'library'
+                      ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
+                      : 'text-gray-600 dark:text-gray-400'
+                  }`}
+                >
+                  Model Library
                 </button>
                 <button
                   onClick={() => setActiveTab('settings')}
@@ -265,24 +300,73 @@ export function AIGenerationDialog({ open, onClose, onInsertCode }: AIGeneration
                 </div>
               )}
 
+              {/* Library Tab */}
+              {activeTab === 'library' && (
+                <AIModelLibrary onInsertCode={onInsertCode} onClose={onClose} />
+              )}
+
               {/* Settings Tab */}
               {activeTab === 'settings' && (
                 <div className="space-y-4">
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    API key configuration coming soon. For now, set your fal.ai API key via the browser console:
-                  </p>
-                  <pre className="bg-gray-100 dark:bg-gray-900 p-3 rounded text-xs">
-                    {`import { saveAPIKey } from '@/lib/api-key-storage';
-await saveAPIKey('fal.ai', 'fal_...');`}
-                  </pre>
-                  <a
-                    href="https://fal.ai"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 dark:text-blue-400 hover:underline text-sm"
-                  >
-                    Get your API key from fal.ai →
-                  </a>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      fal.ai API Key
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type={showKey ? 'text' : 'password'}
+                        value={apiKey}
+                        onChange={(e) => setApiKey(e.target.value)}
+                        placeholder="fal_..."
+                        className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      />
+                      <button
+                        onClick={() => setShowKey(!showKey)}
+                        className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600"
+                        title={showKey ? 'Hide key' : 'Show key'}
+                      >
+                        {showKey ? '👁️' : '👁️‍🗨️'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {keySaved && (
+                    <div className="text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 p-3 rounded">
+                      ✓ API key saved successfully
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleSaveAPIKey}
+                      disabled={!apiKey.trim()}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Save API Key
+                    </button>
+                    <button
+                      onClick={handleClearAPIKey}
+                      className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600"
+                    >
+                      Clear Key
+                    </button>
+                  </div>
+
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    <p className="mb-2">Get your API key from fal.ai:</p>
+                    <a
+                      href="https://fal.ai"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      https://fal.ai →
+                    </a>
+                  </div>
+
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    Your API key is encrypted and stored locally in your browser. It never leaves your device.
+                  </div>
                 </div>
               )}
             </>

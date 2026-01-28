@@ -83,8 +83,8 @@ export class BrowserModelStorage implements ModelStorage {
       const store = transaction.objectStore(STORE_NAME);
 
       const request = store.put({
-        modelId,
-        ...result
+        ...result,
+        modelId // Use parameter modelId to override if present in result
       });
 
       request.onsuccess = () => resolve();

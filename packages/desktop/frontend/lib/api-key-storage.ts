@@ -35,7 +35,7 @@ function getDeviceId(): string {
 /**
  * Derive encryption key from device ID
  */
-async function deriveKey(salt: Uint8Array): Promise<CryptoKey> {
+async function deriveKey(salt: BufferSource): Promise<CryptoKey> {
   const deviceId = getDeviceId();
   const encoder = new TextEncoder();
 
@@ -117,8 +117,8 @@ export async function saveAPIKey(
   const keyData: APIKeyData = {
     provider,
     encryptedKey: arrayBufferToBase64(encrypted),
-    iv: arrayBufferToBase64(iv),
-    salt: arrayBufferToBase64(salt),
+    iv: arrayBufferToBase64(iv.buffer),
+    salt: arrayBufferToBase64(salt.buffer),
     lastUsed: new Date().toISOString()
   };
 

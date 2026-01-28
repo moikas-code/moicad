@@ -1,3 +1,5 @@
+const path = require('path');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -14,8 +16,25 @@ const nextConfig = {
   staticPageGenerationTimeout: 60,
   // Configure for both Webpack and Turbopack
   experimental: {},
+  // Transpile workspace packages
+  transpilePackages: ['@moicad/sdk'],
   // Webpack config for Three.js and other dependencies (for webpack builds)
   webpack: (config, { isServer }) => {
+    // Resolve workspace packages
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@moicad/sdk': path.resolve(__dirname, '../../sdk/dist'),
+    };
+
+    // Handle ES modules
+    config.module.rules.push({
+      test: /\.m?js$/,
+      type: 'javascript/auto',
+      resolve: {
+        fullySpecified: false,
+      },
+    });
+
     config.resolve.fallback = {
       ...config.resolve.fallback,
       fs: false,
