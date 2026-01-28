@@ -1,6 +1,6 @@
 {
   "name": "@moicad/sdk",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Modern JavaScript CAD library with OpenSCAD compatibility",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -28,10 +28,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/moikas/moicad"
+    "url": "https://github.com/moikas-code/moicad"
   },
   "bugs": {
-    "url": "https://github.com/moikas/moicad/issues"
+    "url": "https://github.com/moikas-code/moicad/issues"
   },
   "homepage": "https://moicad.moikas.com",
   "dependencies": {
@@ -70,10 +70,6 @@
     "./viewport": {
       "import": "./dist/viewport/index.js",
       "types": "./dist/viewport/index.d.ts"
-    },
-    "./runtime": {
-      "import": "./dist/runtime/index.js",
-      "types": "./dist/runtime/index.d.ts"
     }
   },
   "typesVersions": {
@@ -86,9 +82,6 @@
       ],
       "viewport": [
         "dist/viewport/index.d.ts"
-      ],
-      "runtime": [
-        "dist/runtime/index.d.ts"
       ]
     }
   }

@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { parse, evaluate, initManifoldEngine } from '@moicad/sdk/scad';
+import { evaluateJavaScript } from '@moicad/sdk/runtime';
 import { EvaluateResultSchema } from '@moicad/sdk';
 
 // Global manifold engine initialization
@@ -19,35 +20,47 @@ export async function POST(request: NextRequest) {
   
   try {
     await ensureManifoldInitialized();
-    
-    const { code, language = 'openscad' } = await request.json();
-    
+
+    const { code, language = 'javascript' } = await request.json();
+
     if (!code || typeof code !== 'string') {
       return Response.json({
         error: 'Missing or invalid code parameter',
         success: false
       }, { status: 400 });
     }
-    
-    // Parse OpenSCAD code using SDK
-    const parseResult = parse(code);
-    
-    if (!parseResult.success) {
-      return Response.json({
-        error: `Parse failed: ${parseResult.errors.join(', ')}`,
-        success: false,
-        errors: parseResult.errors
-      }, { status: 400 });
+
+    let evalResult;
+
+    if (language === 'javascript') {
+      // Evaluate JavaScript code using SDK runtime
+      evalResult = await evaluateJavaScript(code, {
+        timeout: 30000,
+        allowedModules: ['@moicad/sdk', 'moicad']
+      });
+    } else {
+      // Parse and evaluate OpenSCAD code
+      const parseResult = parse(code);
+
+      if (!parseResult.success) {
+        const errorMessages = parseResult.errors.map(e =>
+          typeof e === 'string' ? e : e.message || JSON.stringify(e)
+        );
+        return Response.json({
+          error: `Parse failed: ${errorMessages.join(', ')}`,
+          success: false,
+          errors: errorMessages
+        }, { status: 400 });
+      }
+
+      evalResult = await evaluate(parseResult.ast);
     }
-    
-    // Evaluate AST to geometry using SDK
-    const evalResult = await evaluate(parseResult.ast);
-    
+
     // Validate result with Zod schema
     const validatedResult = EvaluateResultSchema.parse(evalResult);
-    
+
     const totalTime = performance.now() - startTime;
-    
+
     return Response.json({
       geometry: validatedResult.geometry,
       errors: validatedResult.errors,

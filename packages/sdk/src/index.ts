@@ -3,7 +3,7 @@
  *
  * A high-performance CAD library for JavaScript/TypeScript with 98-99% OpenSCAD compatibility.
  *
- * @version 0.1.1
+ * @version 0.1.2
  * @author moicad
  * @license MIT
  *
@@ -187,10 +187,17 @@ export type {
 export { initManifold, isManifoldInitialized } from './manifold/engine';
 
 // ============================================================================
+// VIEWPORT (Three.js 3D Rendering)
+// ============================================================================
+
+export { Viewport, ViewportControls, StatsOverlay } from './viewport';
+export type { SceneConfig, ViewportConfig, ViewportEventHandlers, CameraState } from './viewport';
+
+// ============================================================================
 // VERSION AND METADATA
 // ============================================================================
 
-export const VERSION = '0.1.0';
+export const VERSION = '0.1.2';
 
 export function getInfo() {
   return {

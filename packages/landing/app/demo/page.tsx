@@ -2,132 +2,109 @@
 
 import { useState, useEffect } from 'react';
 import DemoEditor from '../../components/demo/SimpleEditor';
-import DemoViewport from '../../components/demo/SimpleViewport';
+import DemoViewport from '../../components/demo/ThreeViewport';
 import ErrorDisplay from '../../components/demo/SimpleErrorDisplay';
 
 const EXAMPLES = {
   'Basic Shapes': [
     {
       name: 'Hello Cube',
-      code: `// JavaScript style (recommended)
-cube(10);
+      code: `// Simple 10mm cube using Shape API
+import { Shape } from '@moicad/sdk';
 
-// OpenSCAD equivalent:
-// cube(10);`,
+export default Shape.cube(10);`,
       language: 'javascript'
     },
     {
-      name: 'Colored Sphere',
+      name: 'Sphere with Options',
       code: `// High-detail sphere
-sphere(5, { $fn: 64 });
+import { Shape } from '@moicad/sdk';
 
-// In JavaScript, you could also use:
-// Shape.sphere(5, { segments: 64 }).color('blue');`,
+export default Shape.sphere(5, { $fn: 64 });`,
       language: 'javascript'
     },
   ],
-  'Parametric': [
+  'Transformations': [
     {
-      name: 'Parametric Bolt',
-      code: `// Simple bolt design
-translate([0, 0, 10]) {
-  sphere(r=3, $fn=16);
-}
+      name: 'Translate & Scale',
+      code: `// Move and resize shapes
+import { Shape } from '@moicad/sdk';
 
-cylinder(h=20, r=3);
+const cube = Shape.cube(10)
+  .translate([0, 0, 5])
+  .scale([1.5, 1, 2]);
 
-// JavaScript equivalent would use classes:
-// class Bolt { ... }
-// new Bolt(20, 6).build();`,
+export default cube;`,
       language: 'javascript'
     },
   ],
-  'Advanced': [
+  'Boolean Operations': [
     {
-      name: 'Boolean Operations',
+      name: 'Difference',
       code: `// Subtract sphere from cube
-difference() {
-  cube(20);
-  translate([10, 10, 10]) {
-    sphere(12);
-  }
-}
+import { Shape } from '@moicad/sdk';
 
-color("cyan") difference();
+const cube = Shape.cube(20);
+const sphere = Shape.sphere(12).translate([10, 10, 10]);
 
-// JavaScript equivalent:
-// Shape.cube(20).subtract(Shape.sphere(12).translate([10, 10, 10])).color('cyan')`,
+export default cube.subtract(sphere);`,
+      language: 'javascript'
+    },
+    {
+      name: 'Union',
+      code: `// Combine multiple shapes
+import { Shape } from '@moicad/sdk';
+
+const base = Shape.cube([30, 30, 5]);
+const post = Shape.cylinder(20, 3).translate([15, 15, 5]);
+
+export default base.union(post);`,
       language: 'javascript'
     },
   ],
-  'JavaScript SDK': [
+  'Fluent API': [
     {
-      name: 'Fluent API Chain',
-      code: `// Modern JavaScript with SDK (recommended)
-// Note: This shows the SDK API, but uses OpenSCAD syntax for compatibility
+      name: 'Method Chaining',
+      code: `// Fluent API with method chaining
+import { Shape } from '@moicad/sdk';
 
-// Create a bolt head and shaft
-difference() {
-  // Bolt shaft
-  cylinder(h=20, r=3);
-  
-  // Hexagonal head
-  translate([0, 0, 20]) {
-    for(i = [0:60:6]) {
-      rotate([0, 0, i]) {
-        translate([5, 0, 0]) {
-          cube([4, 1, 4], center=true);
-        }
-      }
-    }
-  }
+export default Shape.cube([20, 10, 5])
+  .translate([0, 0, 5])
+  .union(Shape.sphere(8))
+  .scale([1.2, 1, 1]);`,
+      language: 'javascript'
+    },
+    {
+      name: 'Hollow Cylinder',
+      code: `// Create a hollow cylinder (pipe)
+import { Shape } from '@moicad/sdk';
+
+const outer = Shape.cylinder(20, 8);
+const inner = Shape.cylinder(20, 6);
+
+export default outer.subtract(inner);`,
+      language: 'javascript'
+    },
+  ],
+  'OpenSCAD Syntax': [
+    {
+      name: 'Tower with Roof',
+      code: `// Tower structure
+union() {
+  // Base
+  cube([20, 20, 30]);
+
+  // Roof (cone)
+  translate([10, 10, 30])
+    cylinder(h=15, r1=14, r2=0, $fn=4);
 }`,
-      language: 'javascript'
-    },
-    {
-      name: '2D to 3D',
-      code: `// Create 2D shape and extrude to 3D
-linear_extrude(height=15, twist=90) {
-  difference() {
-    circle(r=5);
-    translate([3, 0]) {
-      circle(r=2);
-    }
-  }
-}
-
-// JavaScript equivalent:
-// Shape.circle(5).subtract(Shape.circle(2).translate([3, 0]))
-//   .linearExtrude(15, { twist: 90 })`,
-      language: 'javascript'
-    },
-  ],
-  'OpenSCAD Classic': [
-    {
-      name: 'Car Model',
-      code: `module car(length=60, width=30, height=20) {
-  // Car body
-  cube([length, width, height]);
-  
-  // Wheels
-  translate([length*0.2, -width/2, 0])
-    cylinder(r=height*0.3, h=2, $fn=16);
-  translate([length*0.2, width/2, 0])
-    cylinder(r=height*0.3, h=2, $fn=16);
-  translate([length*0.7, -width/2, 0])
-    cylinder(r=height*0.3, h=2, $fn=16);
-  translate([length*0.7, width/2, 0])
-    cylinder(r=height*0.3, h=2, $fn=16);
-}
-
-car();`,
       language: 'openscad'
     },
   ]
 };
 
 export default function DemoPage() {
-  const [code, setCode] = useState(EXAMPLES['JavaScript SDK']?.[0]?.code || '');
+  const [code, setCode] = useState(EXAMPLES['Basic Shapes']?.[0]?.code || '');
   const [language, setLanguage] = useState('javascript');
   const [geometry, setGeometry] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
@@ -136,6 +113,8 @@ export default function DemoPage() {
   const evaluateCode = async () => {
     setIsEvaluating(true);
     setError(null);
+
+    console.log('Evaluating code:', { language, codeLength: code.length });
 
     try {
       const response = await fetch('/api/evaluate', {
@@ -146,16 +125,22 @@ export default function DemoPage() {
         body: JSON.stringify({ code, language }),
       });
 
+      console.log('API response status:', response.status);
       const result = await response.json() as any;
+      console.log('API result:', result);
 
       if (result.success) {
+        console.log('Setting geometry:', result.geometry);
         setGeometry(result.geometry);
         setError(null);
       } else {
-        setError(result.error || 'Evaluation failed');
+        const errorMsg = result.error || result.errors?.map((e: any) => e.message).join(', ') || 'Evaluation failed';
+        console.error('Evaluation failed:', errorMsg, result);
+        setError(errorMsg);
         setGeometry(null);
       }
     } catch (err) {
+      console.error('Network error:', err);
       setError('Network error: Failed to evaluate code');
       setGeometry(null);
     } finally {
@@ -163,7 +148,7 @@ export default function DemoPage() {
     }
   };
 
-  const loadExample = (example: typeof EXAMPLES['JavaScript SDK'][0]) => {
+  const loadExample = (example: typeof EXAMPLES['Basic Shapes'][0]) => {
     setCode(example.code);
     setLanguage(example.language);
   };
@@ -194,7 +179,7 @@ export default function DemoPage() {
             onChange={(e) => setLanguage((e.target as HTMLSelectElement).value)}
             className="bg-slate-800 border border-slate-700 rounded px-4 py-2 text-white"
           >
-            <option value="javascript">JavaScript</option>
+            <option value="javascript">JavaScript (SDK)</option>
             <option value="openscad">OpenSCAD</option>
           </select>
         </div>
@@ -213,7 +198,7 @@ export default function DemoPage() {
                 {isEvaluating ? '⏳ Evaluating...' : '▶️ Run'}
               </button>
             </div>
-            
+
             <div className="border border-slate-700 rounded-lg overflow-hidden">
               <div className="h-96 lg:h-[500px] border border-slate-700 rounded-lg overflow-hidden">
               <DemoEditor
@@ -235,7 +220,7 @@ export default function DemoPage() {
           {/* Viewport Side */}
           <div className="space-y-4">
             <h2 className="text-xl font-semibold">3D Preview</h2>
-            
+
             <div className="border border-slate-700 rounded-lg overflow-hidden bg-slate-800">
               <DemoViewport
                 geometry={geometry}
@@ -243,7 +228,7 @@ export default function DemoPage() {
                 height="500px"
               />
             </div>
-            
+
             {geometry && (
               <div className="bg-slate-800 p-4 rounded-lg border border-slate-700">
                 <h3 className="font-semibold mb-2">Geometry Info</h3>
@@ -251,7 +236,9 @@ export default function DemoPage() {
                   <div>Vertices: {geometry.stats?.vertexCount || 'N/A'}</div>
                   <div>Faces: {geometry.stats?.faceCount || 'N/A'}</div>
                   <div>Volume: {geometry.stats?.volume?.toFixed(3) || 'N/A'}</div>
-                  <div>Bounds: {JSON.stringify(geometry.bounds)}</div>
+                  <div className="col-span-2">
+                    Bounds: [{geometry.bounds?.min?.join(', ')}] to [{geometry.bounds?.max?.join(', ')}]
+                  </div>
                 </div>
               </div>
             )}
@@ -261,7 +248,7 @@ export default function DemoPage() {
         {/* Example Gallery */}
         <div>
           <h2 className="text-2xl font-bold mb-6">Example Gallery</h2>
-          
+
           {Object.entries(EXAMPLES).map(([category, examples]) => (
             <div key={category} className="mb-8">
               <h3 className="text-xl font-semibold mb-4 text-blue-400">{category}</h3>
@@ -274,7 +261,7 @@ export default function DemoPage() {
                   >
                     <div className="font-semibold text-white mb-2">{example.name}</div>
                     <div className="text-sm text-gray-400">
-                      {example.language === 'javascript' ? '📜 JavaScript' : '🔧 OpenSCAD'}
+                      {example.language === 'javascript' ? '📜 JavaScript SDK' : '🔧 OpenSCAD'}
                     </div>
                   </button>
                 ))}
@@ -283,7 +270,7 @@ export default function DemoPage() {
           ))}
         </div>
 
-        
+
       </div>
     </div>
   );
