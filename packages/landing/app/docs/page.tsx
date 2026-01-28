@@ -196,14 +196,14 @@ const DocumentationPage: NextPage = () => {
                   <div className="space-y-4">
                     <div>
                       <h3 className="text-lg font-semibold mb-2 text-white">Installation</h3>
-                      <pre className="bg-slate-900 p-4 rounded-lg overflow-x-auto">
-                        <code className="text-green-400">npm install @moicad/sdk</code>
+                      <pre className="bg-slate-900 p-2 sm:p-3 lg:p-4 rounded-lg overflow-x-auto code-scroll">
+                        <code className="text-xs sm:text-sm lg:text-base text-green-400">npm install @moicad/sdk</code>
                       </pre>
                     </div>
                     <div>
                       <h3 className="text-lg font-semibold mb-2 text-white">Basic Usage - Shape API</h3>
-                      <pre className="bg-slate-900 p-4 rounded-lg overflow-x-auto">
-                        <code className="text-gray-300">{`import { Shape } from '@moicad/sdk';
+                      <pre className="bg-slate-900 p-2 sm:p-3 lg:p-4 rounded-lg overflow-x-auto code-scroll">
+                        <code className="text-xs sm:text-sm lg:text-base text-gray-300">{`import { Shape } from '@moicad/sdk';
 
 // Create a simple house
 const house = Shape.cube(20)
@@ -218,8 +218,8 @@ console.log('Volume:', house.getVolume());`}</code>
                     </div>
                     <div>
                       <h3 className="text-lg font-semibold mb-2 text-white">Basic Usage - Functional API</h3>
-                      <pre className="bg-slate-900 p-4 rounded-lg overflow-x-auto">
-                        <code className="text-gray-300">{`import { cube, pyramid, translate, union } from '@moicad/sdk';
+                      <pre className="bg-slate-900 p-2 sm:p-3 lg:p-4 rounded-lg overflow-x-auto code-scroll">
+                        <code className="text-xs sm:text-sm lg:text-base text-gray-300">{`import { cube, pyramid, translate, union } from '@moicad/sdk';
 
 // Create same house functionally
 const house = union(

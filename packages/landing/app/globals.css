@@ -25,3 +25,9 @@ body {
     )
     rgb(var(--background-start-rgb));
 }
+
+/* Smooth scrolling for code blocks on touch devices */
+.code-scroll {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
