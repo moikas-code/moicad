@@ -41,3 +41,4 @@ wasm/target/
 src-tauri/target/
 
 **/.next/**
+.mcp.local.json
