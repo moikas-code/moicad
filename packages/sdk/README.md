@@ -1,4 +1,4 @@
-# moicad-sdk v0.1.0
+# moicad-sdk v0.1.3
 
 Modern JavaScript CAD Library with OpenSCAD Compatibility
 
@@ -10,6 +10,7 @@ Modern JavaScript CAD Library with OpenSCAD Compatibility
 - **High Performance**: Built on manifold-3d CSG engine
 - **TypeScript First**: Complete type definitions
 - **Cross-Platform**: Browser and Node.js support
+- **Plugin System**: Extensible architecture for custom functionality
 
 ## 📦 Installation
 
@@ -124,6 +125,35 @@ console.log('Vertices:', stats.vertices);
 viewport.dispose();
 ```
 
+### Plugin System (NEW!)
+
+```typescript
+import { loadPlugin, initializePlugins } from '@moicad/sdk';
+
+// Load custom plugin
+await loadPlugin('./my-plugin.js');
+await loadPlugin('@moicad/plugin-advanced-geometry');
+
+// Initialize plugin system
+await initializePlugins();
+
+// Use plugin primitives
+const torus = Shape.torus(10, 5);
+const spring = Shape.spring(50, 10, 8);
+const gear = Shape.gear(20, 12);
+
+// Use plugin transforms
+const array = Shape.cube(10).array(3, 3, 1, 15);
+const filleted = Shape.cube(20).fillet(2);
+
+// Use plugin OpenSCAD functions in SCAD code
+const scadCode = `
+  // Plugin functions available!
+  params = calc_gear_params(2, 20);
+  phi = golden_ratio();
+`;
+```
+
 ## 🎨 API Reference
 
 ### 3D Primitives
@@ -222,12 +252,25 @@ npm run dev
 
 ## 📖 Examples
 
-See the `examples/` directory for more examples:
+See `examples/` directory for more examples:
 
 - [Basic Shapes](./examples/basic-shapes.ts)
 - [Parametric Design](./examples/parametric.ts)
 - [Boolean Operations](./examples/boolean.ts)
 - [2D Operations](./examples/2d-operations.ts)
+- [Plugin System](./examples/test-plugin-system.ts) - **NEW!**
+- [Example Plugin](./examples/example-plugin.ts) - **NEW!**
+
+### Plugin Development
+
+See [Plugin System Documentation](./PLUGIN_SYSTEM.md) for complete guide on:
+
+- Creating custom primitives and transforms
+- Adding OpenSCAD functions
+- File format handlers
+- Viewport extensions
+- Plugin discovery and loading
+- Best practices and examples
 
 ## 🤝 Contributing
 

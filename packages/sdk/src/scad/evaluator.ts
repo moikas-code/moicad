@@ -12,6 +12,7 @@ import { readTextFile, readTextFileSync, parseSurfaceData } from "../utils/file-
 import logger, { logWarn, logInfo, logDebug, logError } from "../core/logger";
 import { MemoryMonitor } from "../core/memory-monitor";
 import { bufferPool } from "../utils/buffer-pool";
+import { pluginManager } from "../plugins";
 
 // Import manifold-based evaluator (replaces WASM CSG engine)
 import {
@@ -184,6 +185,10 @@ export async function evaluateAST(
   options?: { previewMode?: boolean; disableParallel?: boolean },
 ): Promise<EvaluateResult> {
   const startTime = performance.now();
+  
+  // Execute plugin hooks before parsing
+  pluginManager.executeHook('scad.parse', ast, options);
+  
   const context: EvaluationContext = {
     variables: new Map<string, any>([
       ["$fn", 0], // Fragment number (facets)
@@ -205,6 +210,16 @@ export async function evaluateAST(
     errors: [],
     includedFiles: new Set(),
   };
+
+  // Load plugin SCAD functions
+  const pluginFunctions = pluginManager.getSCADFunctions();
+  for (const [name, func] of Object.entries(pluginFunctions)) {
+    context.functions.set(name, {
+      type: 'function',
+      name,
+      pluginFunction: func,
+    });
+  }
 
   try {
     // Initialize manifold engine if not already done
@@ -1581,6 +1596,10 @@ function evaluateBinaryExpression(expr: any, context: EvaluationContext): any {
 
 function evaluateFunctionCall(call: any, context: EvaluationContext): any {
   const funcDef = context.functions.get(call.name);
+  
+  // Execute plugin hooks before function call
+  pluginManager.executeHook('scad.evaluate', call, context);
+  
   if (!funcDef) {
     // Try built-in functions
     switch (call.name) {
@@ -1747,6 +1766,27 @@ function evaluateFunctionCall(call: any, context: EvaluationContext): any {
       default:
         context.errors.push({ message: `Unknown function: ${call.name}` });
         return null;
+    }
+  }
+
+  // Plugin function
+  if (funcDef.pluginFunction) {
+    const evaluatedArgs = call.args.map((arg: any) =>
+      evaluateExpression(arg, context),
+    );
+    
+    try {
+      const result = funcDef.pluginFunction(...evaluatedArgs);
+      
+      // Execute plugin hooks after function call
+      pluginManager.executeHook('scad.evaluate.after', call, context, result);
+      
+      return result;
+    } catch (error: any) {
+      context.errors.push({
+        message: `Error in plugin function ${call.name}: ${error.message}`,
+      });
+      return null;
     }
   }
 

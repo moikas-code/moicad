@@ -4,6 +4,8 @@
  * OpenSCAD parsing and evaluation for the SDK
  */
 
+import { pluginManager } from '../plugins';
+
 // Export the main API functions
 export { parseOpenSCAD as parse } from './parser.js';
 export { evaluateAST as evaluate, initManifoldEngine } from './evaluator.js';
@@ -27,4 +29,9 @@ export const SCAD = {
   parse: parseOpenSCAD,
   evaluate: evaluateAST,
   initManifoldEngine,
+  getPluginFunctions: () => pluginManager.getSCADFunctions(),
+  initializePlugins: async () => {
+    const pluginFunctions = pluginManager.getSCADFunctions();
+    return pluginFunctions;
+  }
 } as const;

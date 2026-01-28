@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import type { Geometry, HighlightInfo } from '../shared/types';
 import type { SceneConfig, ViewportConfig, ViewportEventHandlers, ViewportStats } from './types';
+import { pluginManager } from '../plugins';
 
 export class Viewport {
   private container: HTMLElement;
@@ -15,6 +16,7 @@ export class Viewport {
   private renderer!: THREE.WebGLRenderer;
   private mesh: THREE.Mesh | null = null;
   private animationId: number | null = null;
+  private pluginExtensions: any[] = [];
 
   private config: ViewportConfig;
   private eventHandlers: ViewportEventHandlers = {};
@@ -37,6 +39,7 @@ export class Viewport {
     this.setupCamera();
     this.setupRenderer();
     this.setupControls();
+    this.initializePluginExtensions();
     
     container.appendChild(this.renderer.domElement);
     this.startRenderLoop();
@@ -101,7 +104,25 @@ export class Viewport {
   }
 
   private render(): void {
+    // Execute plugin hooks before rendering
+    pluginManager.executeHook('viewport.render', this.scene, this.camera, this.renderer);
+    
     this.renderer.render(this.scene, this.camera);
+    
+    // Execute plugin hooks after rendering
+    pluginManager.executeHook('viewport.render.after', this.scene, this.camera, this.renderer);
+  }
+
+  private initializePluginExtensions(): void {
+    const extensions = pluginManager.getViewportExtensions();
+    
+    for (const extension of extensions) {
+      if (extension.initialize) {
+        extension.initialize(this);
+      }
+      
+      this.pluginExtensions.push(extension);
+    }
   }
 
   /**

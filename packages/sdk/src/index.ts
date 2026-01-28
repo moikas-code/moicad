@@ -194,10 +194,38 @@ export { Viewport, ViewportControls, StatsOverlay } from './viewport';
 export type { SceneConfig, ViewportConfig, ViewportEventHandlers, CameraState } from './viewport';
 
 // ============================================================================
+// PLUGIN SYSTEM
+// ============================================================================
+
+export type { 
+  PluginManager, 
+  Plugin, 
+  PluginConfig, 
+  PluginHook,
+  PrimitiveFunction,
+  TransformFunction,
+  FileHandler,
+  SCADFunction,
+  ViewportExtension,
+  HookName 
+} from './plugins';
+
+export { 
+  DefaultPluginManager, 
+  pluginManager,
+  PluginDiscovery,
+  PluginLoader,
+  loadPlugin,
+  initializePlugins
+} from './plugins';
+
+export { initializePlugins as initializeFunctionalPlugins } from './functional';
+
+// ============================================================================
 // VERSION AND METADATA
 // ============================================================================
 
-export const VERSION = '0.1.2';
+export const VERSION = '0.1.3';
 
 export function getInfo() {
   return {
@@ -216,6 +244,7 @@ export function getInfo() {
       'Zod validation schemas',
       'Browser and Node.js support',
       'manifold-3d CSG engine',
+      'Plugin system for extensibility',
     ],
   };
 }

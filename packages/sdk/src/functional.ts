@@ -24,6 +24,7 @@
  */
 
 import { Shape } from './shape';
+import { pluginManager } from './plugins';
 import type {
   PrimitiveOptions,
   TextOptions,
@@ -349,4 +350,66 @@ export function projection(
   options?: ProjectionOptions
 ): Shape {
   return shape.projection(options);
+}
+
+// ============================================================================
+// PLUGIN SYSTEM INTEGRATION
+// ============================================================================
+
+/**
+ * Initialize plugins and extend the functional API with plugin functions.
+ * This should be called once during application startup to make plugin functions available.
+ */
+export async function initializePlugins(): Promise<void> {
+  await Shape.initializePlugins();
+  
+  // Add plugin primitives to functional API
+  const primitives = pluginManager.getPrimitives();
+  for (const [name, func] of Object.entries(primitives)) {
+    if (!(globalThis as any)[name]) {
+      (globalThis as any)[name] = func;
+    }
+  }
+  
+  // Add plugin transforms to functional API
+  const transforms = pluginManager.getTransforms();
+  for (const [name, func] of Object.entries(transforms)) {
+    if (!(globalThis as any)[name]) {
+      (globalThis as any)[name] = (shape: Shape, ...args: any[]) => {
+        return func(shape, ...args);
+      };
+    }
+  }
+}
+
+/**
+ * Get all available plugin primitives.
+ */
+export function getPluginPrimitives(): Record<string, (...args: any[]) => Shape> {
+  return pluginManager.getPrimitives();
+}
+
+/**
+ * Get all available plugin transforms.
+ */
+export function getPluginTransforms(): Record<string, (shape: Shape, ...args: any[]) => Shape> {
+  return pluginManager.getTransforms();
+}
+
+/**
+ * Register a plugin primitive function.
+ */
+export function registerPrimitive(name: string, func: (...args: any[]) => Shape): void {
+  pluginManager.addHook('shape.create', func);
+  (globalThis as any)[name] = func;
+}
+
+/**
+ * Register a plugin transform function.
+ */
+export function registerTransform(name: string, func: (shape: Shape, ...args: any[]) => Shape): void {
+  pluginManager.addHook('transform.apply', func);
+  (globalThis as any)[name] = (shape: Shape, ...args: any[]) => {
+    return func(shape, ...args);
+  };
 }

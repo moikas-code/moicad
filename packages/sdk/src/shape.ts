@@ -19,6 +19,7 @@
 import type { ManifoldObject } from './manifold/types';
 import type { Geometry } from './types/geometry-types';
 import { getManifold } from './manifold/engine';
+import { pluginManager } from './plugins';
 import {
   createCube,
   createSphere,
@@ -70,6 +71,9 @@ export class Shape {
     this.manifoldObject = manifoldObject;
     this._color = color;
     this._modifier = modifier;
+    
+    // Initialize plugin transforms for this instance
+    this.initializePluginTransforms();
   }
 
   // ============================================================================
@@ -91,8 +95,16 @@ export class Shape {
     size: number | [number, number, number],
     center: boolean = false
   ): Shape {
+    // Execute plugin hooks before creating the shape
+    pluginManager.executeHook('shape.create', 'cube', size, center);
+    
     const manifold = createCube(size, center);
-    return new Shape(manifold);
+    const shape = new Shape(manifold);
+    
+    // Execute plugin hooks after creating the shape
+    pluginManager.executeHook('shape.create.after', shape, 'cube', size, center);
+    
+    return shape;
   }
 
   /**
@@ -310,6 +322,41 @@ export class Shape {
   }
 
   // ============================================================================
+  // PLUGIN DYNAMIC METHODS (Auto-generated from plugins)
+  // ============================================================================
+
+  /**
+   * Get all available plugin primitives as static methods.
+   * This method is called to expose plugin primitives on the Shape class.
+   */
+  private static initializePluginMethods(): void {
+    const primitives = pluginManager.getPrimitives();
+    
+    for (const [name, func] of Object.entries(primitives)) {
+      if (!(this.prototype as any)[name] && !this[name as keyof typeof Shape]) {
+        // Add as static method
+        (this as any)[name] = func;
+      }
+    }
+  }
+
+  /**
+   * Get all available plugin transforms as instance methods.
+   * This method is called to expose plugin transforms on Shape instances.
+   */
+  private initializePluginTransforms(): void {
+    const transforms = pluginManager.getTransforms();
+    
+    for (const [name, func] of Object.entries(transforms)) {
+      if (!(this as any)[name]) {
+        (this as any)[name] = (...args: any[]) => {
+          return func(this, ...args);
+        };
+      }
+    }
+  }
+
+  // ============================================================================
   // CHAINABLE TRANSFORM METHODS (Return new Shape)
   // ============================================================================
 
@@ -323,8 +370,16 @@ export class Shape {
    * cube.translate([10, 0, 0])  // Move 10 units along X-axis
    */
   translate(offset: [number, number, number]): Shape {
+    // Execute plugin hooks before transform
+    pluginManager.executeHook('transform.apply', 'translate', this, offset);
+    
     const translated = manifoldTranslate(this.manifoldObject, offset);
-    return new Shape(translated, this._color, this._modifier);
+    const result = new Shape(translated, this._color, this._modifier);
+    
+    // Execute plugin hooks after transform
+    pluginManager.executeHook('transform.apply.after', 'translate', result, this, offset);
+    
+    return result;
   }
 
   /**
@@ -799,6 +854,37 @@ export class Shape {
   toJSON(): string {
     const geometry = this.getGeometry();
     return JSON.stringify(geometry, null, 2);
+  }
+
+  // ============================================================================
+  // PLUGIN SYSTEM INTEGRATION
+  // ============================================================================
+
+  /**
+   * Initialize the plugin system and integrate with Shape class.
+   * This should be called once during application startup.
+   */
+  static async initializePlugins(): Promise<void> {
+    // Initialize plugin methods on the Shape class
+    this.initializePluginMethods();
+  }
+
+  /**
+   * Register a plugin primitive directly with the Shape class.
+   * Convenience method for adding new primitives.
+   */
+  static registerPrimitive(name: string, func: (...args: any[]) => Shape): void {
+    (this as any)[name] = func;
+  }
+
+  /**
+   * Register a plugin transform directly with the Shape class.
+   * Convenience method for adding new transforms.
+   */
+  registerTransform(name: string, func: (shape: Shape, ...args: any[]) => Shape): void {
+    (this as any)[name] = (...args: any[]) => {
+      return func(this, ...args);
+    };
   }
 }
 
