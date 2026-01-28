@@ -31,3 +31,10 @@ body {
   -webkit-overflow-scrolling: touch;
   scroll-behavior: smooth;
 }
+
+/* Better code block readability on mobile */
+.code-scroll code {
+  display: block;
+  line-height: 1.6;
+  letter-spacing: 0.01em;
+}

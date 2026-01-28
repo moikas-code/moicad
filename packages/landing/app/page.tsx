@@ -137,8 +137,8 @@ export default function HomePage() {
               <h3 className="text-xl font-semibold text-blue-400 mb-4">
                 JavaScript (Modern)
               </h3>
-              <pre className="bg-slate-900 p-2 sm:p-3 lg:p-4 rounded-lg overflow-x-auto code-scroll">
-                <code className="text-xs sm:text-sm lg:text-base text-gray-300">
+              <pre className="bg-slate-900 p-3 sm:p-4 lg:p-5 rounded-lg overflow-x-auto code-scroll">
+                <code className="text-sm sm:text-base lg:text-lg text-gray-300 leading-relaxed">
 {`// Parametric Bolt Class
 class Bolt {
   constructor(length, diameter) {
@@ -163,8 +163,8 @@ export default new Bolt(20, 6).build();`}
               <h3 className="text-xl font-semibold text-green-400 mb-4">
                 OpenSCAD (Classic)
               </h3>
-              <pre className="bg-slate-900 p-2 sm:p-3 lg:p-4 rounded-lg overflow-x-auto code-scroll">
-                <code className="text-xs sm:text-sm lg:text-base text-gray-300">
+              <pre className="bg-slate-900 p-3 sm:p-4 lg:p-5 rounded-lg overflow-x-auto code-scroll">
+                <code className="text-sm sm:text-base lg:text-lg text-gray-300 leading-relaxed">
 {`module bolt(length=20, diameter=6) {
   cylinder(h=length, r=diameter/2);
   translate([0, 0, length])

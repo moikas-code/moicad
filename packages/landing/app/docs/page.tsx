@@ -196,14 +196,14 @@ const DocumentationPage: NextPage = () => {
                   <div className="space-y-4">
                     <div>
                       <h3 className="text-lg font-semibold mb-2 text-white">Installation</h3>
-                      <pre className="bg-slate-900 p-2 sm:p-3 lg:p-4 rounded-lg overflow-x-auto code-scroll">
-                        <code className="text-xs sm:text-sm lg:text-base text-green-400">npm install @moicad/sdk</code>
+                      <pre className="bg-slate-900 p-3 sm:p-4 lg:p-5 rounded-lg overflow-x-auto code-scroll">
+                        <code className="text-sm sm:text-base lg:text-lg text-green-400 leading-relaxed">npm install @moicad/sdk</code>
                       </pre>
                     </div>
                     <div>
                       <h3 className="text-lg font-semibold mb-2 text-white">Basic Usage - Shape API</h3>
-                      <pre className="bg-slate-900 p-2 sm:p-3 lg:p-4 rounded-lg overflow-x-auto code-scroll">
-                        <code className="text-xs sm:text-sm lg:text-base text-gray-300">{`import { Shape } from '@moicad/sdk';
+                      <pre className="bg-slate-900 p-3 sm:p-4 lg:p-5 rounded-lg overflow-x-auto code-scroll">
+                        <code className="text-sm sm:text-base lg:text-lg text-gray-300 leading-relaxed">{`import { Shape } from '@moicad/sdk';
 
 // Create a simple house
 const house = Shape.cube(20)
@@ -218,8 +218,8 @@ console.log('Volume:', house.getVolume());`}</code>
                     </div>
                     <div>
                       <h3 className="text-lg font-semibold mb-2 text-white">Basic Usage - Functional API</h3>
-                      <pre className="bg-slate-900 p-2 sm:p-3 lg:p-4 rounded-lg overflow-x-auto code-scroll">
-                        <code className="text-xs sm:text-sm lg:text-base text-gray-300">{`import { cube, pyramid, translate, union } from '@moicad/sdk';
+                      <pre className="bg-slate-900 p-3 sm:p-4 lg:p-5 rounded-lg overflow-x-auto code-scroll">
+                        <code className="text-sm sm:text-base lg:text-lg text-gray-300 leading-relaxed">{`import { cube, pyramid, translate, union } from '@moicad/sdk';
 
 // Create same house functionally
 const house = union(
