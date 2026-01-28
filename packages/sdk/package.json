@@ -1,6 +1,6 @@
 {
   "name": "@moicad/sdk",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Modern JavaScript CAD library with OpenSCAD compatibility",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -76,6 +76,10 @@
     "./viewport": {
       "import": "./dist/viewport/index.js",
       "types": "./dist/viewport/index.d.ts"
+    },
+    "./runtime": {
+      "import": "./dist/runtime/index.js",
+      "types": "./dist/runtime/index.d.ts"
     }
   },
   "typesVersions": {
@@ -88,6 +92,9 @@
       ],
       "viewport": [
         "dist/viewport/index.d.ts"
+      ],
+      "runtime": [
+        "dist/runtime/index.d.ts"
       ]
     }
   }

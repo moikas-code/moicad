@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { parse } from '@moicad/sdk/scad';
+import { SCAD } from '@moicad/sdk/scad';
 import { ParseResultSchema } from '@moicad/sdk';
 
 export async function POST(request: NextRequest) {
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Parse using SDK (no manifold initialization needed)
-    const result = parse(code);
+    const result = SCAD.parse(code);
     
     // Validate with Zod schema
     const validatedResult = ParseResultSchema.parse(result);

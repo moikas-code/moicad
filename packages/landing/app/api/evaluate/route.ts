@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { parse, evaluate, initManifoldEngine } from '@moicad/sdk/scad';
+import { SCAD } from '@moicad/sdk/scad';
 import { evaluateJavaScript } from '@moicad/sdk/runtime';
 import { EvaluateResultSchema } from '@moicad/sdk';
 
@@ -9,7 +9,7 @@ let manifoldInitialized = false;
 async function ensureManifoldInitialized() {
   if (!manifoldInitialized) {
     console.log('Initializing Manifold engine...');
-    await initManifoldEngine();
+    await SCAD.initManifoldEngine();
     manifoldInitialized = true;
     console.log('Manifold engine initialized');
   }
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
       });
     } else {
       // Parse and evaluate OpenSCAD code
-      const parseResult = parse(code);
+      const parseResult = SCAD.parse(code);
 
       if (!parseResult.success) {
         const errorMessages = parseResult.errors.map(e =>
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
       }
 
-      evalResult = await evaluate(parseResult.ast);
+      evalResult = await SCAD.evaluate(parseResult.ast);
     }
 
     // Validate result with Zod schema
