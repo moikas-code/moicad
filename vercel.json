@@ -1,0 +1,6 @@
+{
+  "installCommand": "bun install",
+  "buildCommand": "bun run build:all",
+  "framework": "nextjs",
+  "rootDirectory": "packages/landing"
+}
