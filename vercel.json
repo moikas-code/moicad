@@ -1,6 +1,6 @@
 {
   "installCommand": "bun install",
-  "buildCommand": "bun run build:all",
+  "buildCommand": "cd packages/sdk && bun run build && cd packages/landing && bun run build",
   "framework": "nextjs",
   "rootDirectory": "packages/landing"
 }
