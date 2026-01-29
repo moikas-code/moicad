@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useEditor } from '@/hooks/useEditor';
 import { useGeometry } from '@/hooks/useGeometry';
 import { useWebSocket } from '@/hooks/useWebSocket';
@@ -18,6 +18,19 @@ import PrinterSettings from '@/components/PrinterSettings';
 import { getDefaultPrinter, PrinterPreset } from '@/lib/printer-presets';
 import RenderProgressBar from '@/components/RenderProgressBar';
 import type { RenderProgress } from '@moicad/sdk';
+import ExportAnimationDialog from '@/components/ExportAnimationDialog';
+import { detectAnimation, calculateTotalFrames } from '@/lib/animation-utils';
+import { exportAnimation, type FrameRenderer } from '@/lib/export-animation';
+
+// Type alias for export settings (matches the component)
+type ExportSettings = {
+  format: 'gif' | 'webm' | 'mp4';
+  width: number;
+  height: number;
+  fps: number;
+  quality: number;
+  loop: boolean;
+};
 
 function HomeContent() {
   // State management
@@ -47,6 +60,10 @@ function HomeContent() {
 
   const [printerSize, setPrinterSize] = useState<PrinterPreset>(getDefaultPrinter());
   const { connected: wsConnected } = useWebSocket();
+  
+  // Animation state
+  const [isAnimation, setIsAnimation] = useState(false);
+  const [showExportDialog, setShowExportDialog] = useState(false);
 
   // Save language preference to localStorage
   const handleLanguageChange = (newLanguage: Language) => {
@@ -158,6 +175,9 @@ function HomeContent() {
 
   const handleEditorChange = (newCode: string) => {
     setCode(newCode);
+    // Detect if code contains animation
+    const hasAnimation = detectAnimation(newCode, language);
+    setIsAnimation(hasAnimation);
   };
 
   const handleEditorErrors = (errors: string[]) => {
@@ -185,6 +205,63 @@ function HomeContent() {
       });
       await editorRef.current.render();
       setRenderProgress(null);
+    }
+  };
+
+  const handleAnimationExport = async (settings: ExportSettings) => {
+    try {
+      // Validate format - only gif and webm are supported by exportAnimation
+      if (settings.format === 'mp4') {
+        alert('MP4 export is not yet supported. Please choose GIF or WebM.');
+        return;
+      }
+
+      // Calculate total frames
+      const totalFrames = calculateTotalFrames(settings.fps, 2000); // Default 2 second duration
+
+      // Create frame renderer that captures from viewport
+      const frameRenderer: FrameRenderer = async (t: number) => {
+        // Re-render with t parameter
+        if (editorRef.current && 'renderWithT' in editorRef.current) {
+          await editorRef.current.renderWithT(t);
+
+          // Wait for rendering to complete
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+
+        // Capture frame from Three.js viewport
+        const canvas = document.querySelector('canvas') as HTMLCanvasElement;
+        if (!canvas) {
+          throw new Error('Could not find viewport canvas for frame capture');
+        }
+        return canvas;
+      };
+
+      // Convert settings format to match exportAnimation signature
+      const exportSettings = {
+        format: settings.format as 'gif' | 'webm',
+        width: settings.width,
+        height: settings.height,
+        fps: settings.fps,
+        quality: settings.quality,
+        loop: settings.loop,
+      };
+
+      // Export animation with progress updates
+      await exportAnimation(
+        frameRenderer,
+        exportSettings,
+        totalFrames,
+        (progress) => {
+          console.log(`Export progress: ${progress}%`);
+        }
+      );
+
+      // Close dialog on success
+      setShowExportDialog(false);
+    } catch (error) {
+      console.error('Animation export failed:', error);
+      alert(`Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -300,6 +377,30 @@ function HomeContent() {
 
       {/* File Manager */}
       <FileManager ref={fileManagerRef} onOpen={handleOpen} onNew={handleNew} />
+
+      {/* Export Animation Dialog - shows when animation is detected */}
+      <ExportAnimationDialog
+        isOpen={showExportDialog}
+        duration={2000}
+        onClose={() => setShowExportDialog(false)}
+        onExport={handleAnimationExport}
+      />
+
+      {/* Animation Indicator */}
+      {isAnimation && (
+        <div className="fixed bottom-6 right-6 bg-green-900/30 border border-green-500 rounded-lg p-3 text-sm text-green-400">
+          <div className="flex items-center gap-2">
+            <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+            <span>Animation detected</span>
+            <button
+              onClick={() => setShowExportDialog(true)}
+              className="ml-2 px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs"
+            >
+              Export
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
