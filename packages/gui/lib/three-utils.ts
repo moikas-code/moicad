@@ -6,7 +6,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GeometryResponse } from "./api-client";
-import type { Geometry, GeometryObject, HighlightInfo } from "@moicad/sdk";
+import { Geometry, GeometryObject, HighlightInfo } from "../shared/types";
 
 export interface SceneConfig {
   container: HTMLElement;
@@ -848,7 +848,7 @@ export class SceneManager {
       const max = new THREE.Vector3(...this.lastGeometryBounds.max).add(offset);
       target = new THREE.Vector3().addVectors(min, max).multiplyScalar(0.5);
     }
-    
+
     this.camera.position.set(target.x + pos[0], target.y + pos[1], target.z + pos[2]);
     this.camera.lookAt(target);
     this.controls.target.copy(target);

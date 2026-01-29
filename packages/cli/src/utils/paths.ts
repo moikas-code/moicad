@@ -2,40 +2,95 @@ import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync } from 'fs';
 
+/**
+ * Get the monorepo root directory
+ */
 export function getMonorepoRoot(): string {
-  // Get the directory of the current module
   const currentDir = dirname(fileURLToPath(import.meta.url));
-  // Assuming CLI is at packages/cli/src/utils, root is four levels up
+  // CLI is at packages/cli/src/utils, root is four levels up
   return resolve(currentDir, '../../../..');
 }
 
-export function getAppPath(): string {
+/**
+ * Get the GUI package path
+ *
+ * Checks multiple locations:
+ * 1. Production: installed @moicad/gui in node_modules
+ * 2. Development: packages/gui in monorepo
+ */
+export function getGuiPath(): string | null {
   const currentDir = dirname(fileURLToPath(import.meta.url));
 
-  // In production (installed via npm): try to find @moicad/gui
-  const installedAppPath = resolve(currentDir, '../../../@moicad/gui');
+  // In production (installed via npm): look for @moicad/gui in node_modules
+  const possibleProductionPaths = [
+    resolve(currentDir, '../../../@moicad/gui'),           // Sibling in node_modules
+    resolve(currentDir, '../../../../@moicad/gui'),        // Global install
+    resolve(process.cwd(), 'node_modules/@moicad/gui'),    // Local project
+  ];
 
-  if (existsSync(installedAppPath)) {
-    return installedAppPath;
+  for (const path of possibleProductionPaths) {
+    if (existsSync(path)) {
+      return path;
+    }
   }
 
   // In development: use monorepo structure
   const monorepoRoot = getMonorepoRoot();
-  const devAppPath = resolve(monorepoRoot, 'packages/app');
+  const devGuiPath = resolve(monorepoRoot, 'packages/gui');
 
-  if (existsSync(devAppPath)) {
-    return devAppPath;
+  if (existsSync(devGuiPath)) {
+    return devGuiPath;
   }
 
-  throw new Error('Could not locate app directory. Run "moicad --install" to install @moicad/gui.');
+  return null;
 }
 
+/**
+ * Check if we're running in development mode
+ *
+ * Returns true if:
+ * - Running from monorepo (packages/cli exists at expected location)
+ * - NODE_ENV is 'development'
+ */
 export function isDevMode(): boolean {
-  const currentDir = dirname(fileURLToPath(import.meta.url));
-  const installedAppPath = resolve(currentDir, '../../../@moicad/gui');
-  const monorepoRoot = getMonorepoRoot();
-  const devAppPath = resolve(monorepoRoot, 'packages/app');
+  // Check environment variable
+  if (process.env.NODE_ENV === 'development') {
+    return true;
+  }
 
-  // If neither installed app nor dev app exists, we're in dev mode (or need install)
-  return !(existsSync(installedAppPath) || existsSync(devAppPath));
+  // Check if we're in the monorepo
+  const monorepoRoot = getMonorepoRoot();
+  const cliPackageJson = resolve(monorepoRoot, 'packages/cli/package.json');
+  const guiPackageJson = resolve(monorepoRoot, 'packages/gui/package.json');
+
+  return existsSync(cliPackageJson) && existsSync(guiPackageJson);
+}
+
+/**
+ * Get the SDK package path
+ */
+export function getSdkPath(): string | null {
+  const currentDir = dirname(fileURLToPath(import.meta.url));
+
+  // Production paths
+  const possibleProductionPaths = [
+    resolve(currentDir, '../../../@moicad/sdk'),
+    resolve(process.cwd(), 'node_modules/@moicad/sdk'),
+  ];
+
+  for (const path of possibleProductionPaths) {
+    if (existsSync(path)) {
+      return path;
+    }
+  }
+
+  // Development path
+  const monorepoRoot = getMonorepoRoot();
+  const devSdkPath = resolve(monorepoRoot, 'packages/sdk');
+
+  if (existsSync(devSdkPath)) {
+    return devSdkPath;
+  }
+
+  return null;
 }

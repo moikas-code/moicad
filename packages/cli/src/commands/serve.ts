@@ -1,25 +1,37 @@
-import { spawn } from 'bun';
-import { getMonorepoRoot } from '../utils/paths';
+/**
+ * Serve command - Start the moicad server without opening browser
+ */
+
+import { createServer } from '../server';
+import { getGuiPath, isDevMode } from '../utils/paths';
 import { logger } from '../utils/logger';
 
-export async function serve(options: any) {
-  const root = getMonorepoRoot();
-  const port = options.port || 3000;
+interface ServeOptions {
+  port?: string;
+  dev?: boolean;
+}
 
-  logger.info('🌐 Starting production server...');
-  logger.info(`📂 Root: ${root}`);
-  logger.info(`🌐 URL: http://localhost:${port}`);
+export async function serve(options: ServeOptions) {
+  const port = parseInt(options.port || '42069', 10);
+  const isDev = options.dev ?? isDevMode();
 
-  const env = {
-    ...process.env,
-    PORT: port.toString()
-  };
+  logger.info('Starting moicad server...');
+  logger.info(`Mode: ${isDev ? 'development' : 'production'}`);
+  logger.info(`URL: http://localhost:${port}`);
 
-  const proc = spawn(['bun', 'run', 'start'], {
-    cwd: `${root}/moicad/packages/app`,
-    env,
-    stdio: ['inherit', 'inherit', 'inherit']
+  const guiPath = getGuiPath();
+
+  if (!guiPath && !isDev) {
+    logger.warn('GUI package not found. API-only mode.');
+  }
+
+  // Start the server
+  createServer({
+    port,
+    dev: isDev,
+    staticDir: guiPath ? `${guiPath}/.next` : undefined,
   });
 
-  await proc.exited;
+  // Keep the process running
+  await new Promise(() => {});
 }

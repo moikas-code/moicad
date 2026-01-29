@@ -36,13 +36,7 @@
         "./hooks/*"
       ]
     },
-    "allowJs": true,
-    "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ]
+    "allowJs": true
   },
   "include": [
     "next-env.d.ts",

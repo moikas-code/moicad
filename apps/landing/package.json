@@ -1,20 +1,21 @@
 {
-  "name": "@moicad/landing",
+  "name": "moicad-landing",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "cd ../sdk && bun run build",
+    "prebuild": "cd ../../packages/sdk && bun run build",
     "build": "next build",
     "postinstall": "bash scripts/fix-bun-modules.sh",
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
     "docs:watch": "node scripts/watch-docs.js",
-    "docs:generate": "cd ../sdk && bun run docs:json",
+    "docs:generate": "cd ../../packages/sdk && bun run docs:json",
     "dev:docs": "node scripts/dev-with-docs.js"
   },
   "dependencies": {
+    "@moicad/gui": "workspace:*",
     "@moicad/sdk": "workspace:*",
     "@monaco-editor/react": "4.7.0",
     "@vercel/analytics": "1.6.1",

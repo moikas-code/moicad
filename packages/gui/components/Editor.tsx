@@ -39,19 +39,19 @@ const EditorComponent = forwardRef<EditorRef, EditorProps>(function EditorCompon
   onAnimationDetected,
 }: EditorProps, ref: React.ForwardedRef<EditorRef>) {
   // Use refs to avoid stale closures and prevent infinite loops
-  const callbacksRef = useRef({ 
-    onGeometry, 
-    onErrors, 
-    onLoading, 
-    onProgress, 
+  const callbacksRef = useRef({
+    onGeometry,
+    onErrors,
+    onLoading,
+    onProgress,
     onRenderRequest,
     onAnimationDetected,
   });
-  callbacksRef.current = { 
-    onGeometry, 
-    onErrors, 
-    onLoading, 
-    onProgress, 
+  callbacksRef.current = {
+    onGeometry,
+    onErrors,
+    onLoading,
+    onProgress,
     onRenderRequest,
     onAnimationDetected,
   };
@@ -60,7 +60,7 @@ const EditorComponent = forwardRef<EditorRef, EditorProps>(function EditorCompon
 
   const handleEditorDidMount = (editor: editor.IStandaloneCodeEditor, monaco: any) => {
     editorRef.current = editor;
-    
+
     // Add keyboard shortcut for Alt+R to trigger render
     editor.addCommand(monaco.KeyMod.Alt | monaco.KeyCode.KeyR, () => {
       callbacksRef.current.onRenderRequest?.();
@@ -77,7 +77,7 @@ const EditorComponent = forwardRef<EditorRef, EditorProps>(function EditorCompon
     if (!callbacksRef.current.onLoading || !callbacksRef.current.onGeometry || !callbacksRef.current.onErrors) {
       return;
     }
-    
+
     callbacksRef.current.onLoading(true);
     try {
       const result = await evaluateCode(code, (progress) => {
@@ -116,7 +116,7 @@ const EditorComponent = forwardRef<EditorRef, EditorProps>(function EditorCompon
         defaultLanguage={monacoLanguage}
         language={monacoLanguage}
         value={code}
-        onChange={(value) => onChange(value || '')}
+        onChange={(value: string | undefined) => onChange(value || '')}
         onMount={handleEditorDidMount}
         theme="vs-dark"
         options={{

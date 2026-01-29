@@ -1,0 +1,90 @@
+{
+  "name": "@moicad/gui",
+  "version": "0.1.0",
+  "description": "Reusable React components for moicad CAD platform",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./components": {
+      "types": "./dist/components/index.d.ts",
+      "import": "./dist/components/index.js",
+      "require": "./dist/components/index.cjs"
+    },
+    "./hooks": {
+      "types": "./dist/hooks/index.d.ts",
+      "import": "./dist/hooks/index.js",
+      "require": "./dist/hooks/index.cjs"
+    },
+    "./lib": {
+      "types": "./dist/lib/index.d.ts",
+      "import": "./dist/lib/index.js",
+      "require": "./dist/lib/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "type-check": "tsc --noEmit",
+    "prepublishOnly": "bun run build"
+  },
+  "files": [
+    "dist",
+    "components",
+    "hooks",
+    "lib",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0",
+    "three": ">=0.150.0"
+  },
+  "dependencies": {
+    "@moicad/sdk": "workspace:*",
+    "@monaco-editor/react": "4.7.0",
+    "gif.js": "0.2.0",
+    "monaco-editor": "0.55.1"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.30",
+    "@types/react": "19.2.10",
+    "@types/react-dom": "19.2.3",
+    "@types/three": "0.182.0",
+    "@vercel/analytics": "1.6.1",
+    "autoprefixer": "10.4.23",
+    "bun-types": "latest",
+    "next": "16.1.6",
+    "postcss": "8.5.6",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "tailwindcss": "3.4.19",
+    "three": "0.182.0",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3"
+  },
+  "keywords": [
+    "cad",
+    "3d",
+    "modeling",
+    "react",
+    "editor",
+    "viewport",
+    "moicad"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/moikas/moicad",
+    "directory": "packages/gui"
+  },
+  "license": "MIT"
+}

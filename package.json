@@ -1,39 +1,43 @@
 {
   "name": "moicad-monorepo",
   "version": "0.1.0",
-  "description": "Modern JavaScript CAD Platform - SDK, Landing Page, and Desktop App",
+  "description": "Modern JavaScript CAD Platform - SDK, GUI, CLI, and Desktop App",
   "private": true,
   "workspaces": [
     "packages/*",
     "apps/*"
   ],
   "scripts": {
-    "dev": "moicad dev",
+    "dev": "moicad",
     "dev:sdk": "cd packages/sdk && bun run dev",
-    "dev:app": "cd packages/app && bun run dev",
-    "dev:landing": "cd packages/landing && bun run dev",
+    "dev:gui": "cd packages/gui && bun run dev",
+    "dev:cli": "cd packages/cli && bun run dev",
+    "dev:landing": "cd apps/landing && bun run dev",
     "dev:desktop": "cd packages/desktop && bun run tauri:dev",
     "build:sdk": "cd packages/sdk && bun run build",
-    "build:app": "cd packages/app && bun run build",
+    "build:gui": "cd packages/gui && bun run build",
     "build:cli": "cd packages/cli && bun run build",
-    "build:landing": "cd packages/landing && bun run build",
+    "build:landing": "cd apps/landing && bun run build",
     "build:desktop": "cd packages/desktop && bun run tauri:build",
-    "build:all": "bun run build:sdk && bun run build:app && bun run build:cli",
+    "build:all": "bun run build:sdk && bun run build:gui && bun run build:cli",
     "cli:link": "cd packages/cli && bun link",
     "publish:sdk": "cd packages/sdk && npm publish",
-    "start:backend": "cd packages/landing && BACKEND_URL=http://localhost:42069 bun run dev",
+    "publish:gui": "cd packages/gui && npm publish",
+    "publish:cli": "cd packages/cli && npm publish",
+    "start:landing": "cd apps/landing && bun run start",
     "test:sdk": "cd packages/sdk && bun test",
     "test:all": "bun run test:sdk && bun run build:all",
-    "clean": "rm -rf packages/*/dist packages/*/out packages/*/node_modules packages/*/.next",
-    "install:all": "bun install && bun run install:sdk && bun run install:app && bun run install:landing && bun run install:desktop",
+    "clean": "rm -rf packages/*/dist packages/*/out packages/*/node_modules packages/*/.next apps/*/.next",
+    "install:all": "bun install",
     "install:sdk": "cd packages/sdk && bun install",
-    "install:app": "cd packages/app && bun install",
-    "install:landing": "cd packages/landing && bun install",
+    "install:gui": "cd packages/gui && bun install",
+    "install:landing": "cd apps/landing && bun install",
     "install:desktop": "cd packages/desktop && bun install"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "bun-types": "latest",
+    "tree-kill": "1.2.2",
     "typescript": "^5.0.0"
   },
   "engines": {
@@ -57,5 +61,10 @@
   ],
   "author": "moicad",
   "license": "MIT",
-  "homepage": "https://moicad.moikas.com"
+  "homepage": "https://moicad.moikas.com",
+  "dependencies": {
+    "@msgpack/msgpack": "3.1.3",
+    "eventsource-parser": "3.0.6",
+    "robot3": "1.2.0"
+  }
 }

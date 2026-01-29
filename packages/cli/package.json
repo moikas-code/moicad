@@ -2,29 +2,49 @@
   "name": "@moicad/cli",
   "version": "0.1.0",
   "type": "module",
-  "description": "Modern JavaScript CAD Platform - CLI launcher",
+  "description": "Modern JavaScript CAD Platform - CLI tool",
   "bin": {
     "moicad": "./dist/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "static",
+    "README.md"
   ],
   "scripts": {
     "build": "bun build src/index.ts --target=bun --outdir=dist && chmod +x dist/index.js",
-    "build:quick": "bun build src/index.ts --target=bun --outdir=dist && chmod +x dist/index.js",
     "dev": "bun src/index.ts",
+    "dev:server": "bun src/server.ts",
     "test": "bash scripts/test-cli.sh",
-    "prepublishOnly": "bash scripts/pre-publish-check.sh",
-    "build:publish":"bun run build && npm publish"
+    "prepublishOnly": "bun run build"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
-    "@moicad/gui": "^0.1.0",
-    "open": "11.0.0"
+    "@moicad/sdk": "workspace:*",
+    "@moicad/gui": "workspace:*",
+    "open": "^10.0.0"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "bun-types": "latest"
   },
   "engines": {
     "bun": ">=1.0.0"
-  }
+  },
+  "keywords": [
+    "cad",
+    "3d",
+    "modeling",
+    "cli",
+    "openscad",
+    "moicad"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/moikas/moicad",
+    "directory": "packages/cli"
+  },
+  "license": "MIT"
 }
