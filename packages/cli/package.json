@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@moicad/sdk": "^0.1.11",
-    "@moicad/gui": "^0.1.0",
+    "@moicad/gui": "^0.1.1",
     "open": "^10.0.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
