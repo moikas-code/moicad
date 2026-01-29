@@ -14,7 +14,7 @@ const projectRoot = join(__dirname, '..');
 // Find manifold.wasm in node_modules
 const possiblePaths = [
   join(projectRoot, 'node_modules', 'manifold-3d', 'manifold.wasm'),
-  join(projectRoot, '..', '..', 'node_modules', 'manifold-3d', 'manifold.wasm'),
+  join(projectRoot, '..', 'node_modules', 'manifold-3d', 'manifold.wasm'),
 ];
 
 let sourceWasm = null;
