@@ -16,3 +16,4 @@ export { default as TopMenu } from '../../components/TopMenu';
 export { default as Viewport } from '../../components/Viewport';
 export { ViewportControlsProvider, useViewportControls } from '../../components/ViewportControlsContext';
 export { ViewportWrapper } from '../../components/ViewportWrapper';
+export { default as CADEditor, type CADEditorProps } from '../../components/CADEditor';

@@ -4,9 +4,13 @@
     "src/functional.ts",
     "src/scad/index.ts",
     "src/viewport/index.ts",
-    "src/runtime/index.ts"
+    "src/runtime/index.ts",
+    "src/animation/index.ts",
+    "src/ai/index.ts",
+    "src/plugins/index.ts",
+    "src/interactive/index.ts"
   ],
-  "out": "../packages/landing/docs-generated",
+  "out": "../apps/landing/docs-generated",
   "name": "@moicad/sdk",
   "readme": "README.md",
   "includeDeclarations": true,

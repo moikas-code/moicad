@@ -14,7 +14,7 @@
     "test": "bun test",
     "docs:build": "typedoc",
     "docs:watch": "typedoc --watch",
-    "docs:json": "typedoc --json ../landing/app/docs/docs-data.json",
+    "docs:json": "typedoc --json ../landing/apps/docs/docs-data.json",
     "docs:serve": "typedoc --watch --serve --port 5174"
   },
   "keywords": [
