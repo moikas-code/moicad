@@ -1,6 +1,6 @@
 {
   "name": "@moicad/cli",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "type": "module",
   "description": "Modern JavaScript CAD Platform - CLI tool",
   "bin": {
@@ -13,9 +13,10 @@
   "scripts": {
     "build": "bun build src/index.ts --target=bun --outdir=dist && chmod +x dist/index.js",
     "dev": "bun src/index.ts",
+    "clean": "rm -rf dist",
     "dev:server": "bun src/server.ts",
     "test": "bash scripts/test-cli.sh",
-    "prepublishOnly": "bun run build"
+    "prepublishOnly": "bun run clean && bun run build"
   },
   "publishConfig": {
     "access": "public"
