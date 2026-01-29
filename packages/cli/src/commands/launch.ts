@@ -1,7 +1,7 @@
 import { spawn } from 'bun';
 import { resolve } from 'path';
 import { existsSync } from 'fs';
-import { getMonorepoRoot } from '../utils/paths';
+import { getAppPath, isDevMode } from '../utils/paths';
 import { logger } from '../utils/logger';
 
 interface LaunchOptions {
@@ -12,7 +12,6 @@ interface LaunchOptions {
 }
 
 export async function launch(options: LaunchOptions) {
-  const root = getMonorepoRoot();
   const port = options.port || '3000';
   const shouldOpen = options.open !== undefined ? options.open : true; // Auto-open by default
 
@@ -27,25 +26,31 @@ export async function launch(options: LaunchOptions) {
     logger.info(`📄 Opening file: ${options.filePath}`);
   }
 
+  // Detect mode: dev flag OR running in monorepo
+  const autoDetectedDevMode = isDevMode();
+  const useDevMode = options.devMode || autoDetectedDevMode;
+
   logger.info('🚀 Starting moicad...');
-  if (options.devMode) {
+  if (useDevMode) {
     logger.info('🔧 Development mode enabled (hot reload active)');
   }
   logger.info(`🌐 Web UI: http://localhost:${port}`);
 
+  // Get app path (auto-detects bundled vs monorepo)
+  const appPath = getAppPath();
+
   const env = {
     ...process.env,
     PORT: port,
-    NODE_ENV: options.devMode ? 'development' : 'production',
+    NODE_ENV: useDevMode ? 'development' : 'production',
     MOICAD_FILE: resolvedFilePath || ''
   };
 
-  // Always use dev mode for now (until we have a proper build system)
-  // TODO: Check if .next/BUILD_ID exists, if so use 'start', otherwise use 'dev'
-  const command = 'dev';
+  // Use 'dev' in dev mode (hot reload), 'start' in production (built app)
+  const command = useDevMode ? 'dev' : 'start';
 
   const proc = spawn(['bun', 'run', command], {
-    cwd: `${root}/moicad/packages/app`,
+    cwd: appPath,
     env,
     stdio: ['inherit', 'inherit', 'inherit']
   });
@@ -63,7 +68,7 @@ export async function launch(options: LaunchOptions) {
       } catch (error) {
         logger.warn('Could not auto-open browser. Please open manually.');
       }
-    }, options.devMode ? 3000 : 2000); // Dev mode takes longer
+    }, useDevMode ? 3000 : 2000); // Dev mode takes longer
   }
 
   await proc.exited;
