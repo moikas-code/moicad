@@ -50,7 +50,7 @@
     "three": ">=0.150.0"
   },
   "dependencies": {
-    "@moicad/sdk": "^0.1.12",
+    "@moicad/sdk": "^0.1.13",
     "@monaco-editor/react": "4.7.0",
     "gif.js": "0.2.0",
     "monaco-editor": "0.55.1"

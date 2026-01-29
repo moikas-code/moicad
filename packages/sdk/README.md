@@ -2,7 +2,7 @@
 
 Modern JavaScript CAD Library with OpenSCAD Compatibility
 
-**Version**: 0.1.12 • **License**: MIT
+**Version**: 0.1.13 • **License**: MIT
 
 ## 🚀 Features
 
