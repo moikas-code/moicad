@@ -2,10 +2,12 @@
 
 Modern JavaScript CAD Library with OpenSCAD Compatibility
 
+**Version**: 0.1.10 • **License**: MIT
+
 ## 🚀 Features
 
 - **Fluent API**: Chainable methods with `Shape` class
-- **Functional API**: Pure function alternatives
+- **Functional API**: Pure function alternatives  
 - **OpenSCAD Compatibility**: 98-99% language support
 - **High Performance**: Built on manifold-3d CSG engine
 - **TypeScript First**: Complete type definitions
@@ -18,6 +20,8 @@ Modern JavaScript CAD Library with OpenSCAD Compatibility
 npm install @moicad/sdk
 ```
 
+**Requirements**: Node.js 18+ or modern browser, Bun for development
+
 ## 🔧 Quick Start
 
 ### Fluent API (Primary)
@@ -26,12 +30,12 @@ npm install @moicad/sdk
 import { Shape } from '@moicad/sdk';
 
 // Create a bolt
-const bolt = Shape.cylinder(20, 2.5)
+const bolt = Shape.cylinder({ h: 20, r: 2.5 })
   .union(Shape.sphere(3).translate([0, 0, 20]))
   .color('silver');
 
 // Get geometry for rendering
-const geometry = bolt.getGeometry();
+const geometry = bolt.toGeometry();
 console.log('Volume:', bolt.getVolume());
 ```
 
@@ -44,13 +48,13 @@ import {
   translate, 
   union, 
   color 
-} from '@moicad/sdk';
+} from '@moicad/sdk/functional';
 
 // Create the same bolt functionally
-const bolt = union(
-  cylinder(20, 2.5),
-  translate([0, 0, 20], sphere(3))
-).color('silver');
+const bolt = color('silver', union(
+  translate([0, 0, 20], sphere(3)),
+  { h: 20, r: 2.5 }
+));
 ```
 
 ### 2D to 3D Operations
@@ -84,16 +88,15 @@ const hull = Shape.hull(
 ### OpenSCAD Support
 
 ```typescript
-import { parse, evaluate } from '@moicad/sdk/scad';
+import { parseOpenSCAD, evaluateAST } from '@moicad/sdk/scad';
 
 // Parse OpenSCAD code
-const result = parse('cube(10); sphere(5);');
-console.log('AST:', result.ast);
+const parseResult = parseOpenSCAD('cube(10); sphere(5);');
+console.log('AST:', parseResult.ast);
 
 // Evaluate OpenSCAD to geometry
-await evaluate.initManifoldEngine();
-const geometry = await evaluate(result.ast);
-console.log('Vertices:', geometry.vertices.length);
+const evalResult = await evaluateAST(parseResult.ast);
+console.log('Vertices:', evalResult.geometry.vertices.length);
 ```
 
 ### 3D Viewport
@@ -158,61 +161,59 @@ const scadCode = `
 
 ### 3D Primitives
 
-- `Shape.cube(size, center?)`
-- `Shape.sphere(radius, options?)`
-- `Shape.cylinder(height, radius, options?)`
-- `Shape.cone(height, radius, options?)`
-- `Shape.polyhedron(points, faces)`
+- `Shape.cube(size?, options?)` - Cube with optional centering
+- `Shape.sphere(radius, options?)` - Sphere with fragments control
+- `Shape.cylinder(options)` - Cylinder with height, radius, center
+- `Shape.cone(options)` - Cone with height and radii
+- `Shape.polyhedron(points, faces, convexity?)` - Custom polyhedron
+- `Shape.text(text, options?)` - 3D text rendering
+- `Shape.surface(data, options?)` - Heightmap surface
 
 ### 2D Primitives
 
-- `Shape.circle(radius, options?)`
-- `Shape.square(size, center?)`
-- `Shape.polygon(points)`
+- `Shape.circle(radius, options?)` - Circle with fragments
+- `Shape.square(size?, center?)` - Square with optional centering
+- `Shape.polygon(points, paths?)` - Custom 2D polygon
 
 ### Transforms
 
-- `.translate(offset)`
-- `.rotate(angles)`
-- `.scale(factors)`
-- `.mirror(normal)`
-- `.multmatrix(matrix)`
-- `.color(color)`
+- `.translate(offset)` - Translate by [x, y, z]
+- `.rotate(angles)` - Rotate by [x, y, z] degrees
+- `.scale(factors)` - Scale by [x, y, z] or uniform factor
+- `.mirror(normal)` - Mirror across plane normal
+- `.multmatrix(matrix)` - Apply 4x4 transformation matrix
 
 ### Boolean Operations
 
-- `.union(...shapes)`
-- `.subtract(...shapes)`
-- `.intersect(...shapes)`
-- `.hull(...shapes)`
-- `.minkowski(shape)`
+- `.union(...shapes)` - Combine shapes
+- `.subtract(...shapes)` - Remove shapes from base
+- `.intersect(...shapes)` - Keep overlapping regions
+- `.hull(...shapes)` - Convex hull of shapes
+- `.minkowski(shape)` - Minkowski sum operation
 
 ### 2D/3D Operations
 
-- `.linearExtrude(height, options?)`
-- `.rotateExtrude(options?)`
-- `.offset(delta, options?)`
-- `.projection(options?)`
+- `.linearExtrude(height, options?)` - Extrude 2D to 3D
+- `.rotateExtrude(options?)` - Revolve 2D profile around axis
+- `.offset(delta, options?)` - Expand/contract 2D shapes
 
-### Inspection Methods
+### Geometry Methods
 
-- `.getGeometry()` - Get geometry data
-- `.getBounds()` - Get bounding box
-- `.getVolume()` - Get volume
-- `.getSurfaceArea()` - Get surface area
+- `.toGeometry()` - Get geometry data for rendering/export
+- `.getBounds()` - Get axis-aligned bounding box
+- `.getVolume()` - Calculate volume
+- `.getSurfaceArea()` - Calculate surface area
+- `.clone()` - Create independent copy
 
 ## 🔗 OpenSCAD Compatibility
 
 The SDK also supports OpenSCAD syntax parsing:
 
 ```typescript
-import { parseOpenSCAD, evaluateOpenSCAD } from 'moicad-sdk';
+import { parseOpenSCAD, evaluateAST } from '@moicad/sdk/scad';
 
 // Parse OpenSCAD code
-const ast = parseOpenSCAD('cube(10); sphere(5);');
-
-// Evaluate OpenSCAD
-const result = await evaluateOpenSCAD(`
+const parseResult = parseOpenSCAD(`
   module bolt(length=20, diameter=6) {
     cylinder(h=length, r=diameter/2);
     translate([0, 0, length])
@@ -220,6 +221,10 @@ const result = await evaluateOpenSCAD(`
   }
   bolt();
 `);
+
+// Evaluate OpenSCAD
+const evalResult = await evaluateAST(parseResult.ast);
+console.log('Geometry:', evalResult.geometry);
 ```
 
 ## ⚡ Performance
@@ -235,42 +240,76 @@ moicad-sdk is built on manifold-3d, providing:
 ```bash
 # Clone repository
 git clone https://github.com/moikas/moicad
-cd moicad/packages/sdk
+cd moicad
 
-# Install dependencies
-npm install
+# Install dependencies (Bun required)
+bun install
 
 # Build SDK
-npm run build
+cd packages/sdk
+bun run build
 
 # Run tests
-npm test
+bun test
+
+# Generate documentation
+bun run docs
 
 # Development mode
-npm run dev
+bun run dev
 ```
 
 ## 📖 Examples
 
-See `examples/` directory for more examples:
+The SDK includes comprehensive examples:
 
-- [Basic Shapes](./examples/basic-shapes.ts)
-- [Parametric Design](./examples/parametric.ts)
-- [Boolean Operations](./examples/boolean.ts)
-- [2D Operations](./examples/2d-operations.ts)
-- [Plugin System](./examples/test-plugin-system.ts) - **NEW!**
-- [Example Plugin](./examples/example-plugin.ts) - **NEW!**
+```bash
+# Run examples from packages/sdk directory
+bun run examples/basic-shapes.ts
+bun run examples/parametric.ts  
+bun run examples/boolean.ts
+bun run examples/2d-operations.ts
+```
 
-### Plugin Development
+### Core Examples
 
-See [Plugin System Documentation](./PLUGIN_SYSTEM.md) for complete guide on:
+- **Basic Shapes** - Primitives and transforms
+- **Parametric Design** - Functions and modules
+- **Boolean Operations** - CSG operations
+- **2D Operations** - Extrusion and revolution
+- **OpenSCAD Parsing** - Parse and evaluate OpenSCAD code
 
-- Creating custom primitives and transforms
-- Adding OpenSCAD functions
+### Plugin System
+
+See [Plugin System Documentation](./PLUGIN_SYSTEM.md) for creating:
+
+- Custom primitives and transforms
+- OpenSCAD function extensions
 - File format handlers
 - Viewport extensions
-- Plugin discovery and loading
-- Best practices and examples
+
+## 🧪 Testing
+
+```bash
+# Run all tests
+bun test
+
+# Run tests with coverage
+bun run test:coverage
+
+# Run specific test file
+bun test shape.test.ts
+```
+
+## 📚 Documentation
+
+```bash
+# Generate API documentation
+bun run docs
+
+# View generated docs
+open ./docs/index.html
+```
 
 ## 🤝 Contributing
 
@@ -282,11 +321,40 @@ MIT License - see [LICENSE](../../LICENSE) file for details.
 
 ## 🔗 Links
 
-- **Documentation**: https://moicad.moikas.com/docs
 - **Live Demo**: https://moicad.moikas.com/demo
-- **Desktop App**: https://moicad.moikas.com/download
+- **Desktop App**: https://moicad.moikas.com/download  
 - **GitHub**: https://github.com/moikas/moicad
+- **Documentation**: Auto-generated in package
+
+## 🏗️ Architecture
+
+This SDK is the **canonical CAD engine** for the moicad ecosystem:
+
+```
+OpenSCAD/JS Code → Parser → AST → Evaluator → manifold-3d → Geometry
+```
+
+**Core Components**:
+- `src/shape.ts` - Fluent Shape API
+- `src/functional.ts` - Functional API  
+- `src/scad/` - OpenSCAD parser & evaluator
+- `src/manifold/` - manifold-3d CSG engine integration
+- `src/viewport/` - Three.js viewport component
+- `src/plugins/` - Plugin system
+
+## 🔄 Monorepo Integration
+
+This SDK integrates seamlessly with the moicad monorepo:
+
+```bash
+# From repository root
+cd packages/landing  # Next.js web app
+bun run dev          # Uses @moicad/sdk
+
+cd packages/desktop  # Tauri desktop  
+bun run tauri:dev    # Uses @moicad/sdk
+```
 
 ---
 
-**moicad-sdk** - Modern CAD for JavaScript Developers ✨
+**@moicad/sdk** - The canonical CAD engine for modern JavaScript ✨
