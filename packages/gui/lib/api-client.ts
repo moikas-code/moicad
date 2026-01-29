@@ -11,7 +11,7 @@ const isTauri = typeof window !== "undefined" && "__TAURI__" in window;
 // In web mode, use environment variable or default
 const API_BASE = isTauri
   ? "http://localhost:42069"
-  : process.env.NEXT_PUBLIC_API_URL || "http://localhost:42069";
+  : (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL) || "http://localhost:42069";
 
 export interface GeometryResponse {
   vertices: number[];

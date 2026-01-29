@@ -1,29 +1,27 @@
+/**
+ * moicad CLI - App Entry Point
+ * Bundled by Vite into gui-bundle.js
+ * This is the main React app that runs in the browser
+ */
+
 import React from 'react';
-import { createRoot } from 'react-dom/client';
-import {
-  CADEditor,
-  ViewportControlsProvider,
-  ErrorBoundary
-} from '@moicad/gui/components';
+import ReactDOM from 'react-dom/client';
+import { CADEditor, ViewportControlsProvider } from '@moicad/gui/components';
 
-function App() {
-  return (
-    <ErrorBoundary>
-      <ViewportControlsProvider>
-        <CADEditor
-          initialLanguage="javascript"
-          initialCode={`import { cube } from "@moicad/sdk";
+// Initialize React app
+const root = ReactDOM.createRoot(document.getElementById('root')!);
 
-export default cube(20);`}
-        />
-      </ViewportControlsProvider>
-    </ErrorBoundary>
-  );
-}
-
-// Mount the app
-const container = document.getElementById('root');
-if (container) {
-  const root = createRoot(container);
-  root.render(<App />);
-}
+root.render(
+  <React.StrictMode>
+    <ViewportControlsProvider>
+      <CADEditor
+        initialLanguage="javascript"
+        showFileManager={true}
+        showAnimationExport={true}
+        showTopMenu={true}
+        showPrinterSettings={true}
+        apiBaseUrl=""
+      />
+    </ViewportControlsProvider>
+  </React.StrictMode>
+);

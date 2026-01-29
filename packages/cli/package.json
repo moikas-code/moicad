@@ -8,12 +8,14 @@
   },
   "files": [
     "dist",
+    "static",
     "README.md"
   ],
   "scripts": {
-    "build": "bun build src/index.ts --target=bun --outdir=dist && chmod +x dist/index.js",
+    "build:gui-bundle": "vite build",
+    "build": "bun run build:gui-bundle && bun build src/index.ts --target=bun --outdir=dist && chmod +x dist/index.js",
     "dev": "bun src/index.ts",
-    "clean": "rm -rf dist",
+    "clean": "rm -rf dist static/gui-bundle.js",
     "dev:server": "bun src/server.ts",
     "test": "bash scripts/test-cli.sh",
     "prepublishOnly": "bun run clean && bun run build"
@@ -31,9 +33,14 @@
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "@types/node": "^20.0.0",
     "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",
-    "bun-types": "latest"
+    "@vitejs/plugin-react": "^4.3.0",
+    "bun-types": "latest",
+    "terser": "^5.31.0",
+    "typescript": "^5.5.0",
+    "vite": "^5.4.0"
   },
   "engines": {
     "bun": ">=1.0.0"

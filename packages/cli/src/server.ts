@@ -137,77 +137,9 @@ export function createServer(options: ServerOptions = {}) {
           return proxyToNextDev(req, url);
         }
 
-        // Serve the web UI with @moicad/gui CADEditor component
-        if (pathname === '/') {
-          const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>moicad - CAD Editor</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      margin: 0;
-      padding: 0;
-      height: 100vh;
-      overflow: hidden;
-      background: #1D1D1D;
-      font-family: system-ui, -apple-system, sans-serif;
-    }
-    #root {
-      width: 100%;
-      height: 100%;
-    }
-  </style>
-</head>
-<body>
-  <div id="root"></div>
-
-  <script type="importmap">
-  {
-    "imports": {
-      "react": "https://esm.sh/react@19.2.4",
-      "react-dom": "https://esm.sh/react-dom@19.2.4",
-      "react/jsx-runtime": "https://esm.sh/react@19.2.4/jsx-runtime",
-      "react-dom/client": "https://esm.sh/react-dom@19.2.4/client",
-      "three": "https://esm.sh/three@0.182.0",
-      "three/addons/": "https://esm.sh/three@0.182.0/examples/jsm/",
-      "three/examples/jsm/": "https://esm.sh/three@0.182.0/examples/jsm/",
-      "monaco-editor": "https://esm.sh/monaco-editor@0.55.1",
-      "@monaco-editor/react": "https://esm.sh/@monaco-editor/react@4.7.0",
-      "@moicad/sdk": "https://cdn.jsdelivr.net/npm/@moicad/sdk@0.1.13/dist/index.js",
-      "@moicad/gui": "https://cdn.jsdelivr.net/npm/@moicad/gui@0.1.4/dist/index.js",
-      "@moicad/gui/components": "https://cdn.jsdelivr.net/npm/@moicad/gui@0.1.4/dist/components/index.js",
-      "gif.js": "https://esm.sh/gif.js@0.2.0"
-    }
-  }
-  </script>
-
-  <script type="module">
-    import React from 'react';
-    import ReactDOM from 'react-dom/client';
-    import { CADEditor } from '@moicad/gui/components';
-
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(
-      React.createElement(CADEditor, {
-        initialLanguage: 'javascript',
-        showFileManager: true,
-        showAnimationExport: true,
-        showTopMenu: true,
-        showPrinterSettings: true,
-        apiBaseUrl: ''
-      })
-    );
-  </script>
-</body>
-</html>`;
-
-          return new Response(html, {
-            headers: { 'Content-Type': 'text/html' },
-          });
+        // Serve static files (index.html, gui-bundle.js, etc.)
+        if (pathname === '/' || pathname.startsWith('/gui-bundle') || pathname.endsWith('.js') || pathname.endsWith('.css')) {
+          return serveStatic(pathname, options.staticDir);
         }
 
         return new Response('Not found', { status: 404 });
