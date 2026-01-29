@@ -29,36 +29,55 @@ export default box.subtract(hole);
 
 ## 🚀 Architecture
 
-**Clean Bun Monorepo**
+**Modern Bun Monorepo** (Restructured January 2026)
 
 ```
 moicad/
-├── backend/              # Bun server (REST API + WebSocket + MCP)
-│   ├── core/            # Server core (language detection, routing)
-│   ├── javascript/      # JavaScript/Bun API runtime ⚡ NEW
-│   ├── scad/            # OpenSCAD parser & evaluator
-│   ├── manifold/        # Manifold-3d CSG engine integration
-│   ├── mcp/             # MCP server for AI integration
-│   └── middleware/      # Security, health checks
-├── frontend/            # Next.js React app
-│   ├── app/            # Next.js 16 app directory
-│   ├── components/     # React components (Editor, Viewport, etc.)
-│   ├── lib/            # Three.js viewport, API client
-│   └── hooks/          # Custom React hooks
-├── shared/             # Shared TypeScript types
-├── examples/           # Example code
-│   ├── javascript/     # JavaScript API examples ⚡ NEW
-│   └── openscad/       # OpenSCAD examples
-├── src-tauri/          # Tauri desktop app (optional)
-└── tests/              # Comprehensive test suite
+├── packages/
+│   ├── sdk/                    # @moicad/sdk - Core CAD engine (publishable npm package)
+│   │   ├── src/
+│   │   │   ├── shape.ts        # Fluent API: Shape.cube(10)
+│   │   │   ├── functional.ts   # Functional API: cube(10)
+│   │   │   ├── scad/           # OpenSCAD parser & evaluator
+│   │   │   ├── manifold/       # Manifold-3d CSG integration
+│   │   │   ├── viewport/       # Three.js viewport component
+│   │   │   ├── animation/      # GIF/video export (NEW!)
+│   │   │   ├── interactive/    # Click/hover interactions (NEW!)
+│   │   │   └── plugins/        # Extensibility system
+│   │   └── dist/               # Built npm package
+│   │
+│   ├── landing/                # @moicad/landing - Next.js 16 web app
+│   │   ├── app/
+│   │   │   ├── page.tsx        # Landing page
+│   │   │   ├── demo/           # Interactive CAD editor
+│   │   │   ├── docs/           # Auto-generated API docs
+│   │   │   └── api/            # API routes (evaluate, parse, export)
+│   │   ├── components/demo/    # UI components (Editor, Viewport, TopMenu, etc.)
+│   │   ├── hooks/              # React hooks (useAnimation, useInteraction)
+│   │   ├── lib/                # Three.js utilities, API client
+│   │   └── scripts/            # Build scripts (Bun module fix)
+│   │
+│   ├── desktop/                # Tauri desktop app (optional)
+│   └── shared/                 # Minimal shared types
+│
+├── backend/                    # ⚠️ NEEDS MIGRATION - Bun server (currently broken)
+│   ├── core/                   # Server infrastructure
+│   ├── mcp/                    # MCP server & collaboration
+│   └── middleware/             # HTTP middleware
+│
+└── examples/                   # Example code
+    ├── javascript/             # JavaScript API examples
+    └── openscad/               # OpenSCAD examples
 
 Tech Stack:
-- Runtime: Bun (TypeScript/JavaScript)
+- Runtime: Bun (TypeScript/JavaScript) + Node.js (Vercel)
 - Languages: OpenSCAD + JavaScript/TypeScript ⚡
-- CSG Engine: manifold-3d (WebAssembly)
-- Backend: REST API + WebSocket + MCP
-- Frontend: Next.js 16 + React + Three.js
+- CSG Engine: manifold-3d (WebAssembly npm package)
+- SDK: Publishable npm package (@moicad/sdk v0.1.8)
+- Backend: API routes in Next.js (backend/ needs SDK migration)
+- Frontend: Next.js 16 + React 19 + Three.js
 - Desktop: Tauri (optional)
+- Deployment: Vercel (with npm workaround for Bun bug)
 ```
 
 ## ✨ Features
@@ -148,8 +167,8 @@ export default new Bolt(20, 6).build();
 ## 🛠️ Quick Start
 
 ### Prerequisites
-- [Bun](https://bun.sh) v1.0+
-- Node.js v18+ (for frontend)
+- [Bun](https://bun.sh) v1.0+ (for development)
+- Node.js v18+ (for Vercel deployment)
 
 ### Installation
 
@@ -158,51 +177,66 @@ export default new Bolt(20, 6).build();
 git clone https://github.com/yourusername/moicad.git
 cd moicad
 
-# Install dependencies
+# Install dependencies (monorepo root)
 bun install
-cd frontend && npm install && cd ..
 ```
 
 ### Development
 
 ```bash
-# Start backend server (http://localhost:42069)
+# Build SDK first (required)
+cd packages/sdk
+bun run build
+
+# Start web app (http://localhost:3000)
+cd ../landing
 bun run dev
 
-# Start frontend (http://localhost:3002) - in another terminal
-bun run dev:frontend
-
-# Or run both concurrently
-bun run dev:all
+# Or build SDK + start landing in one command
+cd packages/landing
+bun run build  # prebuild hook builds SDK automatically
 ```
 
 ### Build for Production
 
 ```bash
-# Build frontend
+# Build SDK
+cd packages/sdk
+bun run build
+
+# Build landing (Next.js)
+cd ../landing
 bun run build
 
 # Start production server
 bun run start
 ```
 
+### Deployment to Vercel
+
+See [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md) for detailed instructions.
+
+**Quick setup:**
+1. Import repo to Vercel
+2. Set root directory to `packages/landing`
+3. Vercel auto-detects Next.js and uses npm (via vercel.json)
+4. Build succeeds automatically!
+
+**Note:** A postinstall script automatically fixes Bun's module installation bug on both local and Vercel builds.
+
 ### Testing
 
 ```bash
-# Quick test
-bun run test:quick
+# Test SDK
+cd packages/sdk
+bun test
 
-# Run all tests
+# Test landing
+cd packages/landing
+bun run test
+
+# Full test suite (from root)
 bun run test:all
-
-# Unit tests only
-bun run test:unit
-
-# Integration tests
-bun run test:integration
-
-# Performance benchmarks
-bun run test:performance
 ```
 
 ## 📡 API Endpoints
@@ -291,24 +325,44 @@ bun run tauri:build
 
 ## 📚 Documentation
 
-- [CLAUDE.md](./CLAUDE.md) - Developer guide for AI agents
+### Core Documentation
+- [CLAUDE.md](./CLAUDE.md) - Developer guide for AI agents (project context)
+- [MIGRATION.md](./MIGRATION.md) - Monorepo restructuring (January 2026)
+- [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md) - Deployment guide & Bun bug workaround
 - [BUILD_GUIDE.md](./BUILD_GUIDE.md) - Detailed build instructions
+
+### API & Features
+- [JAVASCRIPT_API.md](./JAVASCRIPT_API.md) - Complete JavaScript API documentation
+- [packages/sdk/README.md](./packages/sdk/README.md) - SDK usage guide
 - [IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md) - Feature implementation status
-- [MANIFOLD_MIGRATION_COMPLETE.md](./MANIFOLD_MIGRATION_COMPLETE.md) - Manifold-3d migration details
+
+### Architecture & Migration
+- [MANIFOLD_MIGRATION_COMPLETE.md](./MANIFOLD_MIGRATION_COMPLETE.md) - Manifold-3d migration
+- [ANIMATION_DESIGN.md](./ANIMATION_DESIGN.md) - Animation system design
+- [RESTRUCTURING_COMPLETE.md](./RESTRUCTURING_COMPLETE.md) - Monorepo restructure details
 
 ## 🎯 Key Design Decisions
+
+**Why monorepo with packages/?**
+- SDK is publishable to npm independently (@moicad/sdk)
+- Landing app uses SDK as dependency
+- Clear separation: engine vs. UI
+- Desktop app can also use SDK
+- Easier to maintain and test
 
 **Why manifold-3d?**
 - Guaranteed manifold output (no topology errors)
 - Robust Boolean operations (replaces custom BSP tree)
 - High performance with parallel processing
 - Clean geometry eliminates rendering artifacts
+- Available as npm WebAssembly package
 
-**Why Bun?**
-- Fast TypeScript/JavaScript runtime
-- Built-in package manager
-- Native WebSocket support
-- Hot module reloading
+**Why Bun + npm hybrid?**
+- Bun for development (fast, modern)
+- npm for Vercel deployment (reliable)
+- Bun v1.3.7 has workspace bug (missing package.json in symlinks)
+- Automatic postinstall script fixes Bun's installation
+- Best of both worlds
 
 **Why Three.js (not custom WebGL)?**
 - Manifold-3d provides clean geometry
@@ -316,11 +370,11 @@ bun run tauri:build
 - Standard Three.js works perfectly
 - Better ecosystem and community support
 
-**Why MCP server?**
-- AI-assisted CAD design
-- Natural language → 3D models
-- Integration with Claude Desktop and other AI tools
-- Future: Multi-agent collaborative design
+**Why Next.js API routes (not separate backend)?**
+- Simpler deployment (single Vercel project)
+- API routes handle evaluate/parse/export
+- Can add WebSocket via custom server later
+- Backend server currently broken, needs SDK migration
 
 ## 🧪 Testing
 
