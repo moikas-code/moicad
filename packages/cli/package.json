@@ -11,7 +11,7 @@
     "README.md"
   ],
   "scripts": {
-    "build": "bun build src/index.ts --target=bun --outdir=dist && chmod +x dist/index.js && find node_modules -name 'manifold.wasm' -exec cp {} dist/ \\;",
+    "build": "bun build src/index.ts --target=bun --outdir=dist && chmod +x dist/index.js",
     "dev": "bun src/index.ts",
     "dev:server": "bun src/server.ts",
     "test": "bash scripts/test-cli.sh",

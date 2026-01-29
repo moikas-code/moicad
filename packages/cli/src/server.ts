@@ -71,6 +71,60 @@ export function createServer(options: ServerOptions = {}) {
           return addCorsHeaders(response, corsHeaders);
         }
 
+        // Serve WASM file from SDK's node_modules
+        if (pathname === '/manifold.wasm' || pathname.includes('manifold')) {
+          try {
+            const { resolve, dirname, join } = require('path');
+
+            // Try to find manifold.wasm in SDK's dependencies
+            // SDK is in node_modules/@moicad/sdk, manifold-3d is in SDK's node_modules
+            try {
+              const sdkPath = require.resolve('@moicad/sdk');
+              const sdkDir = dirname(sdkPath);
+              const wasmPath = join(sdkDir, '..', 'manifold-3d', 'manifold.wasm');
+
+              const file = Bun.file(wasmPath);
+              if (await file.exists()) {
+                return new Response(file, {
+                  headers: {
+                    'Content-Type': 'application/wasm',
+                    'Cache-Control': 'public, max-age=31536000',
+                    ...corsHeaders
+                  }
+                });
+              }
+            } catch (e) {
+              logger.debug(`First WASM path attempt failed: ${e}`);
+            }
+
+            // Fallback: try to resolve manifold-3d directly
+            try {
+              const manifoldPath = require.resolve('manifold-3d');
+              const manifoldDir = dirname(manifoldPath);
+              const wasmPath = join(manifoldDir, 'manifold.wasm');
+
+              const fallbackFile = Bun.file(wasmPath);
+              if (await fallbackFile.exists()) {
+                return new Response(fallbackFile, {
+                  headers: {
+                    'Content-Type': 'application/wasm',
+                    'Cache-Control': 'public, max-age=31536000',
+                    ...corsHeaders
+                  }
+                });
+              }
+            } catch (e) {
+              logger.debug(`Second WASM path attempt failed: ${e}`);
+            }
+
+            logger.error('WASM file not found in any expected location');
+            return new Response('WASM file not found', { status: 404 });
+          } catch (error) {
+            logger.error(`WASM file error: ${error}`);
+            return new Response('WASM file not found', { status: 404 });
+          }
+        }
+
         if (pathname === '/health' || pathname === '/api/health') {
           return new Response(JSON.stringify({ status: 'ok', timestamp: Date.now() }), {
             status: 200,
@@ -83,7 +137,7 @@ export function createServer(options: ServerOptions = {}) {
           return proxyToNextDev(req, url);
         }
 
-        // Serve the web UI
+        // Serve the web UI with @moicad/gui CADEditor component
         if (pathname === '/') {
           const html = `<!DOCTYPE html>
 <html lang="en">
@@ -94,228 +148,58 @@ export function createServer(options: ServerOptions = {}) {
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { overflow: hidden; height: 100vh; background: #1D1D1D; color: #E5E5E5; font-family: system-ui, sans-serif; }
-    #editor { width: 100%; height: 100%; }
-    #viewport { flex: 1; }
-    .resizer {
-      cursor: col-resize;
-      width: 6px;
-      background: #3D3D3D;
-      transition: background 0.2s;
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      overflow: hidden;
+      background: #1D1D1D;
+      font-family: system-ui, -apple-system, sans-serif;
     }
-    .resizer:hover { background: #4772B3; }
-    .resizer.dragging { background: #E66E00; }
+    #root {
+      width: 100%;
+      height: 100%;
+    }
   </style>
 </head>
-<body class="flex flex-col h-screen">
-  <!-- Top Bar -->
-  <div class="h-12 bg-[#2D2D2D] border-b border-[#3D3D3D] flex items-center px-4 gap-4">
-    <h1 class="text-lg font-bold text-[#E5E5E5]">moicad</h1>
-    <select id="language" class="bg-[#3D3D3D] text-[#E5E5E5] px-3 py-1 rounded border border-[#4D4D4D] focus:border-[#4772B3] focus:outline-none">
-      <option value="javascript">JavaScript</option>
-      <option value="openscad">OpenSCAD</option>
-    </select>
-    <div class="flex-1"></div>
-    <button id="run-btn" class="px-4 py-1.5 bg-[#4772B3] hover:bg-[#5A8BC7] text-white font-semibold rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-      Run
-    </button>
-  </div>
+<body>
+  <div id="root"></div>
 
-  <!-- Main Content -->
-  <div class="flex-1 flex overflow-hidden" id="main-container">
-    <!-- Editor Panel -->
-    <div class="flex-1 flex flex-col bg-[#2D2D2D] border-r border-[#3D3D3D]" id="editor-panel" style="flex: 0 0 50%;">
-      <div class="px-4 py-2 border-b border-[#3D3D3D] flex justify-between items-center">
-        <span class="text-sm font-semibold text-[#B0B0B0]">Code Editor</span>
-      </div>
-      <div class="flex-1 overflow-hidden">
-        <div id="editor"></div>
-      </div>
-      <div id="error" class="hidden bg-red-900/80 text-red-200 p-3 border-t border-red-950 text-sm font-mono"></div>
-    </div>
-
-    <!-- Resizer -->
-    <div class="resizer" id="resizer"></div>
-
-    <!-- Viewport Panel -->
-    <div class="flex-1 flex flex-col bg-[#2D2D2D]" id="viewport-panel" style="flex: 0 0 50%;">
-      <div class="px-4 py-2 border-b border-[#3D3D3D] flex justify-between items-center">
-        <span class="text-sm font-semibold text-[#B0B0B0]">3D Viewport</span>
-      </div>
-      <div class="flex-1 overflow-hidden">
-        <div id="viewport"></div>
-      </div>
-      <div id="stats" class="hidden p-2 bg-[#3D3D3D] border-t border-[#4D4D4D] text-xs text-[#B0B0B0] font-mono"></div>
-    </div>
-  </div>
-
-  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.55.1/min/vs/loader.js"></script>
   <script type="importmap">
   {
     "imports": {
+      "react": "https://esm.sh/react@19.2.4",
+      "react-dom": "https://esm.sh/react-dom@19.2.4",
+      "react/jsx-runtime": "https://esm.sh/react@19.2.4/jsx-runtime",
+      "react-dom/client": "https://esm.sh/react-dom@19.2.4/client",
       "three": "https://esm.sh/three@0.182.0",
-      "three/addons/": "https://esm.sh/three@0.182.0/examples/jsm/"
+      "three/addons/": "https://esm.sh/three@0.182.0/examples/jsm/",
+      "monaco-editor": "https://esm.sh/monaco-editor@0.55.1",
+      "@monaco-editor/react": "https://esm.sh/@monaco-editor/react@4.7.0",
+      "@moicad/sdk": "https://cdn.jsdelivr.net/npm/@moicad/sdk@0.1.11/dist/index.js",
+      "@moicad/gui": "https://cdn.jsdelivr.net/npm/@moicad/gui@0.1.0/dist/index.js",
+      "@moicad/gui/components": "https://cdn.jsdelivr.net/npm/@moicad/gui@0.1.0/dist/components/index.js",
+      "gif.js": "https://esm.sh/gif.js@0.2.0"
     }
   }
   </script>
 
   <script type="module">
-    import * as THREE from 'three';
-    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import React from 'react';
+    import ReactDOM from 'react-dom/client';
+    import { CADEditor } from '@moicad/gui/components';
 
-    // Monaco Editor
-    let editor;
-    require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.55.1/min/vs' }});
-    require(['vs/editor/editor.main'], function() {
-      editor = monaco.editor.create(document.getElementById('editor'), {
-        value: 'import { cube } from "@moicad/sdk";\\n\\nexport default cube(20);',
-        language: 'javascript',
-        theme: 'vs-dark',
-        minimap: { enabled: false },
-        fontSize: 14,
-        automaticLayout: true
-      });
-    });
-
-    // Resizable panels
-    const resizer = document.getElementById('resizer');
-    const editorPanel = document.getElementById('editor-panel');
-    const viewportPanel = document.getElementById('viewport-panel');
-    const mainContainer = document.getElementById('main-container');
-    let isResizing = false;
-
-    resizer.addEventListener('mousedown', () => {
-      isResizing = true;
-      resizer.classList.add('dragging');
-      document.body.style.cursor = 'col-resize';
-      document.body.style.userSelect = 'none';
-    });
-
-    document.addEventListener('mousemove', (e) => {
-      if (!isResizing) return;
-      const containerRect = mainContainer.getBoundingClientRect();
-      const offsetX = e.clientX - containerRect.left;
-      const percentage = Math.max(20, Math.min(80, (offsetX / containerRect.width) * 100));
-      editorPanel.style.flex = \`0 0 \${percentage}%\`;
-      viewportPanel.style.flex = \`0 0 \${100 - percentage - 0.5}%\`;
-    });
-
-    document.addEventListener('mouseup', () => {
-      if (isResizing) {
-        isResizing = false;
-        resizer.classList.remove('dragging');
-        document.body.style.cursor = '';
-        document.body.style.userSelect = '';
-      }
-    });
-
-    // Three.js Viewport
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x1D1D1D);
-    const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    const viewportContainer = document.getElementById('viewport');
-
-    function resizeViewport() {
-      const width = viewportContainer.clientWidth;
-      const height = viewportContainer.clientHeight;
-      if (width > 0 && height > 0) {
-        camera.aspect = width / height;
-        camera.updateProjectionMatrix();
-        renderer.setSize(width, height);
-      }
-    }
-
-    setTimeout(() => {
-      resizeViewport();
-      viewportContainer.appendChild(renderer.domElement);
-    }, 100);
-
-    camera.position.set(30, 30, 30);
-    camera.lookAt(0, 0, 0);
-    const controls = new OrbitControls(camera, renderer.domElement);
-
-    // Grid and axes
-    const gridHelper = new THREE.GridHelper(100, 10, 0x444444, 0x333333);
-    scene.add(gridHelper);
-    const axesHelper = new THREE.AxesHelper(20);
-    scene.add(axesHelper);
-
-    // Lighting
-    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(10, 10, 10);
-    scene.add(directionalLight);
-
-    let currentMesh = null;
-
-    function animate() {
-      requestAnimationFrame(animate);
-      controls.update();
-      renderer.render(scene, camera);
-    }
-    animate();
-
-    window.addEventListener('resize', resizeViewport);
-
-    // Run button handler
-    document.getElementById('run-btn').addEventListener('click', async () => {
-      const code = editor.getValue();
-      const language = document.getElementById('language').value;
-      const btn = document.getElementById('run-btn');
-      const errorDiv = document.getElementById('error');
-      const statsDiv = document.getElementById('stats');
-
-      btn.disabled = true;
-      btn.textContent = 'Running...';
-      errorDiv.classList.add('hidden');
-
-      try {
-        const response = await fetch('/api/evaluate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code, language })
-        });
-
-        const result = await response.json();
-
-        if (result.success && result.geometry) {
-          if (currentMesh) {
-            scene.remove(currentMesh);
-            currentMesh.geometry.dispose();
-            currentMesh.material.dispose();
-          }
-
-          const geometry = new THREE.BufferGeometry();
-          geometry.setAttribute('position', new THREE.Float32BufferAttribute(result.geometry.vertices, 3));
-          geometry.setAttribute('normal', new THREE.Float32BufferAttribute(result.geometry.normals, 3));
-          geometry.setIndex(result.geometry.indices);
-
-          const material = new THREE.MeshStandardMaterial({
-            color: 0x4772B3,
-            metalness: 0.3,
-            roughness: 0.6
-          });
-
-          currentMesh = new THREE.Mesh(geometry, material);
-          scene.add(currentMesh);
-
-          statsDiv.classList.remove('hidden');
-          statsDiv.textContent = \`Vertices: \${result.geometry.stats.vertexCount} | Faces: \${result.geometry.stats.faceCount}\${result.geometry.stats.volume ? \` | Volume: \${result.geometry.stats.volume.toFixed(2)} mm³\` : ''}\`;
-        } else {
-          const errors = result.errors?.map(e => e.message).join('\\n') || 'Unknown error';
-          errorDiv.textContent = errors;
-          errorDiv.classList.remove('hidden');
-          statsDiv.classList.add('hidden');
-        }
-      } catch (error) {
-        errorDiv.textContent = 'Error: ' + error.message;
-        errorDiv.classList.remove('hidden');
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'Run';
-      }
-    });
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(
+      React.createElement(CADEditor, {
+        initialLanguage: 'javascript',
+        showFileManager: true,
+        showAnimationExport: true,
+        showTopMenu: true,
+        showPrinterSettings: true,
+        apiBaseUrl: ''
+      })
+    );
   </script>
 </body>
 </html>`;
