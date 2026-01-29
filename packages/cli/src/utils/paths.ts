@@ -48,22 +48,14 @@ export function getGuiPath(): string | null {
 /**
  * Check if we're running in development mode
  *
- * Returns true if:
- * - Running from monorepo (packages/cli exists at expected location)
- * - NODE_ENV is 'development'
+ * Returns true ONLY if:
+ * - Explicitly enabled via MOICAD_DEV=1 environment variable
+ *
+ * Default is always production mode for simplicity.
  */
 export function isDevMode(): boolean {
-  // Check environment variable
-  if (process.env.NODE_ENV === 'development') {
-    return true;
-  }
-
-  // Check if we're in the monorepo
-  const monorepoRoot = getMonorepoRoot();
-  const cliPackageJson = resolve(monorepoRoot, 'packages/cli/package.json');
-  const guiPackageJson = resolve(monorepoRoot, 'packages/gui/package.json');
-
-  return existsSync(cliPackageJson) && existsSync(guiPackageJson);
+  // Only enable dev mode if explicitly requested
+  return process.env.MOICAD_DEV === '1';
 }
 
 /**

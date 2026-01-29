@@ -53,6 +53,15 @@ async function launchDevMode(port: number, filePath?: string, shouldOpen: boolea
 
   if (!guiPath) {
     logger.error('GUI package not found. Are you in the moicad monorepo?');
+    logger.error('For production use, run without --dev flag');
+    process.exit(1);
+  }
+
+  // Check if GUI has package.json with dev script
+  const guiPackageJsonPath = resolve(guiPath, 'package.json');
+  if (!existsSync(guiPackageJsonPath)) {
+    logger.error('GUI package.json not found - cannot run in dev mode');
+    logger.info('Tip: Run without --dev flag to use production mode');
     process.exit(1);
   }
 
@@ -72,43 +81,48 @@ async function launchDevMode(port: number, filePath?: string, shouldOpen: boolea
     MOICAD_FILE: filePath || '',
   };
 
-  const proc = spawn(['bun', 'run', 'dev'], {
-    cwd: guiPath,
-    env,
-    stdio: ['inherit', 'inherit', 'inherit'],
-  });
+  try {
+    const proc = spawn(['bun', 'run', 'dev'], {
+      cwd: guiPath,
+      env,
+      stdio: ['inherit', 'inherit', 'inherit'],
+    });
 
-  if (shouldOpen) {
-    setTimeout(async () => {
-      try {
-        const open = await import('open');
-        const url = filePath
-          ? `http://localhost:3000?file=${encodeURIComponent(filePath)}`
-          : 'http://localhost:3000';
-        await open.default(url);
-        logger.success('Opened in browser');
-      } catch (error) {
-        logger.warn('Could not auto-open browser. Please open manually.');
-      }
-    }, 3000);
+    if (shouldOpen) {
+      setTimeout(async () => {
+        try {
+          const open = await import('open');
+          const url = filePath
+            ? `http://localhost:3000?file=${encodeURIComponent(filePath)}`
+            : 'http://localhost:3000';
+          await open.default(url);
+          logger.success('Opened in browser');
+        } catch (error) {
+          logger.warn('Could not auto-open browser. Please open manually.');
+        }
+      }, 3000);
+    }
+
+    await proc.exited;
+  } catch (error) {
+    logger.error('Failed to start GUI dev server');
+    logger.error(`Error: ${error}`);
+    logger.info('Tip: Make sure you have all dependencies installed');
+    process.exit(1);
   }
-
-  await proc.exited;
 }
 
 /**
  * Production mode: Use our Bun server to serve GUI and handle API
  */
 async function launchProductionMode(port: number, filePath?: string, shouldOpen: boolean = true) {
-  const guiPath = getGuiPath();
-
   logger.info(`Web UI: http://localhost:${port}`);
+  logger.info(`API Server: http://localhost:${port}`);
 
-  // Start the server
+  // Start the server (serves from CLI's static/ directory)
   createServer({
     port,
     dev: false,
-    staticDir: guiPath ? `${guiPath}/.next` : undefined,
   });
 
   if (shouldOpen) {
