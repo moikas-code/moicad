@@ -3,6 +3,7 @@
 import { parseArgs } from 'util';
 import { launch } from './commands/launch';
 import { update } from './commands/update';
+import { install } from './commands/install';
 import { version } from './commands/version';
 
 const { positionals, values } = parseArgs({
@@ -11,6 +12,7 @@ const { positionals, values } = parseArgs({
   options: {
     dev: { type: 'boolean', short: 'd' },
     update: { type: 'boolean', short: 'u' },
+    install: { type: 'boolean', short: 'i' },
     version: { type: 'boolean', short: 'v' },
     help: { type: 'boolean', short: 'h' },
     port: { type: 'string', short: 'p' },
@@ -27,12 +29,14 @@ Usage:
   moicad                   Launch web UI
   moicad [file]            Launch web UI and open file
   moicad --dev             Launch in development mode (for plugin testing)
+  moicad --install         Install @moicad/gui for standalone use
   moicad --update          Update moicad to latest version
   moicad --version         Show version info
   moicad --help            Show this help
 
 Options:
   -d, --dev                Development mode with hot reload
+  -i, --install            Install @moicad/gui for standalone use
   -u, --update             Update to latest version
   -p, --port <port>        Port number (default: 3000)
   -o, --open               Auto-open browser
@@ -43,6 +47,7 @@ Examples:
   moicad                   # Start web UI at http://localhost:3000
   moicad design.scad       # Open design.scad in web UI
   moicad --dev             # Start in dev mode for plugin development
+  moicad --install         # Install app for standalone use
   moicad --update          # Update to latest version
   `);
   process.exit(0);
@@ -51,6 +56,12 @@ Examples:
 // Show version
 if (values.version) {
   version();
+  process.exit(0);
+}
+
+// Install
+if (values.install) {
+  await install();
   process.exit(0);
 }
 

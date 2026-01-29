@@ -7,20 +7,18 @@
     "moicad": "./dist/index.js"
   },
   "files": [
-    "dist",
-    "app-bundle"
+    "dist"
   ],
   "scripts": {
-    "prebuild": "bash scripts/bundle-app.sh",
     "build": "bun build src/index.ts --target=bun --outdir=dist && chmod +x dist/index.js",
     "build:quick": "bun build src/index.ts --target=bun --outdir=dist && chmod +x dist/index.js",
     "dev": "bun src/index.ts",
     "test": "bash scripts/test-cli.sh",
     "prepublishOnly": "bash scripts/pre-publish-check.sh",
-    "build:publish":"nun run build && npm publish"
+    "build:publish":"bun run build && npm publish"
   },
   "dependencies": {
-    "@moicad/sdk": "latest",
+    "@moicad/gui": "^0.1.0",
     "open": "11.0.0"
   },
   "devDependencies": {

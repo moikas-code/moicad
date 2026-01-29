@@ -12,29 +12,30 @@ export function getMonorepoRoot(): string {
 export function getAppPath(): string {
   const currentDir = dirname(fileURLToPath(import.meta.url));
 
-  // In production (installed via npm): app-bundle is next to dist/
-  // CLI structure: node_modules/@moicad/cli/dist/index.js
-  const bundledAppPath = resolve(currentDir, '../../app-bundle');
+  // In production (installed via npm): try to find @moicad/gui
+  const installedAppPath = resolve(currentDir, '../../../@moicad/gui');
 
-  if (existsSync(bundledAppPath)) {
-    return bundledAppPath;
+  if (existsSync(installedAppPath)) {
+    return installedAppPath;
   }
 
   // In development: use monorepo structure
   const monorepoRoot = getMonorepoRoot();
-  const devAppPath = resolve(monorepoRoot, 'moicad/packages/app');
+  const devAppPath = resolve(monorepoRoot, 'packages/app');
 
   if (existsSync(devAppPath)) {
     return devAppPath;
   }
 
-  throw new Error('Could not locate app directory. Neither bundled nor development paths exist.');
+  throw new Error('Could not locate app directory. Run "moicad --install" to install @moicad/gui.');
 }
 
 export function isDevMode(): boolean {
   const currentDir = dirname(fileURLToPath(import.meta.url));
-  const bundledAppPath = resolve(currentDir, '../../app-bundle');
+  const installedAppPath = resolve(currentDir, '../../../@moicad/gui');
+  const monorepoRoot = getMonorepoRoot();
+  const devAppPath = resolve(monorepoRoot, 'packages/app');
 
-  // If app-bundle doesn't exist, we're in dev mode
-  return !existsSync(bundledAppPath);
+  // If neither installed app nor dev app exists, we're in dev mode (or need install)
+  return !(existsSync(installedAppPath) || existsSync(devAppPath));
 }

@@ -22,14 +22,13 @@ else
 fi
 echo ""
 
-# Check 2: App-bundle exists
-echo "2️⃣  Checking app-bundle..."
-if [ -d "app-bundle" ]; then
-  BUNDLE_SIZE=$(du -sh app-bundle | cut -f1)
-  echo "   ✅ app-bundle exists (size: $BUNDLE_SIZE)"
+# Check 2: App-bundle should NOT exist (new architecture)
+echo "2️⃣  Checking app-bundle removed..."
+if [ ! -d "app-bundle" ]; then
+  echo "   ✅ app-bundle correctly removed (separate packages architecture)"
 else
-  echo "   ❌ ERROR: app-bundle not found"
-  echo "   Action: Run 'bun run build' to create bundle"
+  echo "   ❌ ERROR: app-bundle still exists"
+  echo "   Action: Remove app-bundle directory (CLI now uses separate @moicad/gui)"
   ERRORS=$((ERRORS + 1))
 fi
 echo ""
@@ -47,11 +46,11 @@ echo ""
 
 # Check 4: Files field in package.json
 echo "4️⃣  Checking package.json files field..."
-if grep -q '"files"' package.json && grep -q '"app-bundle"' package.json; then
-  echo "   ✅ 'files' field includes app-bundle"
+if grep -q '"files"' package.json && grep -q '"dist"' package.json && ! grep -q '"app-bundle"' package.json; then
+  echo "   ✅ 'files' field includes dist only (correct for separate packages)"
 else
-  echo "   ❌ ERROR: 'files' field missing or incomplete"
-  echo "   Action: Ensure package.json has: \"files\": [\"dist\", \"app-bundle\"]"
+  echo "   ❌ ERROR: 'files' field incorrect"
+  echo "   Action: Ensure package.json has: \"files\": [\"dist\"]"
   ERRORS=$((ERRORS + 1))
 fi
 echo ""

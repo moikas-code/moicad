@@ -3,3 +3,5 @@ tsconfig.json
 *.log
 .DS_Store
 node_modules/
+scripts/
+app-bundle/node_modules

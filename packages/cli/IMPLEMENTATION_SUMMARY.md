@@ -6,7 +6,7 @@ The CLI package (`@moicad/cli`) needed to work when published to npm, but it was
 
 ## Solution: Bundle the App
 
-The CLI now bundles a pre-built version of the web app (`@moicad/app`) inside itself during the build process. This makes it completely self-contained.
+The CLI now bundles a pre-built version of the web app (`@moicad/gui`) inside itself during the build process. This makes it completely self-contained.
 
 ## What Changed
 
@@ -187,7 +187,7 @@ npm publish --access public
 ## Alternatives Considered
 
 ### Option A: Separate app package ❌
-- Publish `@moicad/app` separately
+- Publish `@moicad/gui` separately
 - CLI depends on it
 - **Rejected**: Version mismatch issues, more packages to manage
 
@@ -215,7 +215,7 @@ To reduce package size:
 
 3. **Split packages** (only if size becomes critical):
    - `@moicad/cli-core` - Small launcher
-   - `@moicad/app-bundle` - Large app
+   - `@moicad/gui-bundle` - Large app
    - CLI downloads app on first run
 
 ## Maintenance
