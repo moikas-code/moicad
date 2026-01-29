@@ -20,8 +20,9 @@ import type {
 } from "../../shared/mcp-types";
 import { mcpStore } from "./store";
 import { wsManager, auth } from "./middleware";
-import { parseOpenSCAD } from "../scad/parser";
-import { evaluateAST } from "../scad/evaluator";
+// ✅ Import from SDK instead of deleted local directories
+import { parseOpenSCAD } from "../../packages/sdk/src/scad/parser.ts";
+import { evaluateAST } from "../../packages/sdk/src/scad/evaluator.ts";
 import { handleAIWebSocketMessage, aiManager } from "./ai-adapter";
 import {
   OTSessionManager,

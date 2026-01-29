@@ -183,29 +183,44 @@ interface EvaluationContext {
  */
 export async function evaluateAST(
   ast: ScadNode[],
-  options?: { previewMode?: boolean; disableParallel?: boolean },
+  options?: {
+    previewMode?: boolean;
+    disableParallel?: boolean;
+    /** Custom variable overrides (e.g., for animation: variables: new Map([['$t', 0.5]])) */
+    variables?: Map<string, any>;
+  },
 ): Promise<EvaluateResult> {
   const startTime = performance.now();
-  
+
   // Execute plugin hooks before parsing
   pluginManager.executeHook('scad.parse', ast, options);
-  
+
+  // Initialize default variables
+  const defaultVariables = new Map<string, any>([
+    ["$fn", 0], // Fragment number (facets)
+    ["$fa", 12], // Fragment angle in degrees
+    ["$fs", 2], // Fragment size in mm
+    ["$t", 0], // Animation time
+    ["$children", 0], // Number of children (for modules)
+    // Viewport special variables
+    ["$vpr", [0, 0, 0]], // Viewport rotation [x, y, z] in degrees
+    ["$vpt", [0, 0, 0]], // Viewport translation [x, y, z]
+    ["$vpd", 100], // Viewport camera distance
+    ["$vpf", 45], // Viewport field of view in degrees
+    ["$preview", options?.previewMode ?? true], // Preview mode flag (auto-detected with manual override)
+    ["$version", [2021, 1, 0]], // OpenSCAD version
+    ["$version_num", 20210100], // OpenSCAD version number
+  ]);
+
+  // Apply custom variable overrides (e.g., for animation $t)
+  if (options?.variables) {
+    for (const [key, value] of options.variables) {
+      defaultVariables.set(key, value);
+    }
+  }
+
   const context: EvaluationContext = {
-    variables: new Map<string, any>([
-      ["$fn", 0], // Fragment number (facets)
-      ["$fa", 12], // Fragment angle in degrees
-      ["$fs", 2], // Fragment size in mm
-      ["$t", 0], // Animation time
-      ["$children", 0], // Number of children (for modules)
-      // Viewport special variables
-      ["$vpr", [0, 0, 0]], // Viewport rotation [x, y, z] in degrees
-      ["$vpt", [0, 0, 0]], // Viewport translation [x, y, z]
-      ["$vpd", 100], // Viewport camera distance
-      ["$vpf", 45], // Viewport field of view in degrees
-      ["$preview", options?.previewMode ?? true], // Preview mode flag (auto-detected with manual override)
-      ["$version", [2021, 1, 0]], // OpenSCAD version
-      ["$version_num", 20210100], // OpenSCAD version number
-    ]),
+    variables: defaultVariables,
     functions: new Map(),
     modules: new Map(),
     errors: [],
@@ -1601,10 +1616,10 @@ function evaluateBinaryExpression(expr: any, context: EvaluationContext): any {
 
 function evaluateFunctionCall(call: any, context: EvaluationContext): any {
   const funcDef = context.functions.get(call.name);
-  
+
   // Execute plugin hooks before function call
   pluginManager.executeHook('scad.evaluate', call, context);
-  
+
   if (!funcDef) {
     // Try built-in functions
     switch (call.name) {
@@ -1779,13 +1794,13 @@ function evaluateFunctionCall(call: any, context: EvaluationContext): any {
     const evaluatedArgs = call.args.map((arg: any) =>
       evaluateExpression(arg, context),
     );
-    
+
     try {
       const result = funcDef.pluginFunction(...evaluatedArgs);
-      
+
       // Execute plugin hooks after function call
       pluginManager.executeHook('scad.evaluate.after', call, context, result);
-      
+
       return result;
     } catch (error: any) {
       context.errors.push({

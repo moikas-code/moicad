@@ -13,7 +13,8 @@ const EXAMPLES = {
 import { Shape } from '@moicad/sdk';
 
 export default Shape.cube(10);`,
-      language: 'javascript'
+      language: 'javascript',
+      isAnimation: false,
     },
     {
       name: 'Sphere with Options',
@@ -21,7 +22,8 @@ export default Shape.cube(10);`,
 import { Shape } from '@moicad/sdk';
 
 export default Shape.sphere(5, { $fn: 64 });`,
-      language: 'javascript'
+      language: 'javascript',
+      isAnimation: false,
     },
   ],
   'Transformations': [
@@ -35,7 +37,8 @@ const cube = Shape.cube(10)
   .scale([1.5, 1, 2]);
 
 export default cube;`,
-      language: 'javascript'
+      language: 'javascript',
+      isAnimation: false,
     },
   ],
   'Boolean Operations': [
@@ -48,7 +51,8 @@ const cube = Shape.cube(20);
 const sphere = Shape.sphere(12).translate([10, 10, 10]);
 
 export default cube.subtract(sphere);`,
-      language: 'javascript'
+      language: 'javascript',
+      isAnimation: false,
     },
     {
       name: 'Union',
@@ -59,7 +63,8 @@ const base = Shape.cube([30, 30, 5]);
 const post = Shape.cylinder(20, 3).translate([15, 15, 5]);
 
 export default base.union(post);`,
-      language: 'javascript'
+      language: 'javascript',
+      isAnimation: false,
     },
   ],
   'Fluent API': [
@@ -72,7 +77,8 @@ export default Shape.cube([20, 10, 5])
   .translate([0, 0, 5])
   .union(Shape.sphere(8))
   .scale([1.2, 1, 1]);`,
-      language: 'javascript'
+      language: 'javascript',
+      isAnimation: false,
     },
     {
       name: 'Hollow Cylinder',
@@ -83,7 +89,131 @@ const outer = Shape.cylinder(20, 8);
 const inner = Shape.cylinder(20, 6);
 
 export default outer.subtract(inner);`,
-      language: 'javascript'
+      language: 'javascript',
+      isAnimation: false,
+    },
+  ],
+  'Animations': [
+    {
+      name: 'Spinning Cube',
+      code: `// Animated spinning cube
+// The function receives t (0 to 1) for animation progress
+import { Shape } from '@moicad/sdk';
+
+export default function(t) {
+  return Shape.cube(10)
+    .rotate([0, 0, t * 360]);
+}`,
+      language: 'javascript',
+      isAnimation: true,
+    },
+    {
+      name: 'Growing Sphere',
+      code: `// Sphere that grows and shrinks
+import { Shape } from '@moicad/sdk';
+
+export default function(t) {
+  // Use sine wave for smooth grow/shrink
+  const scale = 5 + Math.sin(t * Math.PI * 2) * 3;
+  return Shape.sphere(scale, { $fn: 32 });
+}`,
+      language: 'javascript',
+      isAnimation: true,
+    },
+    {
+      name: 'Orbiting Spheres',
+      code: `// Two spheres orbiting each other
+import { Shape } from '@moicad/sdk';
+
+export default function(t) {
+  const angle = t * 360;
+  const radius = 15;
+
+  const sphere1 = Shape.sphere(5, { $fn: 24 })
+    .translate([
+      Math.cos(angle * Math.PI / 180) * radius,
+      Math.sin(angle * Math.PI / 180) * radius,
+      0
+    ]);
+
+  const sphere2 = Shape.sphere(5, { $fn: 24 })
+    .translate([
+      Math.cos((angle + 180) * Math.PI / 180) * radius,
+      Math.sin((angle + 180) * Math.PI / 180) * radius,
+      0
+    ]);
+
+  return sphere1.union(sphere2);
+}`,
+      language: 'javascript',
+      isAnimation: true,
+    },
+    {
+      name: 'OpenSCAD Animation',
+      code: `// Animated using $t variable (0 to 1)
+// Cube that rotates and moves up/down
+
+translate([0, 0, sin($t * 360) * 10])
+  rotate([0, 0, $t * 360])
+    cube(10, center=true);`,
+      language: 'openscad',
+      isAnimation: true,
+    },
+  ],
+  'Interactive (Coming Soon)': [
+    {
+      name: 'Box with Lid',
+      code: `// Interactive box with opening lid
+// Click and drag the lid to open/close
+import { Shape, interactive, fixedPart, hingePart } from '@moicad/sdk';
+
+export default interactive({
+  parts: [
+    fixedPart('base', Shape.cube([30, 30, 18])),
+    hingePart('lid', Shape.cube([30, 30, 2]).translate([0, 0, 18]), {
+      axis: [1, 0, 0],
+      pivot: [0, 30, 18],
+      range: [0, 110],
+    }),
+  ],
+  metadata: {
+    name: 'Box with Lid',
+    description: 'Click and drag the lid to open',
+  },
+});
+
+// Note: Interactive mode renders individual parts
+// For now, showing assembled preview:
+// export default Shape.cube([30, 30, 20]);`,
+      language: 'javascript',
+      isAnimation: false,
+      isInteractive: true,
+    },
+    {
+      name: 'Sliding Drawer',
+      code: `// Interactive drawer that slides in/out
+import { Shape, interactive, fixedPart, sliderPart } from '@moicad/sdk';
+
+export default interactive({
+  parts: [
+    fixedPart('cabinet',
+      Shape.cube([40, 30, 50])
+        .subtract(Shape.cube([36, 26, 10]).translate([2, 2, 38]))
+    ),
+    sliderPart('drawer', Shape.cube([35, 25, 8]).translate([2.5, 2.5, 40]), {
+      axis: [0, 1, 0],
+      range: [0, 20],
+      springBack: true,
+      springStrength: 0.3,
+    }),
+  ],
+});
+
+// Note: Interactive mode coming soon
+// Preview shows assembled model`,
+      language: 'javascript',
+      isAnimation: false,
+      isInteractive: true,
     },
   ],
   'OpenSCAD Syntax': [
@@ -98,9 +228,18 @@ union() {
   translate([10, 10, 30])
     cylinder(h=15, r1=14, r2=0, $fn=4);
 }`,
-      language: 'openscad'
+      language: 'openscad',
+      isAnimation: false,
     },
-  ]
+  ],
+};
+
+type ExampleType = {
+  name: string;
+  code: string;
+  language: string;
+  isAnimation?: boolean;
+  isInteractive?: boolean;
 };
 
 export default function DemoPage() {
@@ -110,11 +249,17 @@ export default function DemoPage() {
   const [error, setError] = useState<string | null>(null);
   const [isEvaluating, setIsEvaluating] = useState(false);
 
-  const evaluateCode = async () => {
+  // Animation state
+  const [isAnimation, setIsAnimation] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [animationT, setAnimationT] = useState(0);
+  const [animationInterval, setAnimationInterval] = useState<NodeJS.Timeout | null>(null);
+
+  const evaluateCode = async (t?: number) => {
     setIsEvaluating(true);
     setError(null);
 
-    console.log('Evaluating code:', { language, codeLength: code.length });
+    const tValue = t !== undefined ? t : animationT;
 
     try {
       const response = await fetch('/api/evaluate', {
@@ -122,15 +267,12 @@ export default function DemoPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ code, language }),
+        body: JSON.stringify({ code, language, t: isAnimation ? tValue : undefined }),
       });
 
-      console.log('API response status:', response.status);
       const result = await response.json() as any;
-      console.log('API result:', result);
 
       if (result.success) {
-        console.log('Setting geometry:', result.geometry);
         setGeometry(result.geometry);
         setError(null);
       } else {
@@ -148,10 +290,60 @@ export default function DemoPage() {
     }
   };
 
-  const loadExample = (example: typeof EXAMPLES['Basic Shapes'][0]) => {
+  const loadExample = (example: ExampleType) => {
+    // Stop any playing animation
+    if (animationInterval) {
+      clearInterval(animationInterval);
+      setAnimationInterval(null);
+    }
+    setIsPlaying(false);
+    setAnimationT(0);
+
     setCode(example.code);
     setLanguage(example.language);
+    setIsAnimation(example.isAnimation || false);
   };
+
+  // Animation playback controls
+  const toggleAnimation = () => {
+    if (isPlaying) {
+      // Stop
+      if (animationInterval) {
+        clearInterval(animationInterval);
+        setAnimationInterval(null);
+      }
+      setIsPlaying(false);
+    } else {
+      // Start
+      setIsPlaying(true);
+      const interval = setInterval(() => {
+        setAnimationT(prev => {
+          const newT = prev + 0.02; // ~50 steps per cycle
+          if (newT >= 1) {
+            return 0; // Loop
+          }
+          return newT;
+        });
+      }, 33); // ~30fps
+      setAnimationInterval(interval);
+    }
+  };
+
+  // Evaluate when animation t changes
+  useEffect(() => {
+    if (isAnimation && isPlaying) {
+      evaluateCode(animationT);
+    }
+  }, [animationT]);
+
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (animationInterval) {
+        clearInterval(animationInterval);
+      }
+    };
+  }, [animationInterval]);
 
   useEffect(() => {
     // Load initial example
@@ -190,13 +382,27 @@ export default function DemoPage() {
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold">Code Editor</h2>
-              <button
-                onClick={evaluateCode}
-                disabled={isEvaluating}
-                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 rounded-lg font-semibold transition-colors"
-              >
-                {isEvaluating ? '⏳ Evaluating...' : '▶️ Run'}
-              </button>
+              <div className="flex gap-2">
+                {isAnimation && (
+                  <button
+                    onClick={toggleAnimation}
+                    className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
+                      isPlaying
+                        ? 'bg-red-600 hover:bg-red-700'
+                        : 'bg-green-600 hover:bg-green-700'
+                    }`}
+                  >
+                    {isPlaying ? '⏹️ Stop' : '▶️ Play'}
+                  </button>
+                )}
+                <button
+                  onClick={() => evaluateCode()}
+                  disabled={isEvaluating || isPlaying}
+                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 rounded-lg font-semibold transition-colors"
+                >
+                  {isEvaluating ? '⏳ Evaluating...' : isAnimation ? '🔄 Preview' : '▶️ Run'}
+                </button>
+              </div>
             </div>
 
             <div className="border border-slate-700 rounded-lg overflow-hidden">
@@ -229,6 +435,37 @@ export default function DemoPage() {
               />
             </div>
 
+            {/* Animation Controls */}
+            {isAnimation && (
+              <div className="bg-slate-800 p-4 rounded-lg border border-slate-700">
+                <h3 className="font-semibold mb-2">Animation Timeline</h3>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm text-gray-400 w-12">t = {animationT.toFixed(2)}</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      value={animationT}
+                      onChange={(e) => {
+                        const newT = parseFloat(e.target.value);
+                        setAnimationT(newT);
+                        if (!isPlaying) {
+                          evaluateCode(newT);
+                        }
+                      }}
+                      className="flex-1 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer"
+                      disabled={isPlaying}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    {isPlaying ? 'Animation playing...' : 'Drag slider to scrub through animation, or click Play'}
+                  </p>
+                </div>
+              </div>
+            )}
+
             {geometry && (
               <div className="bg-slate-800 p-4 rounded-lg border border-slate-700">
                 <h3 className="font-semibold mb-2">Geometry Info</h3>
@@ -256,10 +493,22 @@ export default function DemoPage() {
                 {examples.map((example, index) => (
                   <button
                     key={index}
-                    onClick={() => loadExample(example)}
+                    onClick={() => loadExample(example as ExampleType)}
                     className="bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg p-4 text-left transition-colors"
                   >
-                    <div className="font-semibold text-white mb-2">{example.name}</div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="font-semibold text-white">{example.name}</span>
+                      {example.isAnimation && (
+                        <span className="px-2 py-0.5 bg-green-600/30 text-green-400 text-xs rounded-full">
+                          Animation
+                        </span>
+                      )}
+                      {example.isInteractive && (
+                        <span className="px-2 py-0.5 bg-purple-600/30 text-purple-400 text-xs rounded-full">
+                          Interactive
+                        </span>
+                      )}
+                    </div>
                     <div className="text-sm text-gray-400">
                       {example.language === 'javascript' ? '📜 JavaScript SDK' : '🔧 OpenSCAD'}
                     </div>

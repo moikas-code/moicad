@@ -8,6 +8,8 @@ module.exports = {
       '@moicad/sdk/runtime': './packages/sdk/dist/runtime/index.js',
       '@moicad/sdk/viewport': './packages/sdk/dist/viewport/index.js',
       '@moicad/sdk/functional': './packages/sdk/dist/functional.js',
+      '@moicad/sdk/animation': './packages/sdk/dist/animation/index.js',
+      '@moicad/sdk/interactive': './packages/sdk/dist/interactive/index.js',
       '@moicad/sdk': './packages/sdk/dist/index.js',
     },
   },
@@ -24,6 +26,8 @@ module.exports = {
       '@moicad/sdk/runtime': path.join(__dirname, '../sdk/dist/runtime/index.js'),
       '@moicad/sdk/viewport': path.join(__dirname, '../sdk/dist/viewport/index.js'),
       '@moicad/sdk/functional': path.join(__dirname, '../sdk/dist/functional.js'),
+      '@moicad/sdk/animation': path.join(__dirname, '../sdk/dist/animation/index.js'),
+      '@moicad/sdk/interactive': path.join(__dirname, '../sdk/dist/interactive/index.js'),
     }
     return config
   },

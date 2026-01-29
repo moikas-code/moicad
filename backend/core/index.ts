@@ -7,9 +7,12 @@
 import fs from "fs";
 import path from "path";
 import net from "net";
-import { parseOpenSCAD } from "../scad/parser";
-import { evaluateAST, setWasmModule } from "../scad/evaluator";
-import { evaluateJavaScript } from "../javascript/runtime";
+
+// ✅ Import from @moicad/sdk instead of deleted local directories
+import { parseOpenSCAD } from "../../packages/sdk/src/scad/parser.ts";
+import { evaluateAST } from "../../packages/sdk/src/scad/evaluator.ts";
+import { evaluateJavaScript } from "../../packages/sdk/src/runtime/index.ts";
+
 import { detectLanguage } from "./language-detector";
 import type {
   EvaluateMessage,
@@ -47,41 +50,23 @@ import { mcpWebSocketServer } from "../mcp/server";
 import * as mcpApi from "../mcp/api";
 import { aiManager } from "../mcp/ai-adapter";
 
-// Dynamic import for WASM
-let wasmModule: any = null;
+// ✅ Use SDK's manifold engine instead of custom WASM
+import { initManifold } from "../../packages/sdk/src/manifold/engine.ts";
 
 async function initWasm() {
   try {
-    // Import and initialize WASM module with cache busting
-    const cacheBuster = Date.now();
-    const imported = await import(
-      `../wasm/pkg/moicad_wasm.js?t=${cacheBuster}`
-    );
-
-    // The default export is the init function, call it to initialize
-    if (imported.default) {
-      await imported.default();
-    }
-
-    // Now store the module with all exported functions
-    wasmModule = imported;
-    globals.wasmModule = imported;
-    setWasmModule(imported);
-    logInfo("WASM module initialized successfully");
+    // Initialize manifold-3d engine from SDK
+    await initManifold();
+    logInfo("Manifold CSG engine initialized successfully (via SDK)");
     return true;
   } catch (err) {
-    logError("Failed to load WASM module", {
+    logError("Failed to initialize manifold engine", {
       error: err instanceof Error ? err.message : String(err),
     });
-    logWarn(
-      "Running without WASM CSG engine - geometry operations will be limited",
-    );
+    logWarn("Running without CSG engine - geometry operations will fail");
     return false;
   }
 }
-
-const globals = { wasmModule: null as any };
-(globalThis as any).globals = globals;
 
 // ============================================
 // Process Management & PID Locking
@@ -286,15 +271,17 @@ const workerPool = null as any; // Disabled for now
 // ============================================
 
 interface QueuedJob {
-    id: string;
-    code: string;
-    timestamp: number;
-    resolve: (result: EvaluateResult) => void;
-    reject: (error: Error) => void;
-    progressCallback?: (progress: import("../../shared/types").RenderProgress) => void;
-    connectionId?: string;
-    cancelRequested?: boolean;
-  }
+  id: string;
+  code: string;
+  timestamp: number;
+  resolve: (result: EvaluateResult) => void;
+  reject: (error: Error) => void;
+  progressCallback?: (
+    progress: import("../../shared/types").RenderProgress,
+  ) => void;
+  connectionId?: string;
+  cancelRequested?: boolean;
+}
 
 /**
  * Single-threaded job queue for OpenSCAD evaluations
@@ -319,7 +306,9 @@ class EvaluationQueue {
   async enqueue(
     code: string,
     connectionId?: string,
-    progressCallback?: (progress: import("../../shared/types").RenderProgress) => void
+    progressCallback?: (
+      progress: import("../../shared/types").RenderProgress,
+    ) => void,
   ): Promise<EvaluateResult> {
     return new Promise((resolve, reject) => {
       const job: QueuedJob = {
@@ -354,7 +343,8 @@ class EvaluationQueue {
     this.processing = true;
     this.currentJob = this.queue.shift()!;
 
-    const { id, code, timestamp, resolve, reject, progressCallback } = this.currentJob;
+    const { id, code, timestamp, resolve, reject, progressCallback } =
+      this.currentJob;
     const waitTime = Date.now() - timestamp;
 
     logInfo(`Processing job ${id}`, {
@@ -363,7 +353,12 @@ class EvaluationQueue {
     });
 
     // Helper to send progress updates
-    const sendProgress = (stage: import("../../shared/types").RenderStage, progress: number, message: string, details?: any) => {
+    const sendProgress = (
+      stage: import("../../shared/types").RenderStage,
+      progress: number,
+      message: string,
+      details?: any,
+    ) => {
       if (progressCallback) {
         progressCallback({
           stage,
@@ -395,7 +390,7 @@ class EvaluationQueue {
 
       // REMOVED: No longer abort on memory limits - use chunking instead
       // Progressive loading allows any size model to eventually complete
-      
+
       // Optimize if needed (but never abort)
       if (this.memoryMonitor.shouldOptimize()) {
         logWarn(`High memory usage - applying optimization for job ${id}`, {
@@ -508,7 +503,12 @@ class EvaluationQueue {
    */
   private async evaluateCode(
     code: string,
-    sendProgress: (stage: import("../../shared/types").RenderStage, progress: number, message: string, details?: any) => void
+    sendProgress: (
+      stage: import("../../shared/types").RenderStage,
+      progress: number,
+      message: string,
+      details?: any,
+    ) => void,
   ): Promise<EvaluateResult> {
     const startTime = performance.now();
 
@@ -517,7 +517,7 @@ class EvaluationQueue {
       const language = detectLanguage(code);
       logInfo(`Code language detected: ${language}`);
 
-      if (language === 'javascript') {
+      if (language === "javascript") {
         // JavaScript evaluation path
         sendProgress("parsing", 0.1, "Parsing JavaScript code...");
         sendProgress("evaluating", 0.3, "Executing JavaScript code...");
@@ -530,7 +530,7 @@ class EvaluationQueue {
           geometry: result.geometry,
           errors: result.errors,
           success: result.success,
-          executionTime: result.executionTime || (performance.now() - startTime),
+          executionTime: result.executionTime || performance.now() - startTime,
         };
       } else {
         // OpenSCAD evaluation path (original logic)
@@ -825,16 +825,24 @@ const server = Bun.serve<WebSocketData>({
           // Handle original API messages
           if (data.type === "evaluate") {
             // Create progress callback to send updates via WebSocket
-            const progressCallback = (progress: import("../../shared/types").RenderProgress) => {
-              ws.send(JSON.stringify({
-                type: "progress_update",
-                requestId: data.requestId,
-                progress,
-                timestamp: Date.now(),
-              }));
+            const progressCallback = (
+              progress: import("../../shared/types").RenderProgress,
+            ) => {
+              ws.send(
+                JSON.stringify({
+                  type: "progress_update",
+                  requestId: data.requestId,
+                  progress,
+                  timestamp: Date.now(),
+                }),
+              );
             };
-            
-            const result = await handleEvaluateWs(data, ws.data.connectionId, progressCallback);
+
+            const result = await handleEvaluateWs(
+              data,
+              ws.data.connectionId,
+              progressCallback,
+            );
             ws.send(JSON.stringify(result));
           } else if (data.type === "parse") {
             const result = handleParseWs(data);
@@ -1104,13 +1112,15 @@ function handleParseWs(data: any): any {
 }
 
 async function handleEvaluateWs(
-    data: EvaluateMessage,
-    connectionId?: string,
-    progressCallback?: (progress: import("../../shared/types").RenderProgress) => void
-  ): Promise<EvaluateResponse> {
+  data: EvaluateMessage,
+  connectionId?: string,
+  progressCallback?: (
+    progress: import("../../shared/types").RenderProgress,
+  ) => void,
+): Promise<EvaluateResponse> {
   // Use evaluation queue with progress callback instead of worker pool
   // Worker pool doesn't support progress callbacks yet
-  const result = progressCallback 
+  const result = progressCallback
     ? await evaluationQueue.enqueue(data.code, progressCallback)
     : await workerPool.evaluate(data.code);
 

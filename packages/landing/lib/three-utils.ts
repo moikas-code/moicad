@@ -47,6 +47,13 @@ export class SceneManager {
   private animationId: number | null = null;
   private onHoverCallback?: (objectId: string | null) => void;
   private onSelectCallback?: (objectIds: string[]) => void;
+
+  // Scrub mode for animation timeline control
+  private scrubMode: boolean = false;
+  private scrubStartX: number = 0;
+  private isScrubbing: boolean = false;
+  private onScrubCallback?: (t: number) => void;
+
   private printerSize: {
     width: number;
     depth: number;
@@ -848,7 +855,7 @@ export class SceneManager {
       const max = new THREE.Vector3(...this.lastGeometryBounds.max).add(offset);
       target = new THREE.Vector3().addVectors(min, max).multiplyScalar(0.5);
     }
-    
+
     this.camera.position.set(target.x + pos[0], target.y + pos[1], target.z + pos[2]);
     this.camera.lookAt(target);
     this.controls.target.copy(target);
@@ -1086,6 +1093,100 @@ export class SceneManager {
   }
 
   /**
+   * Enable scrub mode - dragging left/right in viewport scrubs through animation timeline
+   * @param onScrub - Callback called with t value (0.0 to 1.0) as user drags
+   */
+  public enableScrubMode(onScrub: (t: number) => void): void {
+    this.scrubMode = true;
+    this.onScrubCallback = onScrub;
+    this.renderer.domElement.style.cursor = 'ew-resize';
+
+    // Disable orbit controls in scrub mode
+    this.controls.enabled = false;
+
+    // Add scrub event listeners
+    this.renderer.domElement.addEventListener('mousedown', this.handleScrubStart);
+    this.renderer.domElement.addEventListener('mousemove', this.handleScrubMove);
+    this.renderer.domElement.addEventListener('mouseup', this.handleScrubEnd);
+    this.renderer.domElement.addEventListener('mouseleave', this.handleScrubEnd);
+
+    // Touch support
+    this.renderer.domElement.addEventListener('touchstart', this.handleTouchScrubStart);
+    this.renderer.domElement.addEventListener('touchmove', this.handleTouchScrubMove);
+    this.renderer.domElement.addEventListener('touchend', this.handleScrubEnd);
+  }
+
+  /**
+   * Disable scrub mode and restore normal orbit controls
+   */
+  public disableScrubMode(): void {
+    this.scrubMode = false;
+    this.isScrubbing = false;
+    this.onScrubCallback = undefined;
+    this.renderer.domElement.style.cursor = 'default';
+
+    // Re-enable orbit controls
+    this.controls.enabled = true;
+
+    // Remove scrub event listeners
+    this.renderer.domElement.removeEventListener('mousedown', this.handleScrubStart);
+    this.renderer.domElement.removeEventListener('mousemove', this.handleScrubMove);
+    this.renderer.domElement.removeEventListener('mouseup', this.handleScrubEnd);
+    this.renderer.domElement.removeEventListener('mouseleave', this.handleScrubEnd);
+
+    this.renderer.domElement.removeEventListener('touchstart', this.handleTouchScrubStart);
+    this.renderer.domElement.removeEventListener('touchmove', this.handleTouchScrubMove);
+    this.renderer.domElement.removeEventListener('touchend', this.handleScrubEnd);
+  }
+
+  /**
+   * Check if scrub mode is enabled
+   */
+  public isScrubModeEnabled(): boolean {
+    return this.scrubMode;
+  }
+
+  private handleScrubStart = (event: MouseEvent): void => {
+    if (!this.scrubMode) return;
+    this.isScrubbing = true;
+    this.scrubStartX = event.clientX;
+    this.handleScrubMove(event);
+  };
+
+  private handleScrubMove = (event: MouseEvent): void => {
+    if (!this.scrubMode || !this.isScrubbing || !this.onScrubCallback) return;
+
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const t = Math.max(0, Math.min(1, x / rect.width));
+
+    this.onScrubCallback(t);
+  };
+
+  private handleScrubEnd = (): void => {
+    this.isScrubbing = false;
+  };
+
+  private handleTouchScrubStart = (event: TouchEvent): void => {
+    if (!this.scrubMode || event.touches.length !== 1) return;
+    event.preventDefault();
+    this.isScrubbing = true;
+    this.scrubStartX = event.touches[0].clientX;
+    this.handleTouchScrubMove(event);
+  };
+
+  private handleTouchScrubMove = (event: TouchEvent): void => {
+    if (!this.scrubMode || !this.isScrubbing || !this.onScrubCallback || event.touches.length !== 1) return;
+    event.preventDefault();
+
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const x = event.touches[0].clientX - rect.left;
+    const t = Math.max(0, Math.min(1, x / rect.width));
+
+    this.onScrubCallback(t);
+  };
+
+  /**
    * Dispose resources
    */
   public dispose(): void {
@@ -1096,6 +1197,12 @@ export class SceneManager {
       this.mesh.geometry.dispose();
       (this.mesh.material as THREE.Material).dispose();
     }
+
+    // Clean up scrub mode if active
+    if (this.scrubMode) {
+      this.disableScrubMode();
+    }
+
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }

@@ -17,11 +17,11 @@ async function ensureManifoldInitialized() {
 
 export async function POST(request: NextRequest) {
   const startTime = performance.now();
-  
+
   try {
     await ensureManifoldInitialized();
 
-    const { code, language = 'javascript' } = await request.json();
+    const { code, language = 'javascript', t } = await request.json();
 
     if (!code || typeof code !== 'string') {
       return Response.json({
@@ -30,13 +30,17 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
+    // Validate t parameter if provided (for animations)
+    const animationT = typeof t === 'number' ? Math.max(0, Math.min(1, t)) : undefined;
+
     let evalResult;
 
     if (language === 'javascript') {
       // Evaluate JavaScript code using SDK runtime
       evalResult = await evaluateJavaScript(code, {
         timeout: 30000,
-        allowedModules: ['@moicad/sdk', 'moicad']
+        allowedModules: ['@moicad/sdk', 'moicad'],
+        t: animationT, // Pass t parameter for animations
       });
     } else {
       // Parse and evaluate OpenSCAD code
@@ -53,7 +57,9 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
       }
 
-      evalResult = await SCAD.evaluate(parseResult.ast);
+      // Pass custom variables including $t for animations
+      const variables = animationT !== undefined ? new Map([['$t', animationT]]) : undefined;
+      evalResult = await SCAD.evaluate(parseResult.ast, { variables });
     }
 
     // Validate result with Zod schema
@@ -68,10 +74,10 @@ export async function POST(request: NextRequest) {
       executionTime: validatedResult.executionTime,
       totalTime: Math.round(totalTime * 100) / 100
     });
-    
+
   } catch (error) {
     console.error('Evaluation API error:', error);
-    
+
     // Enhanced error handling
     if (error instanceof Error) {
       if (error.name === 'TimeoutError') {
@@ -80,20 +86,20 @@ export async function POST(request: NextRequest) {
           success: false
         }, { status: 408 });
       }
-      
+
       if (error.message.includes('Manifold')) {
         return Response.json({
           error: 'Geometry engine initialization failed',
           success: false
         }, { status: 500 });
       }
-      
+
       return Response.json({
         error: error.message,
         success: false
       }, { status: 500 });
     }
-    
+
     return Response.json({
       error: 'Internal server error',
       success: false

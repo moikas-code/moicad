@@ -14,6 +14,8 @@ export interface RuntimeOptions {
   memoryLimit?: number;
   /** List of allowed module imports (default: ['@moicad/sdk', 'moicad']) */
   allowedModules?: string[];
+  /** Animation time parameter (0-1) for animated models */
+  t?: number;
 }
 
 /**

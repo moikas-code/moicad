@@ -34,6 +34,8 @@ export interface RuntimeOptions {
   memoryLimit?: number;
   /** List of allowed module imports (default: ['@moicad/sdk', 'moicad']) */
   allowedModules?: string[];
+  /** Animation time parameter (0.0 to 1.0) - if provided, exported function will be called with this value */
+  t?: number;
 }
 
 /**
@@ -98,15 +100,25 @@ export async function evaluateJavaScript(
 
     // Extract geometry from result
     let geometry: Geometry | null = null;
+    let evaluatedResult = result;
 
-    if (result instanceof Shape) {
-      geometry = result.getGeometry();
-    } else if (result && typeof result === 'object' && 'vertices' in result) {
+    // Check if result is a function (animation support)
+    if (typeof result === 'function') {
+      // If t parameter is provided, call the function with it
+      // Otherwise, call with t=0 for static evaluation
+      const tValue = options.t !== undefined ? options.t : 0;
+      evaluatedResult = await result(tValue);
+    }
+
+    // Now extract geometry from the evaluated result
+    if (evaluatedResult instanceof Shape) {
+      geometry = evaluatedResult.getGeometry();
+    } else if (evaluatedResult && typeof evaluatedResult === 'object' && 'vertices' in evaluatedResult) {
       // Already a Geometry object
-      geometry = result as Geometry;
+      geometry = evaluatedResult as Geometry;
     } else {
       throw new Error(
-        `Default export must be a Shape instance or Geometry object. Got: ${typeof result}`
+        `Default export must be a Shape instance, Geometry object, or a function returning either. Got: ${typeof evaluatedResult}`
       );
     }
 
@@ -279,7 +291,7 @@ export class JavaScriptRuntime {
    */
   validateCode(code: string): { isValid: boolean; errors: string[] } {
     const errors: string[] = [];
-    
+
     // Check for potentially dangerous patterns
     const dangerousPatterns = [
       /eval\s*\(/,

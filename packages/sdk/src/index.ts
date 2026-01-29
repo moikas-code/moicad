@@ -240,6 +240,56 @@ export type {
 } from './ai/types';
 
 // ============================================================================
+// ANIMATION (Frame-by-frame animation)
+// ============================================================================
+
+export { FrameAnimator } from './animation';
+export type { FrameAnimatorOptions, AnimationLanguage } from './animation';
+
+// ============================================================================
+// INTERACTIVE (CAD/Blender-like part manipulation)
+// ============================================================================
+
+export {
+  // Main API
+  interactive,
+  fixedPart,
+  hingePart,
+  sliderPart,
+  ballJointPart,
+  linkedPart,
+  createBoxWithLid,
+  createDrawer,
+  // Core classes
+  InteractionManager,
+  ConstraintSolver,
+  TransformGizmo,
+  createGizmo,
+} from './interactive';
+
+export type {
+  // Constraint types
+  ConstraintType,
+  Constraint,
+  // Part types
+  InteractivePart,
+  PartLink,
+  PartState,
+  // Model types
+  InteractiveModel,
+  // Manager types
+  InteractionEvents,
+  InteractionManagerOptions,
+  SerializedModelState,
+  // Gizmo types
+  GizmoOptions,
+  // Transform types
+  TransformDelta,
+  Transform,
+  Vector3 as InteractiveVector3,
+} from './interactive';
+
+// ============================================================================
 // VERSION AND METADATA
 // ============================================================================
 
