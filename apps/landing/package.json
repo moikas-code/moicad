@@ -15,8 +15,8 @@
     "dev:docs": "node scripts/dev-with-docs.js"
   },
   "dependencies": {
-    "@moicad/gui": "workspace:*",
-    "@moicad/sdk": "workspace:*",
+    "@moicad/gui": "latest",
+    "@moicad/sdk": "latest",
     "@monaco-editor/react": "4.7.0",
     "@vercel/analytics": "1.6.1",
     "autoprefixer": "10.4.23",

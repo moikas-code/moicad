@@ -4,7 +4,7 @@
  */
 
 import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { GeometryResponse } from "./api-client";
 import type { Geometry, GeometryObject, HighlightInfo } from "@moicad/sdk";
 

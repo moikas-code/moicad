@@ -1,6 +1,6 @@
 {
   "name": "@moicad/gui",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Reusable React components for moicad CAD platform",
   "type": "module",
   "main": "./dist/index.js",
@@ -50,7 +50,7 @@
     "three": ">=0.150.0"
   },
   "dependencies": {
-    "@moicad/sdk": "^0.1.11",
+    "@moicad/sdk": "^0.1.12",
     "@monaco-editor/react": "4.7.0",
     "gif.js": "0.2.0",
     "monaco-editor": "0.55.1"
