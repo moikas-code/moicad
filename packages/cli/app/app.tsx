@@ -4,6 +4,7 @@
  * This is the main React app that runs in the browser
  */
 
+import './styles.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { CADEditor, ViewportControlsProvider } from '@moicad/gui/components';
