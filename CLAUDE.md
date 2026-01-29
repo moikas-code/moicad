@@ -64,7 +64,7 @@ Three.js Viewport / STL Export
 ```
 moicad/
 ├── packages/
-│   ├── sdk/              @moicad/sdk - Core CAD engine (v0.1.8)
+│   ├── sdk/              @moicad/sdk - Core CAD engine (v0.1.9)
 │   │   ├── src/
 │   │   │   ├── shape.ts           Fluent API: Shape.cube(10)
 │   │   │   ├── functional.ts      Functional API: cube(10)
