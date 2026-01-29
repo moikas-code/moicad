@@ -174,11 +174,12 @@ export function createServer(options: ServerOptions = {}) {
       "react-dom/client": "https://esm.sh/react-dom@19.2.4/client",
       "three": "https://esm.sh/three@0.182.0",
       "three/addons/": "https://esm.sh/three@0.182.0/examples/jsm/",
+      "three/examples/jsm/": "https://esm.sh/three@0.182.0/examples/jsm/",
       "monaco-editor": "https://esm.sh/monaco-editor@0.55.1",
       "@monaco-editor/react": "https://esm.sh/@monaco-editor/react@4.7.0",
-      "@moicad/sdk": "https://cdn.jsdelivr.net/npm/@moicad/sdk@0.1.11/dist/index.js",
-      "@moicad/gui": "https://cdn.jsdelivr.net/npm/@moicad/gui@0.1.0/dist/index.js",
-      "@moicad/gui/components": "https://cdn.jsdelivr.net/npm/@moicad/gui@0.1.0/dist/components/index.js",
+      "@moicad/sdk": "https://cdn.jsdelivr.net/npm/@moicad/sdk@0.1.13/dist/index.js",
+      "@moicad/gui": "https://cdn.jsdelivr.net/npm/@moicad/gui@0.1.4/dist/index.js",
+      "@moicad/gui/components": "https://cdn.jsdelivr.net/npm/@moicad/gui@0.1.4/dist/components/index.js",
       "gif.js": "https://esm.sh/gif.js@0.2.0"
     }
   }
