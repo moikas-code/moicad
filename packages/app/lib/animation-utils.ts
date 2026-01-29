@@ -319,3 +319,277 @@ export function updateFrame(
 
   return { nextFrame, isComplete };
 }
+
+/**
+ * Frame capture state for animation export
+ */
+export interface FrameCapture {
+  canvas: HTMLCanvasElement;
+  context: CanvasRenderingContext2D;
+  frameData: ImageData[];
+}
+
+/**
+ * Initialize canvas for frame capture
+ *
+ * @param width - Canvas width
+ * @param height - Canvas height
+ * @returns Canvas and 2D context
+ */
+export function initializeFrameCapture(
+  width: number,
+  height: number
+): FrameCapture {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+
+  const context = canvas.getContext('2d');
+  if (!context) {
+    throw new Error('Could not get 2D context from canvas');
+  }
+
+  return {
+    canvas,
+    context,
+    frameData: [],
+  };
+}
+
+/**
+ * Capture a frame from a canvas
+ *
+ * @param sourceCanvas - Source canvas to capture from
+ * @param targetCapture - Target capture state
+ */
+export function captureFrame(
+  sourceCanvas: HTMLCanvasElement,
+  targetCapture: FrameCapture
+): void {
+  const sourceContext = sourceCanvas.getContext('2d');
+  if (!sourceContext) {
+    throw new Error('Could not get 2D context from source canvas');
+  }
+
+  // Copy frame data
+  targetCapture.context.drawImage(sourceCanvas, 0, 0);
+  const imageData = targetCapture.context.getImageData(
+    0,
+    0,
+    targetCapture.canvas.width,
+    targetCapture.canvas.height
+  );
+  targetCapture.frameData.push(imageData);
+}
+
+/**
+ * Encode frames as WebM using MediaRecorder API
+ *
+ * @param frameData - Array of captured frames
+ * @param fps - Frames per second
+ * @param loop - Whether animation should loop
+ * @returns Promise that resolves to Blob
+ */
+export async function encodeWebM(
+  frameData: ImageData[],
+  fps: number = 30,
+  loop: boolean = false
+): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    if (frameData.length === 0) {
+      reject(new Error('No frames to encode'));
+      return;
+    }
+
+    const width = frameData[0].width;
+    const height = frameData[0].height;
+    const frameDuration = 1000 / fps; // milliseconds per frame
+
+    // Create temporary canvas for MediaRecorder
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      reject(new Error('Could not get 2D context'));
+      return;
+    }
+
+    // Get video codec options
+    const options = {
+      videoBitsPerSecond: 2500000, // 2.5 Mbps for good quality
+      mimeType: 'video/webm;codecs=vp9',
+    };
+
+    // Fallback to vp8 if vp9 not supported
+    if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+      options.mimeType = 'video/webm;codecs=vp8';
+    }
+
+    // Fall back to h264 if webm not supported
+    if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+      options.mimeType = 'video/mp4';
+    }
+
+    try {
+      const chunks: Blob[] = [];
+      const stream = canvas.captureStream(fps);
+      const recorder = new MediaRecorder(stream, {
+        mimeType: options.mimeType,
+        videoBitsPerSecond: options.videoBitsPerSecond,
+      });
+
+      recorder.ondataavailable = (event) => {
+        chunks.push(event.data);
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: options.mimeType });
+        resolve(blob);
+      };
+
+      recorder.onerror = (event) => {
+        reject(new Error(`Recording error: ${event.error}`));
+      };
+
+      recorder.start();
+
+      // Play frames through the stream
+      let frameIndex = 0;
+      const frameInterval = setInterval(() => {
+        if (frameIndex >= frameData.length) {
+          clearInterval(frameInterval);
+          recorder.stop();
+          return;
+        }
+
+        ctx.putImageData(frameData[frameIndex], 0, 0);
+        frameIndex++;
+      }, frameDuration);
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+/**
+ * Encode frames as GIF using gif.js library
+ *
+ * Note: This requires gif.js to be loaded separately
+ * You can add: <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
+ *
+ * @param frameData - Array of captured frames
+ * @param fps - Frames per second
+ * @param loop - Whether animation should loop
+ * @returns Promise that resolves to Blob
+ */
+export async function encodeGif(
+  frameData: ImageData[],
+  fps: number = 30,
+  loop: boolean = true
+): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    if (frameData.length === 0) {
+      reject(new Error('No frames to encode'));
+      return;
+    }
+
+    // Check if gif.js is available
+    const GifLib = (window as any).GIF;
+    if (!GifLib) {
+      reject(
+        new Error(
+          'gif.js library not loaded. Add <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script> to your HTML'
+        )
+      );
+      return;
+    }
+
+    try {
+      const width = frameData[0].width;
+      const height = frameData[0].height;
+      const frameDuration = Math.round(1000 / fps);
+
+      const gif = new GifLib({
+        workers: 2,
+        quality: 10, // 1-30, lower is better quality but slower
+        width,
+        height,
+        workerScript: 'https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js',
+      });
+
+      // Add each frame
+      frameData.forEach((frame) => {
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.putImageData(frame, 0, 0);
+          gif.addFrame(canvas, { delay: frameDuration });
+        }
+      });
+
+      // Set loop option
+      if (!loop) {
+        gif.options.numFrames = frameData.length;
+      }
+
+      gif.on('finished', function (blob: Blob) {
+        resolve(blob);
+      });
+
+      gif.on('error', function (error: Error) {
+        reject(error);
+      });
+
+      // Start rendering
+      gif.render();
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+/**
+ * Export animation frames to file
+ *
+ * @param format - Export format ('webm' or 'gif')
+ * @param frameData - Array of captured frames
+ * @param fps - Frames per second
+ * @param loop - Whether animation should loop
+ * @param filename - Output filename
+ */
+export async function exportAnimationFrames(
+  format: 'webm' | 'gif',
+  frameData: ImageData[],
+  fps: number = 30,
+  loop: boolean = true,
+  filename: string = `animation.${format}`
+): Promise<void> {
+  try {
+    let blob: Blob;
+
+    if (format === 'gif') {
+      blob = await encodeGif(frameData, fps, loop);
+    } else if (format === 'webm') {
+      blob = await encodeWebM(frameData, fps, loop);
+    } else {
+      throw new Error(`Unsupported format: ${format}`);
+    }
+
+    // Create download link
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    throw new Error(
+      `Failed to export animation: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
