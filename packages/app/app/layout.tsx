@@ -23,6 +23,9 @@ export default function RootLayout({
       <head>
         <meta charSet="utf-8" />
         <meta name="theme-color" content="#1e1e1e" />
+        
+        {/* gif.js library for GIF animation export */}
+        <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js" async></script>
       </head>
       <body className="layout-container">
         {children}

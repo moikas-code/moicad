@@ -16,7 +16,8 @@
     "build:quick": "bun build src/index.ts --target=bun --outdir=dist && chmod +x dist/index.js",
     "dev": "bun src/index.ts",
     "test": "bash scripts/test-cli.sh",
-    "prepublishOnly": "bash scripts/pre-publish-check.sh"
+    "prepublishOnly": "bash scripts/pre-publish-check.sh",
+    "build:publish":"nun run build && npm publish"
   },
   "dependencies": {
     "@moicad/sdk": "latest",

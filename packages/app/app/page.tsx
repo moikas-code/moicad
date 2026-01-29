@@ -261,7 +261,18 @@ function HomeContent() {
       setShowExportDialog(false);
     } catch (error) {
       console.error('Animation export failed:', error);
-      alert(`Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      // Provide helpful guidance for common errors
+      if (errorMessage.includes('gif.js library not loaded')) {
+        alert('GIF export requires gif.js library to load. Please try:\n\n1. Refresh the page and try again\n2. Or use WebM format instead (better quality)\n3. Check your internet connection');
+      } else if (errorMessage.includes('WebM export is not supported')) {
+        alert('WebM export is not supported in your browser. Please try:\n\n1. Use GIF format instead\n2. Or use Chrome/Firefox for WebM export');
+      } else if (errorMessage.includes('Could not find viewport canvas')) {
+        alert('Could not capture animation frames. Please try:\n\n1. Make sure the 3D viewport is visible\n2. Wait for the model to finish rendering\n3. Try refreshing the page');
+      } else {
+        alert(`Export failed: ${errorMessage}\n\nPlease try:\n1. Refresh the page\n2. Check browser console for details\n3. Try a different format`);
+      }
     }
   };
 
