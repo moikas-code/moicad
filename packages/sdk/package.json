@@ -1,6 +1,6 @@
 {
   "name": "@moicad/sdk",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "Modern JavaScript CAD library with OpenSCAD compatibility",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -15,7 +15,8 @@
     "docs:build": "typedoc",
     "docs:watch": "typedoc --watch",
     "docs:json": "typedoc --json ../../apps/landing/app/docs/docs-data.json",
-    "docs:serve": "typedoc --watch --serve --port 5174"
+    "docs:serve": "typedoc --watch --serve --port 5174",
+    "prepublishOnly": "bun run build"
   },
   "keywords": [
     "cad",
