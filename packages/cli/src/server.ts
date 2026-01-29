@@ -71,20 +71,27 @@ export function createServer(options: ServerOptions = {}) {
           return addCorsHeaders(response, corsHeaders);
         }
 
-        // Serve WASM file from SDK's node_modules
+        // Serve WASM file from node_modules
         if (pathname === '/manifold.wasm' || pathname.includes('manifold')) {
-          try {
-            const { resolve, dirname, join } = require('path');
+          const path = await import('path');
+          const { existsSync } = await import('fs');
 
-            // Try to find manifold.wasm in SDK's dependencies
-            // SDK is in node_modules/@moicad/sdk, manifold-3d is in SDK's node_modules
-            try {
-              const sdkPath = require.resolve('@moicad/sdk');
-              const sdkDir = dirname(sdkPath);
-              const wasmPath = join(sdkDir, '..', 'manifold-3d', 'manifold.wasm');
+          // Search paths for manifold.wasm (in order of preference)
+          const searchPaths = [
+            // Direct manifold-3d package
+            path.join(process.cwd(), 'node_modules', 'manifold-3d', 'manifold.wasm'),
+            // In CLI's node_modules (when installed globally)
+            path.join(import.meta.dir, '../../node_modules/manifold-3d/manifold.wasm'),
+            // In parent node_modules (monorepo)
+            path.join(import.meta.dir, '../../../node_modules/manifold-3d/manifold.wasm'),
+            // Fallback: search up directory tree
+            path.join(import.meta.dir, '../../../../node_modules/manifold-3d/manifold.wasm'),
+          ];
 
-              const file = Bun.file(wasmPath);
-              if (await file.exists()) {
+          for (const wasmPath of searchPaths) {
+            if (existsSync(wasmPath)) {
+              try {
+                const file = Bun.file(wasmPath);
                 return new Response(file, {
                   headers: {
                     'Content-Type': 'application/wasm',
@@ -92,37 +99,14 @@ export function createServer(options: ServerOptions = {}) {
                     ...corsHeaders
                   }
                 });
+              } catch (e) {
+                logger.debug(`Failed to serve WASM from ${wasmPath}: ${e}`);
               }
-            } catch (e) {
-              logger.debug(`First WASM path attempt failed: ${e}`);
             }
-
-            // Fallback: try to resolve manifold-3d directly
-            try {
-              const manifoldPath = require.resolve('manifold-3d');
-              const manifoldDir = dirname(manifoldPath);
-              const wasmPath = join(manifoldDir, 'manifold.wasm');
-
-              const fallbackFile = Bun.file(wasmPath);
-              if (await fallbackFile.exists()) {
-                return new Response(fallbackFile, {
-                  headers: {
-                    'Content-Type': 'application/wasm',
-                    'Cache-Control': 'public, max-age=31536000',
-                    ...corsHeaders
-                  }
-                });
-              }
-            } catch (e) {
-              logger.debug(`Second WASM path attempt failed: ${e}`);
-            }
-
-            logger.error('WASM file not found in any expected location');
-            return new Response('WASM file not found', { status: 404 });
-          } catch (error) {
-            logger.error(`WASM file error: ${error}`);
-            return new Response('WASM file not found', { status: 404 });
           }
+
+          logger.error(`WASM file not found. Searched paths: ${searchPaths.join(', ')}`);
+          return new Response('WASM file not found', { status: 404 });
         }
 
         if (pathname === '/health' || pathname === '/api/health') {
