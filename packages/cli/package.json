@@ -22,8 +22,8 @@
     "access": "public"
   },
   "dependencies": {
-    "@moicad/sdk": "workspace:*",
-    "@moicad/gui": "workspace:*",
+    "@moicad/sdk": "^0.1.11",
+    "@moicad/gui": "^0.1.0",
     "open": "^10.0.0"
   },
   "devDependencies": {
