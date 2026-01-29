@@ -1,6 +1,6 @@
 {
   "name": "@moicad/cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "Modern JavaScript CAD Platform - CLI tool",
   "bin": {
@@ -24,7 +24,8 @@
   "dependencies": {
     "@moicad/sdk": "^0.1.11",
     "@moicad/gui": "^0.1.0",
-    "open": "^10.0.0"
+    "open": "^10.0.0",
+    "tsup": "^7.0.0"
   },
   "devDependencies": {
     "@types/bun": "latest",
