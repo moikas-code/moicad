@@ -71,16 +71,18 @@ export function createServer(options: ServerOptions = {}) {
           return addCorsHeaders(response, corsHeaders);
         }
 
-        // Serve WASM file from node_modules
+        // Serve WASM file from multiple locations
         if (pathname === '/manifold.wasm' || pathname.includes('manifold')) {
           const path = await import('path');
           const { existsSync } = await import('fs');
 
           // Search paths for manifold.wasm (in order of preference)
           const searchPaths = [
-            // Direct manifold-3d package
+            // First priority: bundled in CLI dist/ (npm package)
+            path.join(import.meta.dir, '../manifold.wasm'),
+            // Direct manifold-3d package in current working directory
             path.join(process.cwd(), 'node_modules', 'manifold-3d', 'manifold.wasm'),
-            // In CLI's node_modules (when installed globally)
+            // CLI's node_modules (when installed globally)
             path.join(import.meta.dir, '../../node_modules/manifold-3d/manifold.wasm'),
             // In parent node_modules (monorepo)
             path.join(import.meta.dir, '../../../node_modules/manifold-3d/manifold.wasm'),
