@@ -43,7 +43,42 @@ function App() {
 }
 ```
 
-### Full-Featured Editor
+### Full-Featured Editor (CADEditor Component)
+
+The easiest way to get a complete CAD editor interface:
+
+```tsx
+import { CADEditor } from '@moicad/gui/components';
+
+function App() {
+  return (
+    <CADEditor
+      initialLanguage="javascript"
+      showFileManager={true}
+      showAnimationExport={true}
+      showTopMenu={true}
+      showPrinterSettings={true}
+      apiBaseUrl="http://localhost:42069"  // Optional: API endpoint
+    />
+  );
+}
+```
+
+**CADEditor Props:**
+- `initialCode?: string` - Starting code (default: `cube(10);`)
+- `initialLanguage?: 'openscad' | 'javascript'` - Code language
+- `apiBaseUrl?: string` - API endpoint base URL (default: same origin)
+- `showFileManager?: boolean` - Show file browser (default: true)
+- `showAnimationExport?: boolean` - Show animation export features (default: true)
+- `showTopMenu?: boolean` - Show top menu bar (default: true)
+- `showPrinterSettings?: boolean` - Show printer presets (default: true)
+- `onCodeChange?: (code: string) => void` - Code change callback
+- `onGeometryUpdate?: (geometry: any) => void` - Geometry update callback
+- `onError?: (error: string) => void` - Error callback
+
+### Custom Editor Layout
+
+For more control, build your own layout with individual components:
 
 ```tsx
 import {
@@ -55,11 +90,11 @@ import {
   AnimationControls,
   ErrorDisplay,
   StatsOverlay
-} from '@moicad/gui';
+} from '@moicad/gui/components';
 import { useEditor, useGeometry, useAnimation } from '@moicad/gui/hooks';
 import { evaluateCode } from '@moicad/gui/lib';
 
-function CADEditor() {
+function CustomCADEditor() {
   const editor = useEditor({ defaultCode: 'cube(10);' });
   const geometry = useGeometry();
   const animation = useAnimation();
@@ -231,6 +266,43 @@ const ender3 = printerPresets.find(p => p.name === 'Ender 3');
 console.log(ender3.buildVolume); // [220, 220, 250]
 ```
 
+## Usage in @moicad/cli
+
+The `@moicad/cli` package uses the CADEditor component to provide a full-featured web UI:
+
+```bash
+# Install CLI
+npm install -g @moicad/cli
+
+# Launch web UI (loads CADEditor from @moicad/gui via CDN)
+moicad
+```
+
+The CLI:
+1. Serves a minimal HTML page from `packages/cli/src/server.ts`
+2. Uses import maps to load `@moicad/gui` from CDN at runtime
+3. Renders CADEditor to the DOM
+4. Routes API calls to the local Bun server
+
+This approach keeps the CLI binary lightweight (~1.75 MB) while providing the full-featured GUI.
+
+**Architecture Diagram:**
+```
+Browser
+  ├─ HTML (from CLI server)
+  ├─ React 19.2.4 (esm.sh)
+  ├─ Three.js 0.182.0 (esm.sh)
+  ├─ Monaco 0.55.1 (esm.sh)
+  ├─ @moicad/gui CADEditor (CDN.js)
+  └─ @moicad/sdk (CDN.js)
+
+Local Bun Server (port 42069)
+  ├─ /api/evaluate
+  ├─ /api/parse
+  ├─ /api/export
+  └─ /manifold.wasm
+```
+
 ## Theming
 
 Components use Tailwind CSS classes. To customize:
@@ -239,7 +311,7 @@ Components use Tailwind CSS classes. To customize:
 import '@moicad/gui/styles.css'; // If we export styles
 
 // Or provide your own theme
-<Editor 
+<Editor
   className="custom-editor-theme"
   theme="vs-dark" // Monaco theme
 />

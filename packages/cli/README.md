@@ -373,17 +373,43 @@ npm install @moicad/cli
 npx moicad launch
 ```
 
-### GUI Not Loading
+### GUI Features
 
-The CLI uses a minimal static HTML placeholder. For full GUI features:
+The CLI loads the full-featured `@moicad/gui` CADEditor component via CDN. Features include:
 
-```bash
-# Use the web app (development mode)
-cd apps/landing
-bun run dev
-```
+- **Monaco Code Editor** - Syntax highlighting for OpenSCAD and JavaScript
+- **3D Viewport** - Real-time rendering with orbit controls
+- **File Manager** - Save/load models to browser storage
+- **Top Menu** - File, Edit, View, and Help menus
+- **Printer Settings** - 3D printer bed presets (Ender 3, Prusa i3, etc.)
+- **Animation Export** - Export animated models as GIF/WebM
+- **Geometry Stats** - Vertex count, face count, volume calculations
+- **Error Display** - Detailed error messages with syntax highlighting
 
-Or visit the hosted version at [moicad.moikas.com](https://moicad.moikas.com)
+All dependencies (React, Three.js, Monaco) are loaded from CDN, so the CLI binary stays lightweight.
+
+## Architecture
+
+### Web UI Integration
+
+The CLI server (`packages/cli/src/server.ts`) serves a minimal HTML page that:
+1. Loads dependencies from CDN (React, ReactDOM, Three.js, Monaco)
+2. Dynamically imports `@moicad/gui/components` CADEditor from CDN
+3. Renders the full-featured editor to the DOM
+4. Proxies API calls to the local Bun server (`/api/evaluate`, `/api/parse`, `/api/export`)
+
+This approach provides:
+- **Zero build complexity** - Dependencies loaded from CDN at runtime
+- **Lightweight binary** - CLI build is only ~1.75 MB
+- **Separation of concerns** - GUI package managed independently in `packages/gui`
+- **Development flexibility** - CADEditor can be updated in @moicad/gui without rebuilding CLI
+
+### WASM Serving
+
+The CLI dynamically serves `manifold.wasm` from the `@moicad/sdk` package with proper caching headers:
+- Primary path: `node_modules/@moicad/sdk/../manifold-3d/manifold.wasm`
+- Fallback: `node_modules/manifold-3d/manifold.wasm`
+- Cache-Control: `public, max-age=31536000` (1 year)
 
 ## Development
 
@@ -404,6 +430,10 @@ bun link
 
 # Test CLI
 moicad --version
+
+# Development mode (with live editing)
+bun run dev:server  # Terminal 1
+cd packages/gui && bun run dev  # Terminal 2 (optional, for GUI development)
 ```
 
 ## System Requirements
