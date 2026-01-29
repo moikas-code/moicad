@@ -9,7 +9,7 @@
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
     "prebuild": "npm run clean",
-    "build:publish": "npm run build && npm publish",
+    "build:publish": "npm run build && bun docs:json && npm publish",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "docs:build": "typedoc",
