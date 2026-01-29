@@ -94,6 +94,7 @@ export function createServer(options: ServerOptions = {}) {
             if (existsSync(wasmPath)) {
               try {
                 const file = Bun.file(wasmPath);
+                logger.success(`Serving WASM from: ${wasmPath}`);
                 return new Response(file, {
                   headers: {
                     'Content-Type': 'application/wasm',
@@ -102,12 +103,12 @@ export function createServer(options: ServerOptions = {}) {
                   }
                 });
               } catch (e) {
-                logger.debug(`Failed to serve WASM from ${wasmPath}: ${e}`);
+                logger.error(`Failed to serve WASM from ${wasmPath}: ${e}`);
               }
             }
           }
 
-          logger.error(`WASM file not found. Searched paths: ${searchPaths.join(', ')}`);
+          logger.error(`WASM file not found. Searched: ${searchPaths[0]} and ${searchPaths.length - 1} other locations`);
           return new Response('WASM file not found', { status: 404 });
         }
 
