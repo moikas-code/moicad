@@ -95,31 +95,43 @@ export async function parseCode(code: string): Promise<ParseResult> {
 }
 
 /**
- * Evaluate OpenSCAD code to geometry with progress tracking
+ * Evaluate code to geometry with progress tracking
+ *
+ * @param code - Source code to evaluate
+ * @param onProgress - Progress callback
+ * @param language - Language ('javascript' or 'openscad')
+ * @param t - Animation time parameter (0-1) for animations
  */
 export async function evaluateCode(
   code: string,
   onProgress?: (progress: {
     stage: RenderStage;
-    progress: number; // Changed to required number
+    progress: number;
     message: string;
     time?: number;
   }) => void,
+  language: 'openscad' | 'javascript' = 'javascript',
+  t?: number,
 ): Promise<EvaluateResult> {
   const startTime = Date.now();
 
   try {
     onProgress?.({ stage: "initializing", progress: 10, message: "Connecting to backend server." });
 
+    const requestBody: any = { code, language };
+    if (t !== undefined) {
+      requestBody.t = Math.max(0, Math.min(1, t)); // Clamp to [0, 1]
+    }
+
     const response = await fetch(`${API_BASE}/api/evaluate`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ code }),
+      body: JSON.stringify(requestBody),
     });
 
-    onProgress?.({ stage: "parsing", progress: 30, message: "Parsing your OpenSCAD code." });
+    onProgress?.({ stage: "parsing", progress: 30, message: "Parsing your code." });
 
     if (!response.ok) {
       throw new Error(`Evaluation failed: ${response.statusText}`);

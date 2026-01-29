@@ -4,15 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "cd ../sdk && bun run build",
     "build": "next build",
-    "postinstall": "bash scripts/fix-bun-modules.sh",
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@moicad/sdk": "workspace:*",
+    "@moicad/sdk": "latest",
     "@monaco-editor/react": "^4.6.0",
     "@vercel/analytics": "^1.6.1",
     "autoprefixer": "^10.4.0",

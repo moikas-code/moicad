@@ -3,6 +3,7 @@
 import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import Editor from '@monaco-editor/react';
 import { evaluateCode } from '@/lib/api-client';
+import { detectAnimation } from '@/lib/animation-utils';
 import type { editor } from 'monaco-editor';
 
 import type { RenderProgress } from '@moicad/sdk';
@@ -18,25 +19,42 @@ interface EditorProps {
   onLoading?: (loading: boolean) => void;
   onProgress?: (progress: RenderProgress) => void;
   onRenderRequest?: () => void;
+  onAnimationDetected?: (isAnimation: boolean) => void;
 }
 
 export interface EditorRef {
   render: () => Promise<void>;
+  renderWithT: (t: number) => Promise<void>;
 }
 
 const EditorComponent = forwardRef<EditorRef, EditorProps>(function EditorComponent({
   code,
-  language = 'openscad',
+  language = 'javascript',
   onChange,
   onErrors,
   onGeometry,
   onLoading,
   onProgress,
   onRenderRequest,
+  onAnimationDetected,
 }: EditorProps, ref: React.ForwardedRef<EditorRef>) {
   // Use refs to avoid stale closures and prevent infinite loops
-  const callbacksRef = useRef({ onGeometry, onErrors, onLoading, onProgress, onRenderRequest });
-  callbacksRef.current = { onGeometry, onErrors, onLoading, onProgress, onRenderRequest };
+  const callbacksRef = useRef({ 
+    onGeometry, 
+    onErrors, 
+    onLoading, 
+    onProgress, 
+    onRenderRequest,
+    onAnimationDetected,
+  });
+  callbacksRef.current = { 
+    onGeometry, 
+    onErrors, 
+    onLoading, 
+    onProgress, 
+    onRenderRequest,
+    onAnimationDetected,
+  };
 
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
 
@@ -55,7 +73,7 @@ const EditorComponent = forwardRef<EditorRef, EditorProps>(function EditorCompon
   };
 
   // Manual render function that can be called from parent
-  const renderGeometry = async () => {
+  const renderGeometry = async (t?: number) => {
     if (!callbacksRef.current.onLoading || !callbacksRef.current.onGeometry || !callbacksRef.current.onErrors) {
       return;
     }
@@ -64,7 +82,7 @@ const EditorComponent = forwardRef<EditorRef, EditorProps>(function EditorCompon
     try {
       const result = await evaluateCode(code, (progress) => {
         callbacksRef.current.onProgress?.(progress);
-      });
+      }, language, t);
       if (result.success && result.geometry) {
         callbacksRef.current.onGeometry(result.geometry);
         callbacksRef.current.onErrors(result.errors.map((e) => e.message));
@@ -79,10 +97,13 @@ const EditorComponent = forwardRef<EditorRef, EditorProps>(function EditorCompon
     }
   };
 
-  // Expose render function to parent via ref
+  // Expose render functions to parent via ref
   useImperativeHandle(
     ref,
-    () => ({ render: renderGeometry })
+    () => ({
+      render: () => renderGeometry(),
+      renderWithT: (t: number) => renderGeometry(t),
+    })
   );
 
   // Map language to Monaco editor language

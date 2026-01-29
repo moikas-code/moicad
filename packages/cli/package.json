@@ -19,7 +19,7 @@
     "prepublishOnly": "bash scripts/pre-publish-check.sh"
   },
   "dependencies": {
-    "@moicad/sdk": "workspace:*",
+    "@moicad/sdk": "latest",
     "open": "11.0.0"
   },
   "devDependencies": {

@@ -275,7 +275,18 @@ export interface EvaluateResult {
 export interface EvaluationError {
   message: string;
   line?: number;
+  column?: number;
   stack?: string;
+  
+  // Enhanced error metadata
+  category?: 'syntax' | 'logic' | 'system';
+  severity?: 'warning' | 'error' | 'critical';
+  code?: string;
+  suggestion?: string;
+  fixExample?: string;
+  documentation?: string;
+  codeSnippet?: string;
+  context?: string;
 }
 
 /**

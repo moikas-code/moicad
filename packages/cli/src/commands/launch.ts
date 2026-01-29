@@ -3,7 +3,6 @@ import { resolve } from 'path';
 import { existsSync } from 'fs';
 import { getAppPath, isDevMode } from '../utils/paths';
 import { logger } from '../utils/logger';
-
 interface LaunchOptions {
   filePath?: string;
   devMode: boolean;
@@ -12,7 +11,7 @@ interface LaunchOptions {
 }
 
 export async function launch(options: LaunchOptions) {
-  const port = options.port || '3000';
+  const port = options.port || '42069';
   const shouldOpen = options.open !== undefined ? options.open : true; // Auto-open by default
 
   // Validate file path if provided

@@ -21,7 +21,7 @@ bun run build
 echo "📋 Copying built app to CLI bundle..."
 # Copy essential files for Next.js standalone operation
 cp -r .next "$BUNDLE_DIR/"
-cp -r public "$BUNDLE_DIR/"
+#cp -r public "$BUNDLE_DIR/"
 cp package.json "$BUNDLE_DIR/"
 cp next.config.js "$BUNDLE_DIR/"
 

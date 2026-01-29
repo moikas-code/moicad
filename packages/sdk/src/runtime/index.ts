@@ -23,6 +23,18 @@ import type { Geometry, EvaluateResult } from '../types';
 import { Shape } from '../shape';
 import * as functional from '../functional';
 import { initManifoldEngine } from '../scad/index';
+import {
+  ErrorCategory,
+  ErrorSeverity,
+  ErrorCode,
+  detectMissingReturn,
+  parseJavaScriptStack,
+  extractCodeSnippet,
+  createSuggestion,
+  createFixExample,
+  getDocumentationURL,
+  getErrorCategory,
+} from './errors';
 
 /**
  * Runtime options for JavaScript evaluation
@@ -89,7 +101,7 @@ export async function evaluateJavaScript(
   ${transformedCode}
 
   if (typeof exports.default === 'undefined') {
-    throw new Error('JavaScript code must have a default export (export default ...)');
+    throw new Error('JavaScript code must have a default export.\\n\\nAdd this line at the end of your code:\\n  export default house;\\n\\nOr use the fluent API directly:\\n  export default Shape.cube(20);');
   }
 
   return exports.default;
@@ -116,6 +128,20 @@ export async function evaluateJavaScript(
     } else if (evaluatedResult && typeof evaluatedResult === 'object' && 'vertices' in evaluatedResult) {
       // Already a Geometry object
       geometry = evaluatedResult as Geometry;
+    } else if (evaluatedResult === null) {
+      throw new Error(
+        `Default export returned null. Expected a Shape or Geometry object.`
+      );
+    } else if (evaluatedResult === undefined) {
+      // Check if this is a missing return situation
+      if (typeof result === 'function' && detectMissingReturn(evaluatedResult, result, code)) {
+        throw new Error(
+          `Function doesn't return a value. Add a 'return' statement before your shape.`
+        );
+      }
+      throw new Error(
+        `Default export is undefined. Make sure your function returns a Shape or Geometry object.`
+      );
     } else {
       throw new Error(
         `Default export must be a Shape instance, Geometry object, or a function returning either. Got: ${typeof evaluatedResult}`
@@ -136,12 +162,58 @@ export async function evaluateJavaScript(
       console.error('JavaScript evaluation error:', error);
     }
 
-    errors.push({
+    // Create enhanced error with smart detection
+    let enhancedError: any = {
       message: error.message || 'Unknown error',
-      line: error.line || 0,
-      column: error.column || 0,
       stack: error.stack,
-    });
+    };
+
+    // Detect specific error types
+    if (error.message.includes('export default')) {
+      enhancedError.category = ErrorCategory.LOGIC;
+      enhancedError.severity = ErrorSeverity.ERROR;
+      enhancedError.code = ErrorCode.LOGIC_MISSING_EXPORT;
+      enhancedError.suggestion = createSuggestion(ErrorCode.LOGIC_MISSING_EXPORT);
+      enhancedError.fixExample = createFixExample(ErrorCode.LOGIC_MISSING_EXPORT);
+      enhancedError.documentation = getDocumentationURL(ErrorCode.LOGIC_MISSING_EXPORT);
+    } else if (error.message.includes("doesn't return")) {
+      const { line, column } = parseJavaScriptStack(error);
+      enhancedError.category = ErrorCategory.LOGIC;
+      enhancedError.severity = ErrorSeverity.ERROR;
+      enhancedError.code = ErrorCode.LOGIC_MISSING_RETURN;
+      enhancedError.line = line;
+      enhancedError.column = column;
+      enhancedError.codeSnippet = line ? extractCodeSnippet(code, line) : undefined;
+      enhancedError.suggestion = createSuggestion(ErrorCode.LOGIC_MISSING_RETURN);
+      enhancedError.fixExample = createFixExample(ErrorCode.LOGIC_MISSING_RETURN);
+      enhancedError.documentation = getDocumentationURL(ErrorCode.LOGIC_MISSING_RETURN);
+    } else if (error.message.includes('not allowed')) {
+      const moduleMatch = error.message.match(/Module "([^"]+)"/);
+      const importedModule = moduleMatch ? moduleMatch[1] : 'this module';
+      enhancedError.category = ErrorCategory.LOGIC;
+      enhancedError.severity = ErrorSeverity.ERROR;
+      enhancedError.code = ErrorCode.LOGIC_FORBIDDEN_IMPORT;
+      enhancedError.suggestion = createSuggestion(ErrorCode.LOGIC_FORBIDDEN_IMPORT, { importedModule });
+      enhancedError.fixExample = createFixExample(ErrorCode.LOGIC_FORBIDDEN_IMPORT);
+      enhancedError.documentation = getDocumentationURL(ErrorCode.LOGIC_FORBIDDEN_IMPORT);
+    } else if (error.message.includes('timeout') || error.message.includes('Timeout')) {
+      enhancedError.category = ErrorCategory.SYSTEM;
+      enhancedError.severity = ErrorSeverity.ERROR;
+      enhancedError.code = ErrorCode.SYSTEM_TIMEOUT;
+      enhancedError.suggestion = createSuggestion(ErrorCode.SYSTEM_TIMEOUT);
+      enhancedError.documentation = getDocumentationURL(ErrorCode.SYSTEM_TIMEOUT);
+    } else {
+      // Generic runtime error
+      const { line, column } = parseJavaScriptStack(error);
+      enhancedError.category = ErrorCategory.SYSTEM;
+      enhancedError.severity = ErrorSeverity.ERROR;
+      enhancedError.code = ErrorCode.SYSTEM_RUNTIME_ERROR;
+      enhancedError.line = line;
+      enhancedError.column = column;
+      enhancedError.codeSnippet = line ? extractCodeSnippet(code, line) : undefined;
+    }
+
+    errors.push(enhancedError);
 
     const executionTime = performance.now() - startTime;
 
