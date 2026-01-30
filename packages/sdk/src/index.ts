@@ -247,6 +247,13 @@ export { FrameAnimator } from './animation';
 export type { FrameAnimatorOptions, AnimationLanguage } from './animation';
 
 // ============================================================================
+// WEB WORKERS (Non-blocking CSG evaluation)
+// ============================================================================
+
+export { WorkerManager, workerManager, createWorkerManager } from './workers/worker-manager';
+export type { WorkerManagerOptions, EvaluationJob } from './workers/worker-manager';
+
+// ============================================================================
 // INTERACTIVE (CAD/Blender-like part manipulation)
 // ============================================================================
 

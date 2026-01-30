@@ -1,0 +1,299 @@
+/**
+ * CSG Web Worker for @moicad/sdk
+ * 
+ * Runs manifold-3d CSG operations in a separate thread to prevent UI freezing.
+ * Handles both JavaScript and OpenSCAD evaluation.
+ */
+
+import type { Geometry, EvaluateResult, RenderProgress, RenderStage, EvaluationError, ParseResult } from '../types/geometry-types';
+
+// Worker state
+let manifoldWasm: any = null;
+let Manifold: any = null;
+let isInitialized = false;
+let currentOperation: { abort: boolean } | null = null;
+
+// Message types
+interface WorkerMessage {
+  type: 'EVALUATE' | 'CANCEL' | 'PING';
+  id: string;
+  payload?: {
+    code: string;
+    language: 'javascript' | 'openscad';
+    timeout: number;
+    t?: number;
+    progressDetail: 'simple' | 'detailed';
+  };
+}
+
+interface WorkerResponse {
+  id: string;
+  type: 'SUCCESS' | 'ERROR' | 'PROGRESS' | 'PONG';
+  payload?: EvaluateResult | RenderProgress | { message: string; initialized?: boolean };
+}
+
+/**
+ * Initialize manifold WASM in worker context
+ */
+async function initManifold(): Promise<void> {
+  if (isInitialized) return;
+  
+  try {
+    // Dynamic import of manifold-3d
+    const Module = await import('manifold-3d');
+    manifoldWasm = await Module.default();
+    manifoldWasm.setup();
+    Manifold = manifoldWasm.Manifold;
+    isInitialized = true;
+    
+    self.postMessage({
+      id: 'init',
+      type: 'SUCCESS',
+      payload: { message: 'Worker initialized' }
+    } as WorkerResponse);
+  } catch (error) {
+    self.postMessage({
+      id: 'init',
+      type: 'ERROR',
+      payload: { 
+        message: `Failed to initialize manifold: ${error instanceof Error ? error.message : 'Unknown error'}`
+      }
+    } as WorkerResponse);
+    throw error;
+  }
+}
+
+/**
+ * Send progress update to main thread
+ */
+function sendProgress(
+  id: string, 
+  stage: RenderStage, 
+  progress: number, 
+  message: string,
+  details?: RenderProgress['details']
+): void {
+  self.postMessage({
+    id,
+    type: 'PROGRESS',
+    payload: {
+      stage,
+      progress: progress / 100, // Convert to 0-1 range
+      message,
+      details
+    } as RenderProgress
+  } as WorkerResponse);
+}
+
+/**
+ * Check if operation should be cancelled
+ */
+function checkCancelled(): boolean {
+  return currentOperation?.abort === true;
+}
+
+/**
+ * Evaluate JavaScript code with progress tracking
+ */
+async function evaluateJavaScript(
+  code: string,
+  timeout: number,
+  progressDetail: 'simple' | 'detailed',
+  t?: number
+): Promise<Geometry> {
+  // Import runtime components dynamically
+  const { evaluateJavaScript: runtimeEvaluate } = await import('../runtime/index');
+  
+  sendProgress('eval', 'initializing', 0, 'Initializing JavaScript runtime...');
+  
+  sendProgress('eval', 'evaluating', 10, 'Evaluating JavaScript code...');
+  
+  const result = await runtimeEvaluate(code, {
+    timeout,
+    t
+  });
+  
+  if (checkCancelled()) throw new Error('Operation cancelled');
+  
+  if (!result.geometry) {
+    throw new Error(result.errors?.[0]?.message || 'Evaluation failed');
+  }
+  
+  sendProgress('eval', 'complete', 100, 'Complete');
+  return result.geometry;
+}
+
+/**
+ * Evaluate OpenSCAD code with progress tracking
+ */
+async function evaluateOpenSCAD(
+  code: string,
+  timeout: number,
+  progressDetail: 'simple' | 'detailed'
+): Promise<Geometry> {
+  sendProgress('eval', 'initializing', 0, 'Initializing OpenSCAD parser...');
+  
+  // Import SCAD components dynamically - use the correct export names
+  const { SCAD } = await import('../scad/index');
+  
+  sendProgress('eval', 'parsing', 20, 'Parsing OpenSCAD code...');
+  
+  const parseResult: ParseResult = SCAD.parse(code);
+  
+  if (checkCancelled()) throw new Error('Operation cancelled');
+  
+  if (!parseResult.success || parseResult.errors.length > 0 || !parseResult.ast) {
+    throw new Error(parseResult.errors[0]?.message || 'Parse failed');
+  }
+  
+  sendProgress('eval', 'evaluating', 40, 'Evaluating AST...');
+  
+  const evalResult = await SCAD.evaluate(parseResult.ast);
+  
+  if (checkCancelled()) throw new Error('Operation cancelled');
+  
+  if (!evalResult.geometry) {
+    throw new Error(evalResult.errors?.[0]?.message || 'Evaluation failed');
+  }
+  
+  sendProgress('eval', 'complete', 100, 'Complete');
+  return evalResult.geometry;
+}
+
+/**
+ * Handle evaluation request
+ */
+async function handleEvaluate(message: WorkerMessage): Promise<void> {
+  const { id, payload } = message;
+  
+  if (!payload) {
+    self.postMessage({
+      id,
+      type: 'ERROR',
+      payload: { message: 'No payload provided' }
+    } as WorkerResponse);
+    return;
+  }
+  
+  // Set up cancellation token
+  currentOperation = { abort: false };
+  
+  try {
+    // Ensure manifold is initialized
+    if (!isInitialized) {
+      await initManifold();
+    }
+    
+    if (checkCancelled()) {
+      throw new Error('Operation cancelled');
+    }
+    
+    let geometry: Geometry;
+    const startTime = performance.now();
+    
+    if (payload.language === 'javascript') {
+      geometry = await evaluateJavaScript(
+        payload.code,
+        payload.timeout,
+        payload.progressDetail,
+        payload.t
+      );
+    } else {
+      geometry = await evaluateOpenSCAD(
+        payload.code,
+        payload.timeout,
+        payload.progressDetail
+      );
+    }
+    
+    const executionTime = performance.now() - startTime;
+    
+    // Send success result
+    self.postMessage({
+      id,
+      type: 'SUCCESS',
+      payload: {
+        geometry,
+        errors: [],
+        success: true,
+        executionTime
+      } as EvaluateResult
+    } as WorkerResponse);
+    
+  } catch (error) {
+    // Send error result
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const isCancelled = errorMessage.includes('cancelled');
+    
+    const evalError: EvaluationError = {
+      message: errorMessage,
+      category: isCancelled ? 'system' : 'system',
+      severity: 'error'
+    };
+    
+    self.postMessage({
+      id,
+      type: 'ERROR',
+      payload: {
+        geometry: null,
+        errors: [evalError],
+        success: false,
+        executionTime: 0
+      } as EvaluateResult
+    } as WorkerResponse);
+  } finally {
+    currentOperation = null;
+  }
+}
+
+/**
+ * Handle cancellation request
+ */
+function handleCancel(): void {
+  if (currentOperation) {
+    currentOperation.abort = true;
+  }
+}
+
+/**
+ * Main message handler
+ */
+self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
+  const message = event.data;
+  
+  switch (message.type) {
+    case 'EVALUATE':
+      await handleEvaluate(message);
+      break;
+      
+    case 'CANCEL':
+      handleCancel();
+      self.postMessage({
+        id: message.id,
+        type: 'SUCCESS',
+        payload: { message: 'Cancellation requested' }
+      } as WorkerResponse);
+      break;
+      
+    case 'PING':
+      self.postMessage({
+        id: message.id,
+        type: 'PONG',
+        payload: { 
+          message: 'Worker alive',
+          initialized: isInitialized
+        }
+      } as WorkerResponse);
+      break;
+      
+    default:
+      self.postMessage({
+        id: message.id,
+        type: 'ERROR',
+        payload: { message: `Unknown message type: ${(message as any).type}` }
+      } as WorkerResponse);
+  }
+};
+
+// Initialize on load
+initManifold().catch(console.error);

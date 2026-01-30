@@ -19,6 +19,7 @@ import type { RenderProgress } from '@moicad/sdk';
 import ExportAnimationDialog from '@/components/ExportAnimationDialog';
 import { detectAnimation, calculateTotalFrames } from '@/lib/animation-utils';
 import { exportAnimation, type FrameRenderer } from '@/lib/export-animation';
+import { loadSettings } from '@/lib/storage';
 
 // Type alias for export settings (matches the component)
 type ExportSettings = {
@@ -31,7 +32,7 @@ type ExportSettings = {
 };
 
 export interface CADEditorProps {
-  /** Initial code to display */
+  /** Initial code to display (only used if no saved file exists) */
   initialCode?: string;
   /** Initial language selection */
   initialLanguage?: Language;
@@ -68,8 +69,25 @@ export function CADEditor({
   onGeometryUpdate,
   onError,
 }: CADEditorProps) {
-  // State management
-  const { code, setCode, loadFile, hasUnsavedChanges, save } = useEditor();
+  // Load user settings
+  const userSettings = loadSettings();
+
+  // State management - useEditor now handles localStorage internally
+  const { 
+    code, 
+    setCode, 
+    loadFile, 
+    hasUnsavedChanges, 
+    save,
+    lastSavedAt,
+    isAutoSaving 
+  } = useEditor({
+    initialCode: initialCode || `import { Shape } from 'moicad';\n\nexport default Shape.cube(10);`,
+    autoSave: userSettings.autoSave,
+    autoSaveDelay: userSettings.autoSaveDelay,
+    autoSaveToStorage: true,
+  });
+
   const {
     geometry,
     loading,
@@ -100,12 +118,8 @@ export function CADEditor({
   const [isAnimation, setIsAnimation] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
 
-  // Initialize with initialCode if provided
-  useEffect(() => {
-    if (initialCode && code !== initialCode) {
-      setCode(initialCode);
-    }
-  }, [initialCode]);
+  // REMOVED: The problematic useEffect that was overriding localStorage
+  // The useEditor hook now handles localStorage loading on mount
 
   // Notify parent of geometry updates
   useEffect(() => {
@@ -202,20 +216,6 @@ export function CADEditor({
   };
 
   const customMenus = { ...viewportMenus, ...examplesMenu };
-
-  // Initialize code template based on saved language preference (on mount only)
-  useEffect(() => {
-    if (initialCode) return; // Don't override if initialCode was provided
-
-    const jsTemplate = `import { Shape } from 'moicad';\n\nexport default Shape.cube(10);`;
-    const osTemplate = 'cube(10);';
-
-    if (language === 'javascript' && code === osTemplate) {
-      setCode(jsTemplate);
-    } else if (language === 'openscad' && code === jsTemplate) {
-      setCode(osTemplate);
-    }
-  }, []);
 
   // Add global keyboard shortcut for Alt+R
   useEffect(() => {
@@ -349,8 +349,22 @@ export function CADEditor({
             >
               {loading ? 'Rendering...' : 'Render (Alt+R)'}
             </button>
-            {hasUnsavedChanges && <span className="text-xs text-[#E66E00]">●</span>}
-            {wsConnected && <span className="text-xs text-green-400">WS Connected</span>}
+            {hasUnsavedChanges && (
+              <span className="text-xs text-[#E66E00]" title="Unsaved changes">
+                ●
+              </span>
+            )}
+            {isAutoSaving && (
+              <span className="text-xs text-[#B0B0B0]" title="Auto-saving...">
+                💾
+              </span>
+            )}
+            {lastSavedAt && !hasUnsavedChanges && (
+              <span className="text-xs text-green-400" title={`Last saved at ${lastSavedAt.toLocaleTimeString()}`}>
+                ✓
+              </span>
+            )}
+            {wsConnected && <span className="text-xs text-green-400">WS</span>}
           </div>
         </div>
         <div className="flex-1 overflow-hidden">

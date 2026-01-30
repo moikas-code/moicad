@@ -4,6 +4,8 @@
 
 const STORAGE_KEY = 'moicad_files';
 const CURRENT_FILE_KEY = 'moicad_current_file';
+const AUTO_SAVE_KEY = 'moicad_autosave';
+const SETTINGS_KEY = 'moicad_settings';
 
 export interface SavedFile {
   id: string;
@@ -187,5 +189,107 @@ export function loadLayoutPrefs(): LayoutPrefs | null {
   } catch (err) {
     console.error('Failed to load layout prefs', err);
     return null;
+  }
+}
+
+/**
+ * Auto-save code for crash recovery
+ * This is separate from regular file saving - it preserves unsaved changes
+ */
+export interface AutoSaveData {
+  code: string;
+  timestamp: number;
+}
+
+export function saveAutoSave(code: string): void {
+  try {
+    const data: AutoSaveData = {
+      code,
+      timestamp: Date.now(),
+    };
+    localStorage.setItem(AUTO_SAVE_KEY, JSON.stringify(data));
+  } catch (error) {
+    console.error('Failed to auto-save:', error);
+  }
+}
+
+export function loadAutoSave(): AutoSaveData | null {
+  try {
+    const raw = localStorage.getItem(AUTO_SAVE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as AutoSaveData;
+    
+    // Check if auto-save is too old (older than 7 days)
+    const oneWeek = 7 * 24 * 60 * 60 * 1000;
+    if (Date.now() - parsed.timestamp > oneWeek) {
+      clearAutoSave();
+      return null;
+    }
+    
+    return parsed;
+  } catch (error) {
+    console.error('Failed to load auto-save:', error);
+    return null;
+  }
+}
+
+export function clearAutoSave(): void {
+  try {
+    localStorage.removeItem(AUTO_SAVE_KEY);
+  } catch (error) {
+    console.error('Failed to clear auto-save:', error);
+  }
+}
+
+/**
+ * User settings
+ */
+export interface UserSettings {
+  timeout: number; // milliseconds
+  autoSave: boolean;
+  autoSaveDelay: number;
+  progressDetail: 'simple' | 'detailed';
+  lastModified: number;
+}
+
+export const DEFAULT_SETTINGS: UserSettings = {
+  timeout: 60000, // 60 seconds
+  autoSave: true,
+  autoSaveDelay: 500, // 500ms
+  progressDetail: 'simple',
+  lastModified: Date.now(),
+};
+
+export function saveSettings(settings: Partial<UserSettings>): void {
+  try {
+    const current = loadSettings();
+    const merged: UserSettings = {
+      ...current,
+      ...settings,
+      lastModified: Date.now(),
+    };
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(merged));
+  } catch (error) {
+    console.error('Failed to save settings:', error);
+  }
+}
+
+export function loadSettings(): UserSettings {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (!raw) return DEFAULT_SETTINGS;
+    const parsed = JSON.parse(raw) as UserSettings;
+    return { ...DEFAULT_SETTINGS, ...parsed };
+  } catch (error) {
+    console.error('Failed to load settings:', error);
+    return DEFAULT_SETTINGS;
+  }
+}
+
+export function resetSettings(): void {
+  try {
+    localStorage.removeItem(SETTINGS_KEY);
+  } catch (error) {
+    console.error('Failed to reset settings:', error);
   }
 }

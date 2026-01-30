@@ -40,7 +40,7 @@ import {
  * Runtime options for JavaScript evaluation
  */
 export interface RuntimeOptions {
-  /** Execution timeout in milliseconds (default: 30000) */
+  /** Execution timeout in milliseconds (default: 60000) */
   timeout?: number;
   /** Memory limit in bytes (default: 1GB) */
   memoryLimit?: number;
@@ -63,7 +63,7 @@ export async function evaluateJavaScript(
 ): Promise<EvaluateResult> {
   const startTime = performance.now();
   const {
-    timeout = 30000,
+    timeout = 60000,
     memoryLimit = 1024 * 1024 * 1024, // 1GB
     allowedModules = ['@moicad/sdk', 'moicad']
   } = options;

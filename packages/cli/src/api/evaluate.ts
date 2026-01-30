@@ -13,6 +13,8 @@ interface EvaluateRequest {
   code: string;
   language?: 'openscad' | 'javascript';
   t?: number; // Animation parameter (0-1)
+  timeout?: number; // Timeout in milliseconds (default: 60000)
+  progressDetail?: 'simple' | 'detailed'; // Progress update detail level
 }
 
 interface EvaluateResponse {
@@ -58,7 +60,13 @@ export async function handleEvaluate(req: Request): Promise<Response> {
   try {
     // Parse request body
     const body: EvaluateRequest = await req.json();
-    const { code, language = 'openscad', t } = body;
+    const { 
+      code, 
+      language = 'openscad', 
+      t,
+      timeout = 60000, // Default 60 seconds
+      progressDetail = 'simple'
+    } = body;
 
     if (!code || typeof code !== 'string') {
       return jsonResponse({
@@ -69,14 +77,20 @@ export async function handleEvaluate(req: Request): Promise<Response> {
       }, 400);
     }
 
+    // Validate timeout (min: 5000ms, max: 300000ms / 5 minutes)
+    const validatedTimeout = Math.max(5000, Math.min(300000, timeout));
+
     // Load SDK if not already loaded
     await loadSDK();
 
     let result: any;
 
     if (language === 'javascript') {
-      // JavaScript evaluation
-      result = await evaluateJavaScript(code, { t });
+      // JavaScript evaluation with configurable timeout
+      result = await evaluateJavaScript(code, { 
+        t,
+        timeout: validatedTimeout
+      });
     } else {
       // OpenSCAD evaluation
       const parseResult = parseOpenSCAD(code);
@@ -90,7 +104,11 @@ export async function handleEvaluate(req: Request): Promise<Response> {
         });
       }
 
-      result = await evaluateAST(parseResult.ast, { t });
+      // Pass timeout to OpenSCAD evaluation as well
+      result = await evaluateAST(parseResult.ast, { 
+        t,
+        timeout: validatedTimeout
+      });
     }
 
     const executionTime = performance.now() - startTime;
@@ -106,12 +124,20 @@ export async function handleEvaluate(req: Request): Promise<Response> {
     const message = error instanceof Error ? error.message : 'Unknown evaluation error';
     logger.error(`Evaluation error: ${message}`);
 
+    // Check if it's a timeout error
+    const isTimeout = message.toLowerCase().includes('timeout');
+    
     return jsonResponse({
       success: false,
       geometry: null,
-      errors: [{ message }],
+      errors: [{ 
+        message,
+        ...(isTimeout && { 
+          suggestion: 'Try simplifying your code or increasing the timeout in settings'
+        })
+      }],
       executionTime: performance.now() - startTime,
-    }, 500);
+    }, isTimeout ? 408 : 500); // 408 Request Timeout for timeouts
   }
 }
 
