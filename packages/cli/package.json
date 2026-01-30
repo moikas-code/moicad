@@ -14,8 +14,8 @@
   ],
   "scripts": {
     "build:gui-bundle": "vite build",
-    "build:copy-wasm": "node scripts/copy-wasm.js",
-    "build": "bun run build:gui-bundle && bun build src/index.ts --target=bun --outdir=dist && chmod +x dist/index.js && bun run build:copy-wasm",
+    "build:copy-assets": "node scripts/copy-assets.js",
+    "build": "bun run build:gui-bundle && bun build src/index.ts --target=bun --outdir=dist && chmod +x dist/index.js && bun run build:copy-assets",
     "dev": "bun src/index.ts",
     "clean": "rm -rf dist static/gui-bundle.js",
     "dev:server": "bun src/server.ts",

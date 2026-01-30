@@ -112,6 +112,45 @@ export function createServer(options: ServerOptions = {}) {
           return new Response('WASM file not found', { status: 404 });
         }
 
+        // Serve CSG Worker file for Web Worker support
+        if (pathname === '/csg-worker.js') {
+          const path = await import('path');
+          const { existsSync } = await import('fs');
+
+          // Search paths for csg-worker.js
+          const searchPaths = [
+            // Bundled in CLI dist/ (npm package)
+            path.join(import.meta.dir, '../csg-worker.js'),
+            // In static folder
+            path.join(import.meta.dir, '../static/csg-worker.js'),
+            // SDK dist (in node_modules)
+            path.join(import.meta.dir, '../../node_modules/@moicad/sdk/dist/workers/csg-worker.js'),
+            // In parent node_modules (monorepo)
+            path.join(import.meta.dir, '../../../node_modules/@moicad/sdk/dist/workers/csg-worker.js'),
+          ];
+
+          for (const workerPath of searchPaths) {
+            if (existsSync(workerPath)) {
+              try {
+                const file = Bun.file(workerPath);
+                logger.success(`Serving CSG Worker from: ${workerPath}`);
+                return new Response(file, {
+                  headers: {
+                    'Content-Type': 'application/javascript',
+                    'Cache-Control': 'public, max-age=31536000',
+                    ...corsHeaders
+                  }
+                });
+              } catch (e) {
+                logger.error(`Failed to serve worker from ${workerPath}: ${e}`);
+              }
+            }
+          }
+
+          logger.error(`CSG Worker file not found. Searched multiple locations`);
+          return new Response('CSG Worker file not found', { status: 404 });
+        }
+
         if (pathname === '/health' || pathname === '/api/health') {
           return new Response(JSON.stringify({ status: 'ok', timestamp: Date.now() }), {
             status: 200,
