@@ -1,6 +1,6 @@
 {
   "name": "@moicad/cli",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "type": "module",
   "description": "Modern JavaScript CAD Platform - CLI tool",
   "bin": {
@@ -26,8 +26,8 @@
     "access": "public"
   },
   "dependencies": {
-    "@moicad/sdk": "^0.1.13",
-    "@moicad/gui": "^0.1.5",
+    "@moicad/sdk": "^0.1.14",
+    "@moicad/gui": "^0.1.6",
     "manifold-3d": "^3.3.2",
     "open": "^10.0.0",
     "react": "^19.2.4",
